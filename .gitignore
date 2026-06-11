@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+dist/
+build/
+*.egg-info/
+.eggs/
+.tox/
+.pytest_cache/
+.mypy_cache/
+
+# Django
+backend/db.sqlite3
+backend/media/
+backend/static/
+*.log
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
