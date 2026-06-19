@@ -17,6 +17,9 @@ build/
 backend/db.sqlite3
 backend/media/
 backend/static/
+backend/venv/
+venv/
+.venv/
 *.log
 
 # Node / React
