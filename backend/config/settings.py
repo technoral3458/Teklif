@@ -1,13 +1,24 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-memkap-dev-key-change-in-production"
+# Üretimde DJANGO_SECRET_KEY ortam değişkeni ile gerçek bir anahtar verin.
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-memkap-dev-key-change-in-production",
+)
 
-DEBUG = True
+# Üretimde: DJANGO_DEBUG=False
+DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() not in ("false", "0", "no")
 
-ALLOWED_HOSTS = ["*"]
+# Üretimde: DJANGO_ALLOWED_HOSTS="kapak.ersanmakina.net,www.kapak.ersanmakina.net"
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+
+# nginx arkasında HTTPS için CSRF güvenilir kaynakları (virgülle ayrılmış)
+_csrf = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = [o for o in _csrf.split(",") if o]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -86,4 +97,11 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Üretimde HTTPS arkasında güvenli çerez/proxy ayarları
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
