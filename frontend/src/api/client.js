@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: "http://localhost:8000/api" });
+// Göreli yol: geliştirmede Vite proxy, canlıda nginx /api'yi backend'e iletir.
+// Böylece hem localhost hem de gerçek alan adı/IP üzerinde çalışır.
+const api = axios.create({ baseURL: "/api" });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
@@ -15,7 +17,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem("refresh_token");
       if (refresh) {
         try {
-          const res = await axios.post("http://localhost:8000/api/auth/refresh/", { refresh });
+          const res = await axios.post("/api/auth/refresh/", { refresh });
           localStorage.setItem("access_token", res.data.access);
           err.config.headers.Authorization = `Bearer ${res.data.access}`;
           return api(err.config);
