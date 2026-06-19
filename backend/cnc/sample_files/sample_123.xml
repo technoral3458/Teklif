@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<Root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Application="IngoMachine" ApplicationVersion="2.0">
+  <Project Name="123">
+    <Panels>
+      <Panel IsProduce="true" ID="202606192921" Type="1" MachiningPoint="1" OrderNo="500-300-44" ProductionName="" ProdutionNo="" OrderDate="2026-06-19" Designer="" clerk="202606192921" OrderDescription="" ContractNo="" DeliveryDate="2026-06-19" Customer="" AssembleAdress="" Name="500-300-44" Thickness="18" Qty="0" Material="-" CutLength="500" CutWidth="300" Length="500" Width="300" Grain="" EBL1="0" EBL2="0" EBW1="0" EBW2="0" Face5ID="202606192921" Face6ID="" Memo="||">
+        <Machines>
+          <Machining IsGenCode="2" X="33" Y="250" Z="9" Face="5" Depth="13" Diameter="15" ID="100001" Type="2" />
+          <Machining IsGenCode="2" X="33" Y="50" Z="9" Face="5" Depth="13" Diameter="15" ID="100002" Type="2" />
+          <Machining IsGenCode="2" X="467" Y="250" Z="9" Face="5" Depth="13" Diameter="15" ID="100003" Type="2" />
+          <Machining IsGenCode="2" X="467" Y="50" Z="9" Face="5" Depth="13" Diameter="15" ID="100004" Type="2" />
+          <Machining IsGenCode="2" X="500" Y="250" Z="9" Face="3" Depth="33" Diameter="8" ID="100005" Type="1" />
+          <Machining IsGenCode="2" X="500" Y="50" Z="9" Face="3" Depth="33" Diameter="8" ID="100006" Type="1" />
+          <Machining IsGenCode="2" X="0" Y="250" Z="9" Face="4" Depth="33" Diameter="8" ID="100007" Type="1" />
+          <Machining IsGenCode="2" X="0" Y="50" Z="9" Face="4" Depth="33" Diameter="8" ID="100008" Type="1" />
+          <Machining IsGenCode="2" EdgeABThickness="0" X="50" Y="9" StartZ="0" Depth="6" ZDepth="0" ToolOffset="" ToolName="xxd10" Face="6" Type="3" ID="100009">
+            <Lines>
+              <Line Angle="0" UnitTag="铣型" EndX="400" EndY="9" LineID="1" />
+            </Lines>
+          </Machining>
+          <Machining IsGenCode="2" EdgeABThickness="0" X="50" Y="9" StartZ="0" Depth="6" ZDepth="0" ToolOffset="" ToolName="xxd10" Face="6" Type="3" ID="100010">
+            <Lines>
+              <Line Angle="0" UnitTag="铣型" EndX="400" EndY="9" LineID="1" />
+            </Lines>
+          </Machining>
+          <Machining IsGenCode="2" EdgeABThickness="0" X="0" Y="9" StartZ="0" Depth="6" ZDepth="0" ToolOffset="" ToolName="xxd10" Face="6" Type="3" ID="100011">
+            <Lines>
+              <Line Angle="0" UnitTag="铣型" EndX="400" EndY="9" LineID="1" />
+            </Lines>
+          </Machining>
+          <Machining IsGenCode="2" EdgeABThickness="0" X="0" Y="9" StartZ="0" Depth="6" ZDepth="0" ToolOffset="" ToolName="xxd10" Face="6" Type="3" ID="100012">
+            <Lines>
+              <Line Angle="0" UnitTag="铣型" EndX="500" EndY="9" LineID="1" />
+            </Lines>
+          </Machining>
+        </Machines>
+        <EdgeGroup X1="0" Y1="0">
+          <Edge Face="1" Thickness="0" Pre_Milling="0" X="0" Y="0" CentralAngle="0" />
+          <Edge Face="2" Thickness="0" Pre_Milling="0" X="0" Y="0" CentralAngle="0" />
+          <Edge Face="3" Thickness="0" Pre_Milling="0" X="0" Y="0" CentralAngle="0" />
+          <Edge Face="4" Thickness="0" Pre_Milling="0" X="0" Y="0" CentralAngle="0" />
+        </EdgeGroup>
+      </Panel>
+    </Panels>
+  </Project>
+</Root>
