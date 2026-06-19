@@ -33,6 +33,8 @@ mkdir -p /opt/teklif
 if [ ! -d "$APP_DIR/.git" ]; then
     git clone "$REPO_URL" "$APP_DIR"
 fi
+# Klasör sahipliği farklıysa git'in "dubious ownership" hatasını önle
+git config --global --add safe.directory "$APP_DIR"
 cd "$APP_DIR"
 git fetch origin
 git checkout "$BRANCH"
