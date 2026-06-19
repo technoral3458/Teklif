@@ -24,6 +24,7 @@ const MENUS = {
     { label: "CNC Kuyruğu", path: "/cnc/queue", icon: "🔧" },
     { label: "Nesting İşleri", path: "/cnc/jobs", icon: "📐" },
     { label: "Yeni Nesting", path: "/cnc/new-job", icon: "➕" },
+    { label: "Delme Panelleri", path: "/cnc/drill-panels", icon: "🕳️" },
   ],
   admin: [
     { label: "Kullanıcılar", path: "/admin/users", icon: "👥" },
@@ -31,6 +32,7 @@ const MENUS = {
     { label: "Renkler", path: "/admin/colors", icon: "🎨" },
     { label: "Tüm Siparişler", path: "/sales/all-orders", icon: "📋" },
     { label: "CNC Kuyruğu", path: "/cnc/queue", icon: "🔧" },
+    { label: "Delme Panelleri", path: "/cnc/drill-panels", icon: "🕳️" },
   ],
 };
 
