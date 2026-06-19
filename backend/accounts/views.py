@@ -1,8 +1,14 @@
 from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import User
-from .serializers import UserSerializer, UserCreateSerializer
+from .serializers import UserSerializer, UserCreateSerializer, CustomTokenSerializer
+
+
+class LoginView(TokenObtainPairView):
+    """Giriş yanıtına kullanıcı bilgisini (user) de ekler."""
+    serializer_class = CustomTokenSerializer
 
 
 class IsAdminUser(permissions.BasePermission):
