@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import NestingJob, NestingItem
+from .models import NestingJob, NestingItem, DrillPanel
 from orders.serializers import OrderSerializer
 
 
@@ -29,3 +29,26 @@ class NestingJobCreateSerializer(serializers.ModelSerializer):
             "tool_diameter", "feed_rate", "spindle_speed", "cut_depth",
             "order_ids",
         ]
+
+
+class DrillPanelListSerializer(serializers.ModelSerializer):
+    """Liste görünümü: ağır JSON alanları olmadan özet."""
+    operation_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = DrillPanel
+        fields = [
+            "id", "name", "project_name", "order_no",
+            "length", "width", "thickness", "material",
+            "source", "operation_count", "created_at", "updated_at",
+        ]
+
+
+class DrillPanelSerializer(serializers.ModelSerializer):
+    """Detay/düzenleme: operasyon JSON'ı dahil."""
+    operation_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = DrillPanel
+        fields = "__all__"
+        read_only_fields = ["created_by", "created_at", "updated_at", "source", "application", "application_version"]

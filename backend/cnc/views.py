@@ -1,12 +1,17 @@
 import io
 from django.http import HttpResponse
 from rest_framework import generics, permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
-from .models import NestingJob, NestingItem
-from .serializers import NestingJobSerializer, NestingJobCreateSerializer
+from .models import NestingJob, NestingItem, DrillPanel
+from .serializers import (
+    NestingJobSerializer, NestingJobCreateSerializer,
+    DrillPanelSerializer, DrillPanelListSerializer,
+)
 from .nesting import Piece, nest_multiple_plates
 from .gcode import generate_gcode
+from . import dwd
 from orders.models import Order, OrderItem
 from accounts.models import User
 
@@ -156,6 +161,116 @@ def download_gcode(request, pk):
 
     filename = f"NC_{job.name}_{job.id}.nc"
     response = HttpResponse(gcode, content_type="text/plain")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Altı kenar delme — DrillPanel (IngoMachine/DWD)
+# ---------------------------------------------------------------------------
+
+def _safe_filename(name: str) -> str:
+    keep = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+    return keep.strip("_") or "panel"
+
+
+class DrillPanelListView(generics.ListAPIView):
+    queryset = DrillPanel.objects.all()
+    serializer_class = DrillPanelListSerializer
+    permission_classes = [IsCNCOrAdmin]
+
+
+class DrillPanelDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = DrillPanel.objects.all()
+    serializer_class = DrillPanelSerializer
+    permission_classes = [IsCNCOrAdmin]
+
+
+@api_view(["POST"])
+@permission_classes([IsCNCOrAdmin])
+@parser_classes([MultiPartParser, FormParser])
+def import_drill_panels(request):
+    """
+    DWD/IngoMachine .xml dosyasını içe aktarır.
+    Dosyadaki her Panel için bir DrillPanel kaydı oluşturur.
+    """
+    upload = request.FILES.get("file")
+    if upload is None:
+        return Response({"error": "Dosya gönderilmedi (alan adı: file)"}, status=400)
+
+    try:
+        xml_text = upload.read().decode("utf-8")
+    except UnicodeDecodeError:
+        return Response({"error": "Dosya UTF-8 metni olarak okunamadı"}, status=400)
+
+    try:
+        project = dwd.parse(xml_text)
+    except Exception as exc:  # noqa: BLE001 - kullanıcıya hatayı bildir
+        return Response({"error": f"XML çözümlenemedi: {exc}"}, status=400)
+
+    if not project.panels:
+        return Response({"error": "Dosyada panel bulunamadı"}, status=400)
+
+    created = []
+    for panel in project.panels:
+        obj = DrillPanel.from_dwd_panel(panel, project, created_by=request.user)
+        obj.save()
+        created.append(obj)
+
+    return Response(
+        DrillPanelListSerializer(created, many=True).data,
+        status=201,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsCNCOrAdmin])
+@parser_classes([JSONParser])
+def create_drill_panel(request):
+    """Sıfırdan boş bir delme paneli oluşturur."""
+    serializer = DrillPanelSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    panel = serializer.save(created_by=request.user, source=DrillPanel.SOURCE_MANUAL)
+    return Response(DrillPanelSerializer(panel).data, status=201)
+
+
+@api_view(["GET"])
+@permission_classes([IsCNCOrAdmin])
+def export_drill_panel(request, pk):
+    """Tek paneli DWD .xml olarak indirir."""
+    try:
+        panel = DrillPanel.objects.get(pk=pk)
+    except DrillPanel.DoesNotExist:
+        return Response({"error": "Panel bulunamadı"}, status=404)
+
+    panel.sync_dimensions_to_attrib()
+    xml_text = panel.to_xml()
+
+    filename = f"{_safe_filename(panel.name)}.xml"
+    response = HttpResponse(xml_text, content_type="application/xml")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([IsCNCOrAdmin])
+@parser_classes([JSONParser])
+def export_drill_panels(request):
+    """Birden çok paneli tek DWD projesi olarak dışa aktarır (body: {"ids": [...]})."""
+    ids = request.data.get("ids") or []
+    panels = list(DrillPanel.objects.filter(pk__in=ids))
+    if not panels:
+        return Response({"error": "Panel bulunamadı"}, status=400)
+
+    project = dwd.Project(name=request.data.get("project_name", "Teklif"))
+    for p in panels:
+        p.sync_dimensions_to_attrib()
+        project.panels.append(p.to_dwd_panel())
+
+    xml_text = dwd.serialize(project)
+    filename = f"{_safe_filename(project.name)}.xml"
+    response = HttpResponse(xml_text, content_type="application/xml")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 

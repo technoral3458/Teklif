@@ -69,6 +69,13 @@ class Line:
     """Type 3 (freze) operasyonunun yol parçası."""
     attrib: Dict[str, str] = field(default_factory=dict)
 
+    def to_dict(self) -> dict:
+        return {"attrib": dict(self.attrib)}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Line":
+        return cls(attrib=dict(data.get("attrib", {})))
+
     @property
     def end_x(self) -> float:
         return _num(self.attrib, "EndX")
@@ -91,6 +98,16 @@ class Machining:
     """Tek bir makine operasyonu (delik / kanal)."""
     attrib: Dict[str, str] = field(default_factory=dict)
     lines: List[Line] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {"attrib": dict(self.attrib), "lines": [ln.to_dict() for ln in self.lines]}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Machining":
+        return cls(
+            attrib=dict(data.get("attrib", {})),
+            lines=[Line.from_dict(ln) for ln in data.get("lines", [])],
+        )
 
     # --- tipli erişimciler ---
     @property
@@ -170,6 +187,23 @@ class Panel:
     machinings: List[Machining] = field(default_factory=list)
     edge_group_attrib: Dict[str, str] = field(default_factory=dict)
     edges: List[Edge] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "attrib": dict(self.attrib),
+            "machinings": [m.to_dict() for m in self.machinings],
+            "edge_group_attrib": dict(self.edge_group_attrib),
+            "edges": [{"attrib": dict(e.attrib)} for e in self.edges],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Panel":
+        return cls(
+            attrib=dict(data.get("attrib", {})),
+            machinings=[Machining.from_dict(m) for m in data.get("machinings", [])],
+            edge_group_attrib=dict(data.get("edge_group_attrib", {})),
+            edges=[Edge(attrib=dict(e.get("attrib", {}))) for e in data.get("edges", [])],
+        )
 
     @property
     def name(self) -> str:

@@ -1,8 +1,11 @@
 import os
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework.test import APIClient
 
 from . import dwd
+from .models import DrillPanel
 
 SAMPLE_PATH = os.path.join(os.path.dirname(__file__), "sample_files", "sample_123.xml")
 
@@ -111,3 +114,113 @@ class DwdBuilderTests(TestCase):
         self.assertEqual(reparsed.summary(),
                          {"panels": 1, "drill_v": 1, "drill_h": 1, "milling": 1})
         self.assertEqual(reparsed.panels[0].machinings[2].lines[0].end_x, 600)
+
+
+class DrillPanelModelTests(TestCase):
+    """Model ↔ dwd köprüsü."""
+
+    def test_from_dwd_and_back_to_xml(self):
+        project = dwd.parse_file(SAMPLE_PATH)
+        User = get_user_model()
+        user = User.objects.create_user("op", role=User.ROLE_CNC)
+
+        panel_obj = DrillPanel.from_dwd_panel(project.panels[0], project, created_by=user)
+        panel_obj.save()
+
+        self.assertEqual(panel_obj.length, 500)
+        self.assertEqual(panel_obj.width, 300)
+        self.assertEqual(panel_obj.operation_count, 12)
+
+        # XML'e geri çevir → tekrar oku → operasyon sayısı korunmalı
+        reparsed = dwd.parse(panel_obj.to_xml())
+        self.assertEqual(reparsed.summary(),
+                         {"panels": 1, "drill_v": 4, "drill_h": 4, "milling": 4})
+
+
+class DrillPanelAPITests(TestCase):
+    """İçe aktar → düzenle → dışa aktar uç noktaları."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user("cnc", role=User.ROLE_CNC)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def _import_sample(self):
+        with open(SAMPLE_PATH, "rb") as fh:
+            return self.client.post("/api/cnc/drill-panels/import/",
+                                    {"file": fh}, format="multipart")
+
+    def test_import_creates_panel(self):
+        resp = self._import_sample()
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]["operation_count"], 12)
+        self.assertEqual(DrillPanel.objects.count(), 1)
+
+    def test_import_requires_file(self):
+        resp = self.client.post("/api/cnc/drill-panels/import/", {}, format="multipart")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_import_rejects_bad_xml(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        bad = SimpleUploadedFile("x.xml", b"<not><valid", content_type="application/xml")
+        resp = self.client.post("/api/cnc/drill-panels/import/",
+                                {"file": bad}, format="multipart")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_list_and_detail(self):
+        self._import_sample()
+        panel_id = DrillPanel.objects.first().id
+
+        lst = self.client.get("/api/cnc/drill-panels/")
+        self.assertEqual(lst.status_code, 200)
+        self.assertEqual(len(lst.data), 1)
+
+        detail = self.client.get(f"/api/cnc/drill-panels/{panel_id}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(len(detail.data["machinings"]), 12)
+
+    def test_edit_dimensions(self):
+        self._import_sample()
+        panel = DrillPanel.objects.first()
+        resp = self.client.patch(f"/api/cnc/drill-panels/{panel.id}/",
+                                 {"length": 550}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        panel.refresh_from_db()
+        self.assertEqual(float(panel.length), 550)
+
+    def test_export_reflects_edits(self):
+        self._import_sample()
+        panel = DrillPanel.objects.first()
+        self.client.patch(f"/api/cnc/drill-panels/{panel.id}/",
+                          {"length": 550, "name": "DUZENLI"}, format="json")
+
+        resp = self.client.get(f"/api/cnc/drill-panels/{panel.id}/export/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("attachment", resp["Content-Disposition"])
+        reparsed = dwd.parse(resp.content.decode("utf-8"))
+        self.assertEqual(reparsed.panels[0].length, 550)
+        self.assertEqual(reparsed.panels[0].name, "DUZENLI")
+
+    def test_create_blank_panel(self):
+        resp = self.client.post("/api/cnc/drill-panels/create/", {
+            "name": "YENI", "length": 600, "width": 400, "thickness": 18,
+        }, format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["source"], DrillPanel.SOURCE_MANUAL)
+
+    def test_export_multiple(self):
+        self._import_sample()
+        self._import_sample()
+        ids = list(DrillPanel.objects.values_list("id", flat=True))
+        resp = self.client.post("/api/cnc/drill-panels/export/",
+                                {"ids": ids, "project_name": "TOPLU"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        reparsed = dwd.parse(resp.content.decode("utf-8"))
+        self.assertEqual(len(reparsed.panels), 2)
+
+    def test_unauthenticated_blocked(self):
+        client = APIClient()
+        resp = client.get("/api/cnc/drill-panels/")
+        self.assertIn(resp.status_code, (401, 403))
