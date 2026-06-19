@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Maliyet Hesaplayıcı{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+  <!-- Kur Kartı -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-bold mb-3 flex items-center gap-2">💱 Döviz Kurları (TL)</h2>
+    <form method="post" action="/membrane/rates/save" class="space-y-2">
+      {% for code in ['USD','EUR','GBP'] %}
+      <div class="flex items-center gap-2">
+        <label class="w-12 font-mono">{{ code }}</label>
+        <input name="{{ code|lower }}" type="number" step="0.0001" value="{{ rates.get(code, 1) }}"
+               class="border rounded px-2 py-1 flex-1">
+      </div>
+      {% endfor %}
+      <div class="flex gap-2 pt-2">
+        <button class="bg-slate-800 text-white px-3 py-1.5 rounded flex-1">Kaydet</button>
+        <button formaction="/membrane/rates/fetch" class="bg-emerald-600 text-white px-3 py-1.5 rounded flex-1">TCMB'den Çek</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Maliyet Özeti -->
+  <div class="bg-white rounded-xl shadow p-4 md:col-span-2 flex flex-col justify-center">
+    <h2 class="font-bold mb-2">📊 Toplam m² Maliyeti</h2>
+    <div class="text-4xl font-extrabold text-emerald-700">{{ "%.2f"|format(total_m2) }} <span class="text-lg text-slate-400">TL/m²</span></div>
+    <p class="text-sm text-slate-500 mt-1">Tüm malzemelerin m² başına toplamı</p>
+  </div>
+</div>
+
+<!-- Malzemeler -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+  <div class="flex justify-between items-center mb-3">
+    <h2 class="font-bold">🧱 Malzemeler</h2>
+    <button onclick="openMaterial()" class="bg-blue-600 text-white px-3 py-1.5 rounded">+ Malzeme Ekle</button>
+  </div>
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500">
+      <th class="py-2">Ad</th><th>Tip</th><th>Fiyat</th><th>Birim</th><th>Levha (cm)</th><th>m² Maliyet</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for m in materials %}
+      <tr class="border-b hover:bg-slate-50">
+        <td class="py-2 font-medium">{{ m.name }}</td>
+        <td>{{ m.material_type }}</td>
+        <td>{{ "%.2f"|format(m.price) }} {{ m.currency }}</td>
+        <td>{{ m.unit }}</td>
+        <td>{% if m.unit=='plaka' %}{{ m.sheet_width }}×{{ m.sheet_height }}{% else %}-{% endif %}</td>
+        <td class="font-semibold text-emerald-700">{{ "%.2f"|format(m.cost_per_m2) }} TL</td>
+        <td class="text-right whitespace-nowrap">
+          <button onclick='openMaterial({{ m|tojson }})' class="text-blue-600 px-1">Düzenle</button>
+          <form method="post" action="/membrane/material/delete" class="inline" onsubmit="return confirm('Silinsin mi?')">
+            <input type="hidden" name="id" value="{{ m.id }}">
+            <button class="text-red-600 px-1">Sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="py-4 text-center text-slate-400">Henüz malzeme yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- Listeler -->
+<div class="bg-white rounded-xl shadow p-4">
+  <div class="flex justify-between items-center mb-3">
+    <h2 class="font-bold">📋 Ölçü Listeleri</h2>
+    <button onclick="openList()" class="bg-blue-600 text-white px-3 py-1.5 rounded">+ Yeni Liste</button>
+  </div>
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Ad</th><th>Kapı</th><th>Toplam Maliyet</th><th></th></tr></thead>
+    <tbody>
+      {% for l in lists %}
+      <tr class="border-b hover:bg-slate-50">
+        <td class="py-2 font-medium">{{ l.name }}</td>
+        <td>{{ l.door_count }} adet</td>
+        <td class="font-semibold text-emerald-700">{{ "%.2f"|format(l.total_cost) }} TL</td>
+        <td class="text-right whitespace-nowrap">
+          <a href="/membrane/list/{{ l.id }}" class="text-blue-600 px-1">Görüntüle</a>
+          <form method="post" action="/membrane/list/delete" class="inline" onsubmit="return confirm('Liste silinsin mi?')">
+            <input type="hidden" name="id" value="{{ l.id }}">
+            <button class="text-red-600 px-1">Sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="py-4 text-center text-slate-400">Henüz liste yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Malzeme Modal -->
+<div id="materialModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-3">Malzeme</h3>
+    <form method="post" action="/membrane/material/save" class="space-y-2">
+      <input type="hidden" name="id" id="mat_id" value="0">
+      <input name="name" id="mat_name" placeholder="Ad" required class="border rounded px-2 py-1 w-full">
+      <div class="grid grid-cols-2 gap-2">
+        <select name="material_type" id="mat_type" class="border rounded px-2 py-1">
+          <option value="mdf">MDF</option><option value="foil">Folyo</option>
+          <option value="adhesive">Tutkal</option><option value="other" selected>Diğer</option>
+        </select>
+        <select name="unit" id="mat_unit" class="border rounded px-2 py-1" onchange="toggleSheet()">
+          <option value="m2">m²</option><option value="plaka">Plaka</option>
+          <option value="kg">kg</option><option value="lt">lt</option><option value="adet">adet</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <input name="price" id="mat_price" type="number" step="0.01" placeholder="Fiyat" class="border rounded px-2 py-1">
+        <select name="currency" id="mat_currency" class="border rounded px-2 py-1">
+          <option>TRY</option><option>USD</option><option>EUR</option><option>GBP</option>
+        </select>
+      </div>
+      <div id="sheetFields" class="grid grid-cols-2 gap-2 hidden">
+        <input name="sheet_width" id="mat_sw" type="number" step="0.1" placeholder="Levha En (cm)" class="border rounded px-2 py-1">
+        <input name="sheet_height" id="mat_sh" type="number" step="0.1" placeholder="Levha Boy (cm)" class="border rounded px-2 py-1">
+      </div>
+      <input name="usage_per_m2" id="mat_usage" type="number" step="0.001" placeholder="m² başına kullanım (kg/lt/adet)" class="border rounded px-2 py-1 w-full">
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal('materialModal')" class="flex-1 border rounded py-1.5">İptal</button>
+        <button class="flex-1 bg-blue-600 text-white rounded py-1.5">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Liste Modal -->
+<div id="listModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-3">Yeni Liste</h3>
+    <form method="post" action="/membrane/list/save" class="space-y-2">
+      <input name="name" placeholder="Liste adı" required class="border rounded px-2 py-1 w-full">
+      <input name="notes" placeholder="Not (opsiyonel)" class="border rounded px-2 py-1 w-full">
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal('listModal')" class="flex-1 border rounded py-1.5">İptal</button>
+        <button class="flex-1 bg-blue-600 text-white rounded py-1.5">Oluştur</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSheet(){
+  document.getElementById('sheetFields').classList.toggle('hidden', document.getElementById('mat_unit').value !== 'plaka');
+}
+function openMaterial(m){
+  m = m || {};
+  mat_id.value = m.id || 0; mat_name.value = m.name || '';
+  mat_type.value = m.material_type || 'other'; mat_unit.value = m.unit || 'm2';
+  mat_price.value = m.price || 0; mat_currency.value = m.currency || 'TRY';
+  mat_sw.value = m.sheet_width || 0; mat_sh.value = m.sheet_height || 0;
+  mat_usage.value = m.usage_per_m2 || 1;
+  toggleSheet(); openModal('materialModal');
+}
+function openList(){ openModal('listModal'); }
+</script>
+{% endblock %}

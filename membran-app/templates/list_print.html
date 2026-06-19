@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ list.name }} - Yazdır</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8 text-slate-800" onload="window.print()">
+  <div class="flex justify-between items-end border-b-2 border-slate-800 pb-2 mb-4">
+    <h1 class="text-2xl font-bold">{{ list.name }}</h1>
+    <div class="text-right text-sm">
+      <div>Toplam: <b>{{ "%.2f"|format(total_cost) }} TL</b></div>
+      <div>Alan: {{ "%.3f"|format(total_area) }} m²</div>
+    </div>
+  </div>
+  <table class="w-full text-sm border-collapse">
+    <thead><tr class="border-b-2 text-left">
+      <th class="py-1">#</th><th>Ad</th><th>En</th><th>Boy</th><th>Alan m²</th><th>Adet</th><th class="text-right">Toplam</th>
+    </tr></thead>
+    <tbody>
+      {% for d in doors %}
+      <tr class="border-b">
+        <td class="py-1">{{ loop.index }}</td><td>{{ d.door_name or '-' }}</td>
+        <td>{{ d.width_mm }}</td><td>{{ d.height_mm }}</td>
+        <td>{{ "%.3f"|format(d.area_m2) }}</td><td>{{ d.quantity }}</td>
+        <td class="text-right">{{ "%.2f"|format(d.total_cost) }} TL</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

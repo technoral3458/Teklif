@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}{{ model.name }} - Editör{% endblock %}
+{% block content %}
+<a href="/membrane/caps" class="text-blue-600 text-sm">← Modeller</a>
+<div class="grid lg:grid-cols-3 gap-4 mt-2">
+
+  <!-- SOL: Model bilgisi -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-bold mb-3">⚙️ Model</h2>
+    <form method="post" action="/membrane/caps/save" class="space-y-2 text-sm">
+      <input type="hidden" name="id" value="{{ model.id }}">
+      <input name="name" value="{{ model.name }}" class="border rounded px-2 py-1 w-full font-medium">
+      <input name="description" value="{{ model.description }}" placeholder="Açıklama" class="border rounded px-2 py-1 w-full">
+      <div class="grid grid-cols-2 gap-2">
+        <label class="text-xs">Alet No<input name="tool_no" type="number" value="{{ model.tool_no }}" class="border rounded px-2 py-1 w-full"></label>
+        <label class="text-xs">Devir<input name="spindle_speed" type="number" value="{{ model.spindle_speed }}" class="border rounded px-2 py-1 w-full"></label>
+        <label class="text-xs">Feed XY<input name="feed_xy" type="number" value="{{ model.feed_xy }}" class="border rounded px-2 py-1 w-full"></label>
+        <label class="text-xs">Feed Z<input name="feed_z" type="number" value="{{ model.feed_z }}" class="border rounded px-2 py-1 w-full"></label>
+        <label class="text-xs">Güvenli Z<input name="safe_z" type="number" step="0.1" value="{{ model.safe_z }}" class="border rounded px-2 py-1 w-full"></label>
+      </div>
+      <label class="text-xs block">Sabitler (JSON)
+        <input name="constants_json" value='{{ model.constants_json }}' class="border rounded px-2 py-1 w-full font-mono text-xs">
+      </label>
+      <button class="bg-slate-800 text-white px-3 py-1.5 rounded w-full">Kaydet</button>
+    </form>
+  </div>
+
+  <!-- ORTA: Operasyonlar -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <div class="flex justify-between items-center mb-3">
+      <h2 class="font-bold">🔧 Operasyonlar</h2>
+      <button onclick="openOp()" class="bg-blue-600 text-white px-2 py-1 rounded text-sm">+ Op</button>
+    </div>
+    <div class="space-y-3">
+      {% for op in ops %}
+      <div class="border rounded-lg p-2">
+        <div class="flex justify-between items-center">
+          <div>
+            <span class="font-medium">{{ op.name or 'Op' }}</span>
+            <span class="text-xs px-1.5 py-0.5 rounded {% if op.op_type=='outer' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">{{ op.op_type }}</span>
+            <span class="text-xs text-slate-400">T{{ op.tool_no }} · {{ op.ref_corner }} · Z{{ op.depth }}</span>
+          </div>
+          <div class="flex gap-1 text-xs">
+            <button onclick='openOp({{ op|tojson }})' class="text-blue-600">düzenle</button>
+            <button onclick="delOp({{ op.id }})" class="text-red-600">sil</button>
+          </div>
+        </div>
+        <table class="w-full text-xs mt-1">
+          {% for mv in moves[op.id] %}
+          <tr class="border-t">
+            <td class="py-0.5 font-mono text-slate-500">{{ mv.move_type }}</td>
+            <td>X:{{ mv.x }} Y:{{ mv.y }}{% if 'arc' in mv.move_type %} C:{{ mv.cx }},{{ mv.cy }} R:{{ mv.r }}{% endif %}</td>
+            <td class="text-right">
+              <button onclick='openMove({{ op.id }}, {{ mv|tojson }})' class="text-blue-600">d</button>
+              <button onclick="delMove({{ mv.id }})" class="text-red-600">x</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        <button onclick="openMove({{ op.id }})" class="text-blue-600 text-xs mt-1">+ hareket</button>
+      </div>
+      {% else %}
+      <p class="text-slate-400 text-sm">Henüz operasyon yok.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- SAĞ: NC + Simülasyon -->
+  <div class="bg-white rounded-xl shadow p-4 lg:sticky lg:top-20 self-start">
+    <h2 class="font-bold mb-2">▶️ NC Üret</h2>
+    <div class="grid grid-cols-3 gap-2 mb-2">
+      <label class="text-xs">W<input id="in_w" type="number" value="400" class="border rounded px-2 py-1 w-full"></label>
+      <label class="text-xs">H<input id="in_h" type="number" value="600" class="border rounded px-2 py-1 w-full"></label>
+      <label class="text-xs">T<input id="in_t" type="number" value="18" class="border rounded px-2 py-1 w-full"></label>
+    </div>
+    <button onclick="genNC({{ model.id }})" class="bg-emerald-600 text-white px-3 py-1.5 rounded w-full mb-2">NC Üret</button>
+    <div class="flex gap-2 text-sm mb-2">
+      <button onclick="tab('nc')" id="tab_nc" class="flex-1 border rounded py-1 bg-slate-100">G-Code</button>
+      <button onclick="tab('sim')" id="tab_sim" class="flex-1 border rounded py-1">Simülasyon</button>
+    </div>
+    <div id="pane_nc">
+      <textarea id="ncOut" rows="14" class="border rounded p-2 w-full font-mono text-xs" readonly></textarea>
+      <div class="flex gap-2 mt-1">
+        <button onclick="copyNC()" class="flex-1 border rounded py-1 text-sm">Kopyala</button>
+        <a id="dlLink" href="#" onclick="dlNC({{ model.id }})" class="flex-1 border rounded py-1 text-sm text-center">İndir (.nc)</a>
+      </div>
+    </div>
+    <div id="pane_sim" class="hidden">
+      <canvas id="simCanvas" width="360" height="300" class="border rounded w-full bg-slate-50"></canvas>
+      <div class="text-xs text-slate-400 mt-1">Gri: hızlı · Mavi: kesim · Kırmızı: yay</div>
+    </div>
+  </div>
+</div>
+
+<!-- Op Modal -->
+<div id="opModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <h3 class="font-bold mb-3">Operasyon</h3>
+    <div class="space-y-2 text-sm">
+      <input type="hidden" id="op_id" value="0">
+      <input id="op_name" placeholder="Op adı" class="border rounded px-2 py-1 w-full">
+      <div class="grid grid-cols-2 gap-2">
+        <select id="op_type" class="border rounded px-2 py-1"><option value="inner">inner (cep/delik)</option><option value="outer">outer (profil)</option></select>
+        <select id="op_corner" class="border rounded px-2 py-1"><option>BL</option><option>BR</option><option>TL</option><option>TR</option></select>
+        <input id="op_tool" type="number" value="1" placeholder="Alet No" class="border rounded px-2 py-1">
+        <input id="op_depth" value="-T" placeholder="Derinlik (örn -5, -T)" class="border rounded px-2 py-1">
+        <input id="op_feed" placeholder="Feed (boş=model)" class="border rounded px-2 py-1">
+        <select id="op_comp" class="border rounded px-2 py-1"><option value="none">Tel telafi yok</option><option>G41</option><option>G42</option></select>
+        <input id="op_seq" type="number" value="0" placeholder="Sıra" class="border rounded px-2 py-1">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('opModal')" class="flex-1 border rounded py-1.5">İptal</button>
+        <button onclick="saveOp({{ model.id }})" class="flex-1 bg-blue-600 text-white rounded py-1.5">Kaydet</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Move Modal -->
+<div id="moveModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <h3 class="font-bold mb-3">Hareket</h3>
+    <div class="space-y-2 text-sm">
+      <input type="hidden" id="mv_id" value="0"><input type="hidden" id="mv_op" value="0">
+      <select id="mv_type" class="border rounded px-2 py-1 w-full">
+        <option value="start">start (dal)</option><option value="line">line</option>
+        <option value="arc_cw">arc_cw (G2 merkez)</option><option value="arc_ccw">arc_ccw (G3 merkez)</option>
+        <option value="arc_cw_r">arc_cw_r (G2 R)</option><option value="arc_ccw_r">arc_ccw_r (G3 R)</option>
+        <option value="arc_3p">arc_3p (3 nokta)</option>
+      </select>
+      <div class="grid grid-cols-2 gap-2">
+        <input id="mv_x" placeholder="X (örn LPX/2)" class="border rounded px-2 py-1"><input id="mv_y" placeholder="Y" class="border rounded px-2 py-1">
+        <input id="mv_cx" placeholder="CX (yay)" class="border rounded px-2 py-1"><input id="mv_cy" placeholder="CY (yay)" class="border rounded px-2 py-1">
+        <input id="mv_r" placeholder="R (yarıçap)" class="border rounded px-2 py-1"><input id="mv_seq" type="number" value="0" placeholder="Sıra" class="border rounded px-2 py-1">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('moveModal')" class="flex-1 border rounded py-1.5">İptal</button>
+        <button onclick="saveMove()" class="flex-1 bg-blue-600 text-white rounded py-1.5">Kaydet</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/sim.js"></script>
+<script>
+let lastSim=null;
+function openOp(op){ op=op||{}; op_id.value=op.id||0; op_name.value=op.name||''; op_type.value=op.op_type||'inner'; op_corner.value=op.ref_corner||'BL'; op_tool.value=op.tool_no||1; op_depth.value=op.depth||'-T'; op_feed.value=op.feed||''; op_comp.value=op.comp_mode||'none'; op_seq.value=op.seq||0; openModal('opModal'); }
+async function saveOp(mid){ await postForm(`/membrane/caps/${mid}/op/save`, {id:op_id.value,name:op_name.value,op_type:op_type.value,ref_corner:op_corner.value,tool_no:op_tool.value,depth:op_depth.value,feed:op_feed.value,comp_mode:op_comp.value,seq:op_seq.value}); location.reload(); }
+async function delOp(id){ if(!confirm('Op silinsin mi?'))return; await fetch(`/membrane/caps/op/${id}/delete`,{method:'POST'}); location.reload(); }
+function openMove(opId, mv){ mv=mv||{}; mv_op.value=opId; mv_id.value=mv.id||0; mv_type.value=mv.move_type||'line'; mv_x.value=mv.x||'0'; mv_y.value=mv.y||'0'; mv_cx.value=mv.cx||'0'; mv_cy.value=mv.cy||'0'; mv_r.value=mv.r||'0'; mv_seq.value=mv.seq||0; openModal('moveModal'); }
+async function saveMove(){ await postForm(`/membrane/caps/op/${mv_op.value}/move/save`, {id:mv_id.value,move_type:mv_type.value,x:mv_x.value,y:mv_y.value,cx:mv_cx.value,cy:mv_cy.value,r:mv_r.value,seq:mv_seq.value}); location.reload(); }
+async function delMove(id){ if(!confirm('Hareket silinsin mi?'))return; await fetch(`/membrane/caps/move/${id}/delete`,{method:'POST'}); location.reload(); }
+async function genNC(mid){
+  const body={W:+in_w.value,H:+in_h.value,T:+in_t.value,extra:{}};
+  const r=await fetch(`/membrane/caps/${mid}/generate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(d.error){ alert(d.error); return; }
+  document.getElementById('ncOut').value=d.nc; lastSim={sim:d.sim,W:d.LPX,H:d.LPY};
+  drawSim('simCanvas', d.sim, d.LPX, d.LPY);
+}
+function tab(t){ document.getElementById('pane_nc').classList.toggle('hidden',t!=='nc'); document.getElementById('pane_sim').classList.toggle('hidden',t!=='sim'); document.getElementById('tab_nc').classList.toggle('bg-slate-100',t==='nc'); document.getElementById('tab_sim').classList.toggle('bg-slate-100',t==='sim'); if(t==='sim'&&lastSim) drawSim('simCanvas',lastSim.sim,lastSim.W,lastSim.H); }
+function copyNC(){ navigator.clipboard.writeText(document.getElementById('ncOut').value); }
+function dlNC(mid){ window.location=`/membrane/caps/${mid}/download?W=${in_w.value}&H=${in_h.value}&T=${in_t.value}`; return false; }
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Nesting İşleri{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-4">
+  <h1 class="text-2xl font-bold">Nesting İşleri</h1>
+  <button onclick="openJob()" class="bg-blue-600 text-white px-3 py-1.5 rounded">+ Yeni İş</button>
+</div>
+
+<div class="bg-white rounded-xl shadow p-4">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Ad</th><th>Levha (mm)</th><th>Boşluk</th><th>Parça</th><th></th></tr></thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr class="border-b hover:bg-slate-50">
+        <td class="py-2 font-medium">{{ j.name }}</td>
+        <td>{{ j.sheet_w }}×{{ j.sheet_h }}</td>
+        <td>{{ j.margin }} mm</td>
+        <td>{{ j.piece_count }}</td>
+        <td class="text-right whitespace-nowrap">
+          <a href="/membrane/jobs/{{ j.id }}" class="text-blue-600 px-1">Aç</a>
+          <form method="post" action="/membrane/jobs/delete" class="inline" onsubmit="return confirm('Silinsin mi?')">
+            <input type="hidden" name="id" value="{{ j.id }}"><button class="text-red-600 px-1">Sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="py-4 text-center text-slate-400">Henüz iş yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="jobModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-3">Yeni Nesting İşi</h3>
+    <form method="post" action="/membrane/jobs/save" class="space-y-2">
+      <input name="name" placeholder="İş adı" required class="border rounded px-2 py-1 w-full">
+      <div class="grid grid-cols-3 gap-2">
+        <input name="sheet_w" type="number" value="2800" placeholder="Levha En" class="border rounded px-2 py-1">
+        <input name="sheet_h" type="number" value="1100" placeholder="Levha Boy" class="border rounded px-2 py-1">
+        <input name="margin" type="number" value="5" placeholder="Boşluk" class="border rounded px-2 py-1">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal('jobModal')" class="flex-1 border rounded py-1.5">İptal</button>
+        <button class="flex-1 bg-blue-600 text-white rounded py-1.5">Oluştur</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>function openJob(){ openModal('jobModal'); }</script>{% endblock %}
