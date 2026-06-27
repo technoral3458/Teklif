@@ -8,14 +8,34 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
+  {% set nav = request.url.path %}
+  {% set items = [
+      ('/membrane', 'Maliyet', nav == '/membrane'),
+      ('/membrane/caps', 'Kapak Modelleri', nav.startswith('/membrane/caps')),
+      ('/membrane/jobs', 'Nesting', nav.startswith('/membrane/jobs')),
+      ('/membrane/configurator', '🪑 Konfigüratör', nav.startswith('/membrane/configurator')),
+  ] %}
   <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
-    <div class="max-w-7xl mx-auto px-4 flex items-center gap-1 h-14">
-      <span class="font-bold text-lg mr-4">🚪 Membran Kapak</span>
-      {% set nav = request.url.path %}
-      <a href="/membrane" class="px-3 py-2 rounded hover:bg-slate-700 {% if nav.startswith('/membrane') and not nav.startswith('/membrane/caps') and not nav.startswith('/membrane/jobs') %}bg-slate-700{% endif %}">Maliyet</a>
-      <a href="/membrane/caps" class="px-3 py-2 rounded hover:bg-slate-700 {% if nav.startswith('/membrane/caps') %}bg-slate-700{% endif %}">Kapak Modelleri</a>
-      <a href="/membrane/jobs" class="px-3 py-2 rounded hover:bg-slate-700 {% if nav.startswith('/membrane/jobs') %}bg-slate-700{% endif %}">Nesting</a>
-      <a href="/membrane/configurator" class="px-3 py-2 rounded hover:bg-slate-700 {% if nav.startswith('/membrane/configurator') %}bg-slate-700{% endif %}">🪑 Konfigüratör</a>
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex items-center justify-between h-14">
+        <a href="/membrane" class="font-bold text-lg whitespace-nowrap">🚪 Membran Kapak</a>
+        <!-- Masaüstü menü -->
+        <div class="hidden md:flex items-center gap-1">
+          {% for url, label, active in items %}
+          <a href="{{ url }}" class="px-3 py-2 rounded hover:bg-slate-700 {% if active %}bg-slate-700{% endif %}">{{ label }}</a>
+          {% endfor %}
+        </div>
+        <!-- Mobil hamburger -->
+        <button class="md:hidden p-2 rounded hover:bg-slate-700" onclick="document.getElementById('mnav').classList.toggle('hidden')" aria-label="Menü">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+      <!-- Mobil açılır menü -->
+      <div id="mnav" class="md:hidden hidden pb-3 flex flex-col gap-1">
+        {% for url, label, active in items %}
+        <a href="{{ url }}" class="px-3 py-2 rounded hover:bg-slate-700 {% if active %}bg-slate-700{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </div>
     </div>
   </nav>
   <main class="max-w-7xl mx-auto px-4 py-6">
