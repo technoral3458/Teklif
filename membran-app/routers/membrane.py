@@ -785,8 +785,10 @@ async def uretim(request: Request, W: float = 600, H: float = 720, D: float = 56
             "drawers": drawers, "t": t, "gap": gap, "back_method": back_method,
             "door_type": door_type, "base_type": base_type, "base_h": base_h}
     result = cabinet.explode(spec)
+    import hardware
+    drill = hardware.drill_panels(spec, result)
     return templates.TemplateResponse(request, "uretim.html", {
-        "request": request, "spec": spec, "result": result,
+        "request": request, "spec": spec, "result": result, "drill": drill,
     })
 
 
