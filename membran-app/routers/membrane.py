@@ -18,6 +18,7 @@ from gcode import generate_model_nc, generate_job_nc
 import templates_lib
 import cfg
 import products as products_lib
+import cabinet
 import dxf_utils
 
 router = APIRouter()
@@ -769,6 +770,23 @@ async def teklif_print(request: Request, qid: int):
         "request": request, "q": q, "details": details,
         "items": [i for i in pricing["items"] if i["value"] > 0],
         "total": pricing["total"], "contact": contact,
+    })
+
+
+# ==========================================================================
+# ÜRETİM: YAPISAL KABİNET + PATLAT (parça listesi) — Aşama A & B
+# ==========================================================================
+@router.get("/membrane/uretim", response_class=HTMLResponse)
+async def uretim(request: Request, W: float = 600, H: float = 720, D: float = 560,
+                 doors: int = 2, shelves: int = 1, drawers: int = 0, t: float = 18,
+                 gap: float = 3, back_method: str = "groove", door_type: str = "overlay",
+                 base_type: str = "plinth", base_h: float = 100):
+    spec = {"type": "base", "W": W, "H": H, "D": D, "doors": doors, "shelves": shelves,
+            "drawers": drawers, "t": t, "gap": gap, "back_method": back_method,
+            "door_type": door_type, "base_type": base_type, "base_h": base_h}
+    result = cabinet.explode(spec)
+    return templates.TemplateResponse(request, "uretim.html", {
+        "request": request, "spec": spec, "result": result,
     })
 
 

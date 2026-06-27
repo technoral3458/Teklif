@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Üretim — Patlat{% endblock %}
+{% block content %}
+<a href="/membrane/admin" class="text-blue-600 text-sm print:hidden">← Yönetici</a>
+<h1 class="text-2xl font-bold mb-1">🏭 Kabinet → Parça Listesi (Patlat)</h1>
+<p class="text-sm text-slate-500 mb-4 print:hidden">Dış ölçü + yapım kurallarından paneller türetilir. Aşama A & B (üretim hattının temeli).</p>
+
+<!-- Tarif formu -->
+<form method="get" action="/membrane/uretim" class="bg-white rounded-xl shadow p-4 mb-4 print:hidden">
+  <div class="grid sm:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+    <label>Genişlik (mm)<input name="W" type="number" value="{{ spec.W }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Yükseklik (mm)<input name="H" type="number" value="{{ spec.H }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Derinlik (mm)<input name="D" type="number" value="{{ spec.D }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Panel (mm)<input name="t" type="number" value="{{ spec.t }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Kapak<input name="doors" type="number" value="{{ spec.doors }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Raf<input name="shelves" type="number" value="{{ spec.shelves }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Çekmece<input name="drawers" type="number" value="{{ spec.drawers }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Fuga (mm)<input name="gap" type="number" value="{{ spec.gap }}" class="border rounded px-2 py-1 w-full"></label>
+    <label>Arkalık
+      <select name="back_method" class="border rounded px-2 py-1 w-full">
+        <option value="groove" {% if spec.back_method=='groove' %}selected{% endif %}>Kanallı</option>
+        <option value="nailed" {% if spec.back_method=='nailed' %}selected{% endif %}>Çakma</option>
+      </select>
+    </label>
+    <label>Kapak tipi
+      <select name="door_type" class="border rounded px-2 py-1 w-full">
+        <option value="overlay" {% if spec.door_type=='overlay' %}selected{% endif %}>Taşmalı</option>
+        <option value="inset" {% if spec.door_type=='inset' %}selected{% endif %}>İçten</option>
+      </select>
+    </label>
+    <label>Gövde
+      <select name="base_type" class="border rounded px-2 py-1 w-full">
+        <option value="plinth" {% if spec.base_type=='plinth' %}selected{% endif %}>Bazalı</option>
+        <option value="legs" {% if spec.base_type=='legs' %}selected{% endif %}>Ayaklı</option>
+        <option value="none" {% if spec.base_type=='none' %}selected{% endif %}>Bazasız</option>
+      </select>
+    </label>
+    <label>Baza/Ayak (mm)<input name="base_h" type="number" value="{{ spec.base_h }}" class="border rounded px-2 py-1 w-full"></label>
+  </div>
+  <div class="flex gap-2 mt-3">
+    <button class="bg-blue-600 text-white rounded px-4 py-2">Patlat</button>
+    <button type="button" onclick="window.print()" class="border rounded px-4 py-2">🖨️ Yazdır</button>
+  </div>
+</form>
+
+<!-- Özet -->
+<div class="grid grid-cols-4 gap-3 mb-4">
+  <div class="bg-white rounded-xl shadow p-3"><div class="text-slate-500 text-xs">Parça</div><div class="text-xl font-bold">{{ result.summary.pieces }}</div></div>
+  <div class="bg-white rounded-xl shadow p-3"><div class="text-slate-500 text-xs">Toplam Alan</div><div class="text-xl font-bold">{{ result.summary.area_m2 }} m²</div></div>
+  <div class="bg-white rounded-xl shadow p-3"><div class="text-slate-500 text-xs">Kenar Bandı</div><div class="text-xl font-bold">{{ result.summary.edge_m }} m</div></div>
+  <div class="bg-white rounded-xl shadow p-3"><div class="text-slate-500 text-xs">Gövde Yük.</div><div class="text-xl font-bold">{{ result.summary.carcass_h }} mm</div></div>
+</div>
+
+<!-- Parça listesi -->
+<div class="bg-white rounded-xl shadow p-4">
+  <h2 class="font-bold mb-2">Parça Listesi</h2>
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500">
+      <th class="py-2">#</th><th>Parça</th><th>Adet</th><th>Boy (mm)</th><th>En (mm)</th><th>Kalınlık</th><th>Malzeme</th><th>Damar</th><th>Kenar Bandı</th><th>Not</th>
+    </tr></thead>
+    <tbody>
+      {% for p in result.panels %}
+      <tr class="border-b">
+        <td class="py-1.5">{{ loop.index }}</td>
+        <td class="font-medium">{{ p.name }}</td>
+        <td>{{ p.qty }}</td>
+        <td class="font-mono">{{ p.L }}</td>
+        <td class="font-mono">{{ p.W }}</td>
+        <td>{{ p.t }}</td>
+        <td>{{ p.material }}</td>
+        <td>{{ '↕ var' if p.grain else '—' }}</td>
+        <td>{{ p.edge_label }}</td>
+        <td class="text-slate-500">{{ p.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<p class="text-xs text-slate-400 mt-3 print:hidden">Sıradaki: donanım & delikler (minifix/dübel/menteşe) → nesting → CNC/DWD.</p>
+{% endblock %}
