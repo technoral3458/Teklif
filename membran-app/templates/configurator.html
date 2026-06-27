@@ -1,55 +1,37 @@
 {% extends "base.html" %}
-{% block title %}3B Raf Konfigüratörü{% endblock %}
+{% block title %}Ürün Konfigüratörü{% endblock %}
 {% block content %}
-<div class="grid lg:grid-cols-3 gap-4">
+<!-- ŞABLON SEÇİMİ -->
+<div class="flex flex-wrap gap-2 mb-3" id="tplBar"></div>
 
+<div class="grid lg:grid-cols-3 gap-4">
   <!-- 3B SAHNE -->
   <div class="lg:col-span-2 bg-white rounded-xl shadow p-2 relative">
     <div id="scene" class="w-full rounded-lg overflow-hidden bg-slate-100" style="height:min(70vh,560px)"></div>
-    <button onclick="resetView()" class="absolute top-4 left-4 bg-white/90 border rounded px-3 py-1 text-sm shadow">↺ Görünümü Sıfırla</button>
-    <div class="absolute bottom-3 left-4 text-xs text-slate-400">Sürükle: döndür · İki parmak/teker: yakınlaştır</div>
+    <button onclick="resetView()" class="absolute top-4 left-4 bg-white/90 border rounded px-3 py-1 text-sm shadow">↺ Görünüm</button>
+    <label class="absolute top-4 right-4 bg-white/90 border rounded px-3 py-1 text-sm shadow flex items-center gap-1">
+      <input type="checkbox" id="showDoors" checked onchange="rebuild()"> Kapaklar
+    </label>
+    <div class="absolute bottom-3 left-4 text-xs text-slate-400">Sürükle: döndür · Teker: yakınlaştır</div>
   </div>
 
   <!-- KONTROLLER -->
   <div class="bg-white rounded-xl shadow p-4 space-y-4">
     <div class="flex justify-between items-baseline">
-      <h2 class="font-bold text-lg">Tasarım</h2>
-      <div class="text-right">
-        <div class="text-3xl font-extrabold text-emerald-700"><span id="price">0</span> <span class="text-base text-slate-400">TL</span></div>
-      </div>
+      <h2 class="font-bold text-lg" id="tplName">—</h2>
+      <div class="text-3xl font-extrabold text-emerald-700"><span id="price">0</span> <span class="text-base text-slate-400">TL</span></div>
     </div>
+    <p id="tplDesc" class="text-sm text-slate-500 -mt-2"></p>
 
-    <div>
-      <label class="text-sm flex justify-between"><span>Kolon sayısı</span><b id="v_columns">3</b></label>
-      <input id="columns" type="range" min="1" max="6" value="3" class="w-full">
-    </div>
-    <div>
-      <label class="text-sm flex justify-between"><span>Raf sayısı (kat)</span><b id="v_shelves">5</b></label>
-      <input id="shelves" type="range" min="2" max="8" value="5" class="w-full">
-    </div>
-    <div class="grid grid-cols-3 gap-2 text-sm">
-      <label>Genişlik (mm)<input id="W" type="number" value="1600" class="border rounded px-2 py-1 w-full"></label>
-      <label>Yükseklik (mm)<input id="H" type="number" value="2000" class="border rounded px-2 py-1 w-full"></label>
-      <label>Derinlik (mm)<input id="D" type="number" value="400" class="border rounded px-2 py-1 w-full"></label>
-    </div>
-    <div class="grid grid-cols-2 gap-2 text-sm">
-      <label>Çekmece<input id="drawers" type="number" min="0" value="0" class="border rounded px-2 py-1 w-full"></label>
-      <label>Kapak<input id="doors" type="number" min="0" value="0" class="border rounded px-2 py-1 w-full"></label>
-    </div>
+    <div id="params" class="space-y-3"></div>
+
     <div>
       <div class="text-sm mb-1">Renk / Kaplama</div>
-      <div id="colors" class="flex gap-2"></div>
-    </div>
-
-    <div class="bg-slate-50 rounded-lg p-3 text-xs space-y-1">
-      <div class="flex justify-between"><span>Raf tablası</span><b id="b_wood">0 TL</b></div>
-      <div class="flex justify-between"><span>Metal çerçeve</span><b id="b_frame">0 TL</b></div>
-      <div class="flex justify-between"><span>Aksesuar</span><b id="b_acc">0 TL</b></div>
-      <div class="flex justify-between"><span>Taban + işçilik</span><b id="b_base">0 TL</b></div>
+      <div id="colors" class="flex gap-2 flex-wrap"></div>
     </div>
 
     <div class="border-t pt-3 space-y-2">
-      <input id="q_name" placeholder="Ürün adı" class="border rounded px-2 py-1 w-full text-sm">
+      <input id="q_name" placeholder="Ürün adı (opsiyonel)" class="border rounded px-2 py-1 w-full text-sm">
       <input id="q_customer" placeholder="Müşteri (opsiyonel)" class="border rounded px-2 py-1 w-full text-sm">
       <button onclick="saveQuote()" class="w-full bg-blue-600 text-white rounded py-2">Teklif Kaydet</button>
       <div id="saveMsg" class="text-sm text-center"></div>
@@ -67,7 +49,7 @@
       <tr class="border-b">
         <td class="py-1 font-medium">{{ q.name or '-' }}</td>
         <td>{{ q.customer or '-' }}</td>
-        <td>{{ q.params.get('W','?') }}×{{ q.params.get('H','?') }}×{{ q.params.get('D','?') }}</td>
+        <td>{{ q.params.get('params',{}).get('W','?') }}×{{ q.params.get('params',{}).get('H','?') }}×{{ q.params.get('params',{}).get('D','?') }}</td>
         <td class="font-semibold text-emerald-700">{{ "%.0f"|format(q.price) }} TL</td>
         <td>{{ q.created_at[:10] }}</td>
         <td class="text-right">
@@ -89,151 +71,155 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
-const COLORS = { natural:0xd8b88a, oak:0xc8a06a, walnut:0x6b4a2f, black:0x2a2a2a, white:0xefe9e0 };
-const COLOR_HEX = { natural:'#d8b88a', oak:'#c8a06a', walnut:'#6b4a2f', black:'#2a2a2a', white:'#efe9e0' };
-const COLOR_PREMIUM = { natural:0, oak:0.05, walnut:0.10, black:0.08, white:0.03 };
-// Fiyat sabitleri (shelf.py ile aynı)
-const BASE=500, WOOD_PER_M2=900, FRAME_PER_M=180, DRAWER_EACH=650, DOOR_EACH=450;
+const TEMPLATES = {{ tpl_data|tojson }};
+const COLOR_LIST = {{ colors|tojson }};
+const COLOR_HEX = { natural:'#d8b88a', oak:'#c8a06a', walnut:'#6b4a2f', white:'#efe9e0', anthracite:'#3a3f44' };
+const COLOR_PREMIUM = { natural:0, oak:0.05, walnut:0.10, white:0.03, anthracite:0.08 };
+const MATH = { floor:Math.floor, ceil:Math.ceil, round:Math.round, min:Math.min, max:Math.max, sqrt:Math.sqrt, abs:Math.abs };
 
-let p = { W:1600,H:2000,D:400, columns:3, shelves:5, color:'natural', drawers:0, doors:0 };
+let current=null, params={}, color='natural', showDoors=true;
+let scene, camera, renderer, controls, unit, matCache={};
 
-// ---------- Three.js ----------
-let scene, camera, renderer, controls, unit;
+// --- güvenli ifade değerlendirme (şablonlar bizim, kullanıcı girişi değil) ---
+function evalExpr(expr, vars){
+  if(expr===undefined||expr===null||expr==='') return 0;
+  if(typeof expr==='number') return expr;
+  const keys=Object.keys(vars);
+  try{ const v=Function(...keys,'return ('+expr+')')(...keys.map(k=>vars[k])); return isFinite(v)?v:0; }
+  catch(e){ return 0; }
+}
+function expand(repeat, base){
+  let combos=[{}];
+  for(const [name, countExpr] of (repeat||[])){
+    const n=Math.max(0, Math.floor(evalExpr(countExpr, base)));
+    const next=[];
+    for(const c of combos) for(let i=0;i<n;i++) next.push(Object.assign({}, c, {[name]:i}));
+    combos=next;
+  }
+  return combos;
+}
+
+// --- Three.js ---
 function initThree(){
-  const el = document.getElementById('scene');
-  scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f5f9);
-  camera = new THREE.PerspectiveCamera(45, el.clientWidth/el.clientHeight, 0.1, 100);
-  renderer = new THREE.WebGLRenderer({antialias:true});
-  renderer.setSize(el.clientWidth, el.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
+  const el=document.getElementById('scene');
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9);
+  camera=new THREE.PerspectiveCamera(45, el.clientWidth/el.clientHeight, 0.05, 100);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(el.clientWidth, el.clientHeight); renderer.setPixelRatio(window.devicePixelRatio);
   el.appendChild(renderer.domElement);
-  controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));
-  const dir = new THREE.DirectionalLight(0xffffff, 0.7); dir.position.set(3,5,4); scene.add(dir);
-  const grid = new THREE.GridHelper(10, 20, 0xcbd5e1, 0xe2e8f0); scene.add(grid);
-  window.addEventListener('resize', onResize);
-  animate();
+  controls=new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true;
+  scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.0));
+  const dir=new THREE.DirectionalLight(0xffffff,0.6); dir.position.set(3,5,4); scene.add(dir);
+  scene.add(new THREE.GridHelper(10,20,0xcbd5e1,0xe2e8f0));
+  window.addEventListener('resize', ()=>{ camera.aspect=el.clientWidth/el.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth, el.clientHeight); });
+  (function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); })();
 }
-function onResize(){
-  const el = document.getElementById('scene');
-  camera.aspect = el.clientWidth/el.clientHeight; camera.updateProjectionMatrix();
-  renderer.setSize(el.clientWidth, el.clientHeight);
+function matOf(mat){
+  const key=mat+'|'+color;
+  if(matCache[key]) return matCache[key];
+  let col;
+  if(mat==='metal') col=0x333333;
+  else if(mat==='back') col=0xc9bca6;
+  else col=parseInt((COLOR_HEX[color]||'#d8b88a').slice(1),16);
+  const m=new THREE.MeshStandardMaterial({color:col, roughness: mat==='metal'?0.5:0.85, metalness: mat==='metal'?0.6:0.0});
+  matCache[key]=m; return m;
 }
-function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
 function resetView(){
-  const H=p.H/1000, W=p.W/1000;
-  camera.position.set(W*0.9, H*0.7, Math.max(W,2)*1.3);
-  controls.target.set(0, H/2, 0); controls.update();
+  const H=(params.H||2000)/1000, W=(params.W||1600)/1000;
+  camera.position.set(W*0.85, H*0.65, Math.max(W,1.5)*1.4);
+  controls.target.set(0,H/2,0); controls.update();
 }
 
-function build(){
-  if(unit) scene.remove(unit);
-  unit = new THREE.Group();
-  const W=p.W/1000, H=p.H/1000, D=p.D/1000, C=p.columns, S=Math.max(2,p.shelves), t=0.025;
-  const metal = new THREE.MeshStandardMaterial({color:0x222222, metalness:0.6, roughness:0.5});
-  const wood = new THREE.MeshStandardMaterial({color: COLORS[p.color]||0xd8b88a, roughness:0.85});
-
-  // dikey direkler (kolon sınırlarında, ön & arka)
-  for(let c=0;c<=C;c++){
-    const x = -W/2 + c*(W/C);
-    for(const z of [-D/2+t/2, D/2-t/2]){
-      const post = new THREE.Mesh(new THREE.BoxGeometry(t,H,t), metal);
-      post.position.set(x, H/2, z); unit.add(post);
+function rebuild(){
+  showDoors=document.getElementById('showDoors').checked;
+  if(unit){ scene.remove(unit); }
+  unit=new THREE.Group();
+  if(current){
+    const base=Object.assign({PT:18}, MATH, params);
+    for(const part of current.parts){
+      for(const idx of expand(part.repeat, base)){
+        const v=Object.assign({}, base, idx);
+        if(part.when!==undefined && !evalExpr(part.when,v)) continue;
+        if(part.mat==='door' && !showDoors) continue;
+        const w=Math.max(evalExpr(part.w,v),1)/1000, h=Math.max(evalExpr(part.h,v),1)/1000, d=Math.max(evalExpr(part.d,v),1)/1000;
+        const x=evalExpr(part.x,v)/1000, y=evalExpr(part.y,v)/1000, z=evalExpr(part.z||'0',v)/1000;
+        const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), matOf(part.mat));
+        mesh.position.set(x,y,z); unit.add(mesh);
+      }
     }
-  }
-  // raflar (her kolon, S kat)
-  const bayW = W/C;
-  for(let c=0;c<C;c++){
-    const cx = -W/2 + c*bayW + bayW/2;
-    for(let s=0;s<S;s++){
-      const y = s*(H/(S-1));
-      const shelf = new THREE.Mesh(new THREE.BoxGeometry(bayW-t, 0.018, D-t), wood);
-      shelf.position.set(cx, Math.min(Math.max(y,0.009), H-0.009), 0); unit.add(shelf);
-    }
-  }
-  // çekmeceler (ilk kolon altı) ve kapaklar (son kolon altı)
-  const frontMat = new THREE.MeshStandardMaterial({color: COLORS[p.color]||0xd8b88a, roughness:0.7});
-  for(let i=0;i<p.drawers;i++){
-    const dh = 0.15, x = -W/2 + bayW/2;
-    const dr = new THREE.Mesh(new THREE.BoxGeometry(bayW-t-0.01, dh-0.01, 0.02), frontMat);
-    dr.position.set(x, 0.1 + i*dh, D/2); unit.add(dr);
-  }
-  for(let i=0;i<p.doors;i++){
-    const x = W/2 - bayW/2;
-    const dr = new THREE.Mesh(new THREE.BoxGeometry(bayW/2-0.01, 0.45, 0.02), frontMat);
-    dr.position.set(x + (i%2?bayW/4:-bayW/4), 0.3, D/2); unit.add(dr);
   }
   scene.add(unit);
+  updatePrice();
+}
+function updatePrice(){
+  if(!current) return;
+  const vars=Object.assign({PT:18}, MATH, params);
+  const material=evalExpr(current.price_expr, vars);
+  const total=material*(1+(COLOR_PREMIUM[color]||0));
+  document.getElementById('price').textContent=Math.round(total).toLocaleString('tr-TR');
 }
 
-// ---------- Fiyat (shelf.py ile birebir) ----------
-function priceShelf(){
-  const W=p.W,H=p.H,D=p.D,C=Math.max(1,p.columns),S=Math.max(0,p.shelves);
-  const bayW=W/C, boards=C*S, areaEach=(bayW/1000)*(D/1000);
-  const wood = boards*areaEach*WOOD_PER_M2;
-  const frameLen = ((C+1)*(H/1000)*2)+(4*(W/1000))+(4*(D/1000));
-  const frame = frameLen*FRAME_PER_M;
-  const acc = p.drawers*DRAWER_EACH + p.doors*DOOR_EACH;
-  const sub = BASE+wood+frame+acc;
-  const prem = COLOR_PREMIUM[p.color]||0;
-  return { wood, frame, acc, base:BASE, total: sub*(1+prem) };
-}
-function fmt(n){ return Math.round(n).toLocaleString('tr-TR'); }
-function update(){
-  build();
-  const pr = priceShelf();
-  document.getElementById('price').textContent = fmt(pr.total);
-  document.getElementById('b_wood').textContent = fmt(pr.wood)+' TL';
-  document.getElementById('b_frame').textContent = fmt(pr.frame)+' TL';
-  document.getElementById('b_acc').textContent = fmt(pr.acc)+' TL';
-  document.getElementById('b_base').textContent = fmt(pr.base)+' TL';
-}
-
-// ---------- Kontroller ----------
-function bind(){
-  ['columns','shelves'].forEach(id=>{
-    const inp=document.getElementById(id);
-    inp.addEventListener('input', ()=>{ p[id]=+inp.value; document.getElementById('v_'+id).textContent=inp.value; update(); });
+// --- şablon & kontroller ---
+function selectTemplate(tid){
+  current=TEMPLATES.find(t=>t.id===tid); if(!current) return;
+  params={}; current.params.forEach(p=>params[p.key]=p.default);
+  document.getElementById('tplName').textContent=current.name;
+  document.getElementById('tplDesc').textContent=current.description;
+  // şablon barı vurgusu
+  document.querySelectorAll('#tplBar button').forEach(b=>b.className=b.dataset.id===tid?'px-3 py-2 rounded bg-blue-600 text-white text-sm':'px-3 py-2 rounded bg-white border text-sm');
+  // parametre kontrolleri
+  const pc=document.getElementById('params'); pc.innerHTML='';
+  current.params.forEach(p=>{
+    const wrap=document.createElement('div');
+    wrap.innerHTML=`<label class="text-sm flex justify-between"><span>${p.label}</span><b id="v_${p.key}">${p.default}</b></label>`;
+    const inp=document.createElement('input');
+    inp.type='range'; inp.min=p.min; inp.max=p.max; inp.step=p.step||1; inp.value=p.default; inp.className='w-full';
+    inp.addEventListener('input', ()=>{ params[p.key]=+inp.value; document.getElementById('v_'+p.key).textContent=inp.value; rebuild(); });
+    wrap.appendChild(inp); pc.appendChild(wrap);
   });
-  ['W','H','D','drawers','doors'].forEach(id=>{
-    document.getElementById(id).addEventListener('input', e=>{ p[id]=+e.target.value||0; update(); });
+  rebuild(); resetView();
+}
+function buildTemplateBar(){
+  const bar=document.getElementById('tplBar');
+  TEMPLATES.forEach(t=>{
+    const b=document.createElement('button'); b.textContent=t.category; b.dataset.id=t.id;
+    b.className='px-3 py-2 rounded bg-white border text-sm';
+    b.onclick=()=>selectTemplate(t.id); bar.appendChild(b);
   });
-  // renkler
-  const cw = document.getElementById('colors');
-  Object.keys(COLOR_HEX).forEach(k=>{
-    const b=document.createElement('button');
-    b.style.background=COLOR_HEX[k]; b.title=k;
-    b.className='w-8 h-8 rounded-full border-2';
-    b.style.borderColor = (k===p.color)?'#2563eb':'#cbd5e1';
-    b.onclick=()=>{ p.color=k; document.querySelectorAll('#colors button').forEach(x=>x.style.borderColor='#cbd5e1'); b.style.borderColor='#2563eb'; update(); };
+}
+function buildColors(){
+  const cw=document.getElementById('colors'); cw.innerHTML='';
+  COLOR_LIST.forEach(k=>{
+    const b=document.createElement('button'); b.style.background=COLOR_HEX[k]||'#ccc'; b.title=k;
+    b.className='w-8 h-8 rounded-full border-2'; b.style.borderColor=(k===color)?'#2563eb':'#cbd5e1';
+    b.onclick=()=>{ color=k; matCache={}; document.querySelectorAll('#colors button').forEach(x=>x.style.borderColor='#cbd5e1'); b.style.borderColor='#2563eb'; rebuild(); };
     cw.appendChild(b);
   });
 }
 
-function loadQuote(params){
-  p = Object.assign({W:1600,H:2000,D:400,columns:3,shelves:5,color:'natural',drawers:0,doors:0}, params||{});
-  document.getElementById('columns').value=p.columns; document.getElementById('v_columns').textContent=p.columns;
-  document.getElementById('shelves').value=p.shelves; document.getElementById('v_shelves').textContent=p.shelves;
-  ['W','H','D','drawers','doors'].forEach(id=>document.getElementById(id).value=p[id]);
-  document.querySelectorAll('#colors button').forEach(b=>b.style.borderColor=(b.title===p.color)?'#2563eb':'#cbd5e1');
-  update(); resetView();
-  window.scrollTo({top:0, behavior:'smooth'});
+function loadQuote(store){
+  if(!store||!store.template) return;
+  selectTemplate(store.template);
+  Object.assign(params, store.params||{});
+  if(store.color){ color=store.color; matCache={}; buildColors(); }
+  // kontrolleri güncelle
+  current.params.forEach(p=>{ const inp=document.querySelector(`#params input[type=range]`); });
+  document.querySelectorAll('#params input[type=range]').forEach((inp,i)=>{ const key=current.params[i].key; inp.value=params[key]; document.getElementById('v_'+key).textContent=params[key]; });
+  rebuild(); resetView();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 async function saveQuote(){
-  const body = Object.assign({}, p, {
-    name: document.getElementById('q_name').value,
-    customer: document.getElementById('q_customer').value
-  });
-  const r = await fetch('/membrane/configurator/quote', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-  const d = await r.json();
-  const msg = document.getElementById('saveMsg');
-  if(d.ok){ msg.innerHTML='<span class="text-emerald-700">Teklif kaydedildi ('+fmt(d.price)+' TL). Yenileniyor...</span>'; setTimeout(()=>location.reload(), 900); }
-  else { msg.innerHTML='<span class="text-red-600">Kaydedilemedi</span>'; }
+  const body={ template: current.id, params: Object.assign({}, params, {color}),
+               name: document.getElementById('q_name').value, customer: document.getElementById('q_customer').value };
+  const r=await fetch('/membrane/configurator/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json(); const msg=document.getElementById('saveMsg');
+  if(d.ok){ msg.innerHTML='<span class="text-emerald-700">Kaydedildi ('+Math.round(d.price).toLocaleString('tr-TR')+' TL). Yenileniyor...</span>'; setTimeout(()=>location.reload(),900); }
+  else msg.innerHTML='<span class="text-red-600">Kaydedilemedi</span>';
 }
 
 // başlat
-initThree(); bind(); update(); resetView();
+initThree(); buildTemplateBar(); buildColors();
+if(TEMPLATES.length) selectTemplate(TEMPLATES[0].id);
 </script>
 {% endblock %}

@@ -15,7 +15,7 @@ from config import BASE_DIR
 from costs import material_cost_per_m2, total_cost_per_m2, door_cost
 from nesting import nest
 from gcode import generate_model_nc, generate_job_nc
-from shelf import price_shelf
+import templates_lib
 import dxf_utils
 
 router = APIRouter()
@@ -562,25 +562,30 @@ async def configurator(request: Request):
             q["params"] = {}
     return templates.TemplateResponse(request, "configurator.html", {
         "request": request, "quotes": quotes,
+        "tpl_data": templates_lib.list_templates(),
+        "colors": templates_lib.COLORS,
     })
 
 
 @router.post("/membrane/configurator/price")
 async def configurator_price(request: Request):
-    """Sunucu tarafı yetkili fiyat (canlı önizleme JS'i ile aynı formül)."""
-    params = await request.json()
-    return JSONResponse(price_shelf(params))
+    body = await request.json()
+    return JSONResponse(templates_lib.price_template(body.get("template"), body.get("params", {})))
 
 
 @router.post("/membrane/configurator/quote")
 async def configurator_quote(request: Request):
-    params = await request.json()
-    pricing = price_shelf(params)
+    body = await request.json()
+    tid = body.get("template")
+    params = body.get("params", {})
+    pricing = templates_lib.price_template(tid, params)
+    tpl = templates_lib.get_template(tid)
+    store = {"template": tid, "params": params, "color": params.get("color")}
     qid = db.execute(
         "INSERT INTO membrane_shelf_quotes (name, customer, params_json, price) "
         "VALUES (?,?,?,?)",
-        (params.get("name", ""), params.get("customer", ""),
-         json.dumps(params), pricing["total"]),
+        (body.get("name", "") or (tpl["name"] if tpl else ""),
+         body.get("customer", ""), json.dumps(store), pricing["total"]),
     )
     return JSONResponse({"ok": True, "id": qid, "price": pricing["total"]})
 
