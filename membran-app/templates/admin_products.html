@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Ürünler{% endblock %}
+{% block content %}
+<a href="/membrane/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<h1 class="text-2xl font-bold mb-4">📦 Ürünler</h1>
+<form method="post" action="/membrane/admin/products/save" class="bg-white rounded-xl shadow p-4 max-w-2xl">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Ürün ID</th><th>Görünen Ad</th><th>Yerleşim</th><th class="text-center">Aktif</th></tr></thead>
+    <tbody>
+      {% for p in products %}
+      <tr class="border-b">
+        <td class="py-2 font-mono text-slate-500">{{ p.id }}</td>
+        <td><input name="name_{{ p.id }}" value="{{ p.name }}" class="border rounded px-2 py-1 w-full"></td>
+        <td>{{ p.layout }}</td>
+        <td class="text-center"><input type="checkbox" name="enabled_{{ p.id }}" {% if p.enabled %}checked{% endif %}></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button class="mt-4 bg-blue-600 text-white rounded px-4 py-2">Kaydet</button>
+  <p class="text-xs text-slate-400 mt-2">Pasif ürünler konfigüratörde görünmez. Adı değiştirebilirsin.</p>
+</form>
+{% endblock %}

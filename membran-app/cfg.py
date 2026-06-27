@@ -103,3 +103,7 @@ def price_gardirop(p):
         ],
         "total": round(total, 2),
     }
+
+
+# Çok ürünlü konfigüratör aynı (jenerik dolap) fiyat mantığını kullanır.
+price_cabinet = price_gardirop

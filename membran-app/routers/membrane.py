@@ -17,6 +17,7 @@ from nesting import nest
 from gcode import generate_model_nc, generate_job_nc
 import templates_lib
 import cfg
+import products as products_lib
 import dxf_utils
 
 router = APIRouter()
@@ -656,20 +657,10 @@ async def admin_colors_delete(id: int = Form(...)):
 # ==========================================================================
 # GARDIROP KONFİGÜRATÖRÜ (pilot - tam opsiyonlu)
 # ==========================================================================
-@router.get("/membrane/gardirop", response_class=HTMLResponse)
-async def gardirop(request: Request):
-    quotes = db.query("SELECT * FROM membrane_shelf_quotes WHERE params_json LIKE '%gardirop_pro%' "
-                      "ORDER BY id DESC LIMIT 30")
-    for q in quotes:
-        try:
-            q["params"] = json.loads(q.get("params_json") or "{}").get("params", {})
-        except Exception:
-            q["params"] = {}
-    return templates.TemplateResponse(request, "gardirop.html", {
-        "request": request, "colors": cfg.get_colors(),
-        "prices": {r["key"]: r["value"] for r in cfg.get_prices_full()},
-        "quotes": quotes,
-    })
+@router.get("/membrane/gardirop")
+async def gardirop():
+    # Faz 2 ile çok-ürünlü konfigüratöre taşındı
+    return RedirectResponse("/membrane/urunler", status_code=307)
 
 
 @router.post("/membrane/gardirop/price")
@@ -695,4 +686,70 @@ async def gardirop_quote(request: Request):
 @router.post("/membrane/gardirop/delete")
 async def gardirop_delete(id: int = Form(...)):
     db.execute("DELETE FROM membrane_shelf_quotes WHERE id=?", (id,))
-    return RedirectResponse("/membrane/gardirop", status_code=303)
+    return RedirectResponse("/membrane/urunler", status_code=303)
+
+
+# ==========================================================================
+# ÇOK ÜRÜNLÜ KONFİGÜRATÖR (Faz 2)
+# ==========================================================================
+@router.get("/membrane/urunler", response_class=HTMLResponse)
+async def urunler(request: Request):
+    prods = products_lib.list_products(only_enabled=True)
+    valid_ids = {p["id"] for p in prods} | {"gardirop_pro"}
+    quotes = []
+    for q in db.query("SELECT * FROM membrane_shelf_quotes ORDER BY id DESC LIMIT 40"):
+        try:
+            store = json.loads(q.get("params_json") or "{}")
+        except Exception:
+            store = {}
+        if store.get("template") in valid_ids:
+            q["params"] = store.get("params", {})
+            q["product"] = store.get("template")
+            quotes.append(q)
+    return templates.TemplateResponse(request, "urunler.html", {
+        "request": request, "products": prods, "colors": cfg.get_colors(), "quotes": quotes,
+    })
+
+
+@router.post("/membrane/urunler/price")
+async def urunler_price(request: Request):
+    return JSONResponse(cfg.price_cabinet(await request.json()))
+
+
+@router.post("/membrane/urunler/quote")
+async def urunler_quote(request: Request):
+    body = await request.json()
+    params = body.get("params", {})
+    pricing = cfg.price_cabinet(params)
+    store = {"template": body.get("product", "gardirop"), "params": params}
+    qid = db.execute(
+        "INSERT INTO membrane_shelf_quotes (name, customer, params_json, price) VALUES (?,?,?,?)",
+        (body.get("name", "") or "Ürün", body.get("customer", ""),
+         json.dumps(store), pricing["total"]),
+    )
+    return JSONResponse({"ok": True, "id": qid, "price": pricing["total"]})
+
+
+@router.post("/membrane/urunler/delete")
+async def urunler_delete(id: int = Form(...)):
+    db.execute("DELETE FROM membrane_shelf_quotes WHERE id=?", (id,))
+    return RedirectResponse("/membrane/urunler", status_code=303)
+
+
+@router.get("/membrane/admin/products", response_class=HTMLResponse)
+async def admin_products(request: Request):
+    return templates.TemplateResponse(request, "admin_products.html", {
+        "request": request, "products": products_lib.list_products(only_enabled=False),
+    })
+
+
+@router.post("/membrane/admin/products/save")
+async def admin_products_save(request: Request):
+    f = await request.form()
+    for p in products_lib.REGISTRY:
+        name = f.get("name_" + p["id"])
+        enabled = 1 if f.get("enabled_" + p["id"]) else 0
+        if name is not None:
+            db.execute("UPDATE cfg_products SET name=?, enabled=? WHERE id=?",
+                       (name, enabled, p["id"]))
+    return RedirectResponse("/membrane/admin/products", status_code=303)

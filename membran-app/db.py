@@ -158,6 +158,14 @@ CREATE TABLE IF NOT EXISTS cfg_colors (
     seq INTEGER DEFAULT 0,
     active INTEGER DEFAULT 1
 );
+
+-- ===== Konfigüratör: ürünler (aç/kapa + ad override) =====
+CREATE TABLE IF NOT EXISTS cfg_products (
+    id TEXT PRIMARY KEY,
+    name TEXT DEFAULT '',
+    enabled INTEGER DEFAULT 1,
+    seq INTEGER DEFAULT 0
+);
 """
 
 DEFAULT_PRICES = [
@@ -225,6 +233,11 @@ def init():
                 "INSERT INTO cfg_colors (name, hex, premium_pct, seq) VALUES (?,?,?,?)",
                 (name, hexv, prem, seq),
             )
+    # Ürün kayıt defterini cfg_products'a tohumla (lazy import: döngüyü önle)
+    from products import REGISTRY as _PRODUCTS
+    for seqi, p in enumerate(_PRODUCTS):
+        conn.execute("INSERT OR IGNORE INTO cfg_products (id, name, enabled, seq) VALUES (?,?,1,?)",
+                     (p["id"], p["name"], seqi))
     conn.commit()
     conn.close()
 
