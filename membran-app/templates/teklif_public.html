@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobilya Tasarla & Teklif Al</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  <header class="bg-slate-900 text-white">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center gap-2">
+      <span class="font-bold text-lg">🚪 Membran Kapak</span>
+      <span class="text-slate-400 text-sm hidden sm:inline">— Tasarla, anında fiyat al</span>
+    </div>
+  </header>
+
+  <!-- TEŞEKKÜR -->
+  <div id="thanks" class="hidden max-w-md mx-auto mt-10 bg-white rounded-xl shadow p-6 text-center">
+    <div class="text-4xl mb-2">✅</div>
+    <h2 class="text-xl font-bold mb-1">Talebiniz alındı!</h2>
+    <p class="text-slate-600">Tahmini fiyat: <b class="text-emerald-700"><span id="thanksPrice">0</span> TL</b></p>
+    <p class="text-sm text-slate-500 mt-2">En kısa sürede sizinle iletişime geçeceğiz.</p>
+    <a href="/teklif" class="inline-block mt-4 bg-slate-900 text-white rounded px-4 py-2">Yeni Tasarım</a>
+  </div>
+
+  <main id="publicForm" class="max-w-6xl mx-auto px-4 py-5">
+    <div class="flex flex-wrap gap-2 mb-3" id="prodBar"></div>
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white rounded-xl shadow p-2 relative">
+        <div id="scene" class="w-full rounded-lg overflow-hidden bg-slate-100" style="height:min(70vh,560px)"></div>
+        <button onclick="resetView()" class="absolute top-4 left-4 bg-white/90 border rounded px-3 py-1 text-sm shadow">↺ Görünüm</button>
+        <label class="absolute top-4 right-4 bg-white/90 border rounded px-3 py-1 text-sm shadow flex items-center gap-1">
+          <input type="checkbox" id="showDoors" checked> Kapaklar
+        </label>
+      </div>
+
+      <div class="bg-white rounded-xl shadow p-4 space-y-3">
+        <div class="flex justify-between items-baseline">
+          <h2 class="font-bold text-lg" id="prodName">—</h2>
+          <div class="text-3xl font-extrabold text-emerald-700"><span id="price">0</span> <span class="text-base text-slate-400">TL</span></div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-sm">
+          <label>Genişlik<input id="W" type="number" class="border rounded px-2 py-1 w-full"></label>
+          <label>Yükseklik<input id="H" type="number" class="border rounded px-2 py-1 w-full"></label>
+          <label>Derinlik<input id="D" type="number" class="border rounded px-2 py-1 w-full"></label>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <label>Kapak tipi
+            <select id="door_type" class="border rounded px-2 py-1 w-full">
+              <option value="duz">Düz kapak</option><option value="camli">Camlı kapak</option>
+              <option value="desenli">Desenli kapak</option><option value="surgu">Sürgü kapak</option>
+              <option value="kapaksiz">Kapaksız</option>
+            </select>
+          </label>
+          <label>Gövde tipi
+            <select id="base_type" class="border rounded px-2 py-1 w-full">
+              <option value="bazali">Bazalı</option><option value="ayakli">Ayaklı</option><option value="yok">Bazasız</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+          <label class="flex justify-between items-center">Kapak <input id="doors" type="number" class="border rounded px-2 py-1 w-16"></label>
+          <label class="flex justify-between items-center">Raf <input id="shelves" type="number" class="border rounded px-2 py-1 w-16"></label>
+          <label class="flex justify-between items-center">Çekmece <input id="drawers" type="number" class="border rounded px-2 py-1 w-16"></label>
+          <label class="flex items-center gap-2"><input type="checkbox" id="back" checked> Arkalık</label>
+          <label id="row_hanging" class="flex items-center gap-2"><input type="checkbox" id="hanging"> Askı borusu</label>
+          <label class="flex items-center gap-2"><input type="checkbox" id="handles" checked> Kulp</label>
+          <label id="row_twotone" class="flex items-center gap-2"><input type="checkbox" id="two_tone"> Çift renk</label>
+        </div>
+        <div class="space-y-2">
+          <div><div class="text-sm mb-1">Gövde rengi</div><div id="bodyColors" class="flex gap-2 flex-wrap"></div></div>
+          <div><div class="text-sm mb-1">Kapak rengi</div><div id="doorColors" class="flex gap-2 flex-wrap"></div></div>
+          <div id="door2Wrap" class="hidden"><div class="text-sm mb-1">Kapak 2. renk</div><div id="door2Colors" class="flex gap-2 flex-wrap"></div></div>
+        </div>
+        <div id="breakdown" class="bg-slate-50 rounded-lg p-3 text-xs space-y-1"></div>
+
+        <div class="border-t pt-3 space-y-2">
+          <div class="text-sm font-medium">Teklif için bilgileriniz</div>
+          <input id="c_name" placeholder="Ad Soyad *" class="border rounded px-2 py-1 w-full text-sm">
+          <input id="c_phone" placeholder="Telefon *" class="border rounded px-2 py-1 w-full text-sm">
+          <button onclick="saveQuote()" class="w-full bg-emerald-600 text-white rounded py-2 font-medium">Teklif İste</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
+  window.CFG = {
+    products: {{ products|tojson }},
+    colors: {{ colors|tojson }},
+    priceUrl: '/teklif/price',
+    saveUrl: '/teklif/submit',
+    mode: 'public'
+  };
+  </script>
+  <script src="/static/configurator.js"></script>
+</body>
+</html>

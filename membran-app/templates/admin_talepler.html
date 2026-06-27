@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Müşteri Talepleri{% endblock %}
+{% block content %}
+<a href="/membrane/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<h1 class="text-2xl font-bold mb-4">📨 Müşteri Talepleri</h1>
+<div class="bg-white rounded-xl shadow p-4">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Ad</th><th>Telefon</th><th>Ölçü</th><th>Fiyat</th><th>Tarih</th><th></th></tr></thead>
+    <tbody>
+      {% for q in rows %}
+      <tr class="border-b">
+        <td class="py-2 font-medium">{{ q.contact.get('name','-') }}</td>
+        <td>{{ q.contact.get('phone','-') }}</td>
+        <td>{{ q.params.get('W','?') }}×{{ q.params.get('H','?') }}×{{ q.params.get('D','?') }}</td>
+        <td class="font-semibold text-emerald-700">{{ "%.0f"|format(q.price) }} TL</td>
+        <td>{{ q.created_at[:16] }}</td>
+        <td class="text-right">
+          <a href="/membrane/teklif/{{ q.id }}/print" target="_blank" class="text-slate-700 text-xs">yazdır</a>
+          <form method="post" action="/membrane/urunler/delete" class="inline" onsubmit="return confirm('Silinsin mi?')">
+            <input type="hidden" name="id" value="{{ q.id }}"><button class="text-red-600 text-xs">sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="6" class="py-3 text-center text-slate-400">Henüz müşteri talebi yok.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

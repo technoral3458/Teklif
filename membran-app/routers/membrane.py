@@ -736,6 +736,55 @@ async def urunler_delete(id: int = Form(...)):
     return RedirectResponse("/membrane/urunler", status_code=303)
 
 
+DOOR_LABELS = {"duz": "Düz", "camli": "Camlı", "desenli": "Desenli",
+               "surgu": "Sürgü", "kapaksiz": "Kapaksız"}
+BASE_LABELS = {"bazali": "Bazalı", "ayakli": "Ayaklı", "yok": "Bazasız"}
+
+
+@router.get("/membrane/teklif/{qid}/print", response_class=HTMLResponse)
+async def teklif_print(request: Request, qid: int):
+    q = db.one("SELECT * FROM membrane_shelf_quotes WHERE id=?", (qid,))
+    if not q:
+        return RedirectResponse("/membrane/urunler", status_code=303)
+    store = json.loads(q.get("params_json") or "{}")
+    p = store.get("params", {})
+    pricing = cfg.price_cabinet(p)
+    cmap = {str(c["id"]): c["name"] for c in db.query("SELECT id, name FROM cfg_colors")}
+    prod = products_lib.get(store.get("template", "")) or {"name": store.get("template", "Ürün")}
+    details = [
+        ("Ürün", prod["name"]),
+        ("Ölçü (G×Y×D)", f"{p.get('W','?')} × {p.get('H','?')} × {p.get('D','?')} mm"),
+        ("Kapak tipi", DOOR_LABELS.get(p.get("door_type"), p.get("door_type", "-"))),
+        ("Gövde tipi", BASE_LABELS.get(p.get("base_type"), p.get("base_type", "-"))),
+        ("Kapak / Raf / Çekmece", f"{p.get('doors',0)} / {p.get('shelves',0)} / {p.get('drawers',0)}"),
+        ("Gövde rengi", cmap.get(str(p.get("body_color")), "-")),
+        ("Kapak rengi", cmap.get(str(p.get("door_color")), "-")),
+    ]
+    if p.get("two_tone"):
+        details.append(("2. kapak rengi", cmap.get(str(p.get("door_color2")), "-")))
+    contact = store.get("contact", {})
+    return templates.TemplateResponse(request, "teklif_print.html", {
+        "request": request, "q": q, "details": details,
+        "items": [i for i in pricing["items"] if i["value"] > 0],
+        "total": pricing["total"], "contact": contact,
+    })
+
+
+@router.get("/membrane/admin/talepler", response_class=HTMLResponse)
+async def admin_talepler(request: Request):
+    rows = []
+    for q in db.query("SELECT * FROM membrane_shelf_quotes ORDER BY id DESC LIMIT 100"):
+        try:
+            store = json.loads(q.get("params_json") or "{}")
+        except Exception:
+            store = {}
+        if store.get("source") == "customer":
+            q["contact"] = store.get("contact", {})
+            q["params"] = store.get("params", {})
+            rows.append(q)
+    return templates.TemplateResponse(request, "admin_talepler.html", {"request": request, "rows": rows})
+
+
 @router.get("/membrane/admin/products", response_class=HTMLResponse)
 async def admin_products(request: Request):
     return templates.TemplateResponse(request, "admin_products.html", {
