@@ -15,6 +15,7 @@ from config import BASE_DIR
 from costs import material_cost_per_m2, total_cost_per_m2, door_cost
 from nesting import nest
 from gcode import generate_model_nc, generate_job_nc
+from shelf import price_shelf
 import dxf_utils
 
 router = APIRouter()
@@ -546,3 +547,45 @@ async def job_nc_download(jid: int):
     name = (job["name"] or "nesting").replace(" ", "_")
     return Response(nc, media_type="text/plain",
                     headers={"Content-Disposition": f'attachment; filename="{name}.nc"'})
+
+
+# ==========================================================================
+# MODÜL 5: 3B RAF KONFİGÜRATÖRÜ
+# ==========================================================================
+@router.get("/membrane/configurator", response_class=HTMLResponse)
+async def configurator(request: Request):
+    quotes = db.query("SELECT * FROM membrane_shelf_quotes ORDER BY id DESC LIMIT 50")
+    for q in quotes:
+        try:
+            q["params"] = json.loads(q.get("params_json") or "{}")
+        except Exception:
+            q["params"] = {}
+    return templates.TemplateResponse(request, "configurator.html", {
+        "request": request, "quotes": quotes,
+    })
+
+
+@router.post("/membrane/configurator/price")
+async def configurator_price(request: Request):
+    """Sunucu tarafı yetkili fiyat (canlı önizleme JS'i ile aynı formül)."""
+    params = await request.json()
+    return JSONResponse(price_shelf(params))
+
+
+@router.post("/membrane/configurator/quote")
+async def configurator_quote(request: Request):
+    params = await request.json()
+    pricing = price_shelf(params)
+    qid = db.execute(
+        "INSERT INTO membrane_shelf_quotes (name, customer, params_json, price) "
+        "VALUES (?,?,?,?)",
+        (params.get("name", ""), params.get("customer", ""),
+         json.dumps(params), pricing["total"]),
+    )
+    return JSONResponse({"ok": True, "id": qid, "price": pricing["total"]})
+
+
+@router.post("/membrane/configurator/delete")
+async def configurator_delete(id: int = Form(...)):
+    db.execute("DELETE FROM membrane_shelf_quotes WHERE id=?", (id,))
+    return RedirectResponse("/membrane/configurator", status_code=303)

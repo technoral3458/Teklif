@@ -119,6 +119,16 @@ CREATE TABLE IF NOT EXISTS membrane_cap_job_items (
     notes TEXT DEFAULT '',
     seq INTEGER DEFAULT 0
 );
+
+-- ===== Modül 5: 3B Raf Konfigüratörü (teklifler) =====
+CREATE TABLE IF NOT EXISTS membrane_shelf_quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT DEFAULT '',
+    customer TEXT DEFAULT '',
+    params_json TEXT DEFAULT '{}',
+    price REAL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 DEFAULT_RATES = [("USD", 1.0), ("EUR", 1.0), ("GBP", 1.0)]
