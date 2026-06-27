@@ -24,6 +24,8 @@
           {% for url, label, active in items %}
           <a href="{{ url }}" class="px-3 py-2 rounded hover:bg-slate-700 {% if active %}bg-slate-700{% endif %}">{{ label }}</a>
           {% endfor %}
+          <span class="mx-2 text-slate-500 text-sm">{{ request.state.user }}</span>
+          <a href="/logout" class="px-3 py-2 rounded bg-slate-700 hover:bg-red-600 text-sm">Çıkış</a>
         </div>
         <!-- Mobil hamburger -->
         <button class="md:hidden p-2 rounded hover:bg-slate-700" onclick="document.getElementById('mnav').classList.toggle('hidden')" aria-label="Menü">
@@ -35,6 +37,7 @@
         {% for url, label, active in items %}
         <a href="{{ url }}" class="px-3 py-2 rounded hover:bg-slate-700 {% if active %}bg-slate-700{% endif %}">{{ label }}</a>
         {% endfor %}
+        <a href="/logout" class="px-3 py-2 rounded bg-slate-700 hover:bg-red-600">Çıkış ({{ request.state.user }})</a>
       </div>
     </div>
   </nav>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giriş — Membran Kapak</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-sm p-6">
+    <div class="text-center mb-5">
+      <div class="text-3xl mb-1">🚪</div>
+      <h1 class="text-xl font-bold text-slate-800">Membran Kapak</h1>
+      <p class="text-sm text-slate-500">Yönetici Girişi</p>
+    </div>
+    {% if error %}
+    <div class="bg-red-50 text-red-700 text-sm rounded p-2 mb-3 text-center">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login" class="space-y-3">
+      <input name="username" placeholder="Kullanıcı adı" required autofocus
+             class="border rounded px-3 py-2 w-full">
+      <input name="password" type="password" placeholder="Şifre" required
+             class="border rounded px-3 py-2 w-full">
+      <button class="w-full bg-slate-900 text-white rounded py-2 font-medium">Giriş Yap</button>
+    </form>
+  </div>
+</body>
+</html>

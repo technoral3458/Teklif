@@ -3,6 +3,7 @@ import os
 import sqlite3
 
 from config import DB_PATH
+from auth import hash_password
 
 SCHEMA = """
 -- ===== Modül 1: Maliyet =====
@@ -120,13 +121,22 @@ CREATE TABLE IF NOT EXISTS membrane_cap_job_items (
     seq INTEGER DEFAULT 0
 );
 
--- ===== Modül 5: 3B Raf Konfigüratörü (teklifler) =====
+-- ===== Modül 5: 3B Konfigüratör (teklifler) =====
 CREATE TABLE IF NOT EXISTS membrane_shelf_quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT DEFAULT '',
     customer TEXT DEFAULT '',
     params_json TEXT DEFAULT '{}',
     price REAL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ===== Kullanıcılar (yönetici girişi) =====
+CREATE TABLE IF NOT EXISTS membrane_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT DEFAULT 'admin',
     created_at TEXT DEFAULT (datetime('now'))
 );
 """
@@ -148,6 +158,15 @@ def init():
         conn.execute(
             "INSERT OR IGNORE INTO membrane_rates (currency, rate_to_try) VALUES (?, ?)",
             (code, rate),
+        )
+    # İlk açılışta yönetici hesabı oluştur (yoksa)
+    row = conn.execute("SELECT COUNT(*) FROM membrane_users").fetchone()
+    if row[0] == 0:
+        username = os.environ.get("ADMIN_USER", "admin")
+        password = os.environ.get("ADMIN_PASSWORD", "admin123")
+        conn.execute(
+            "INSERT INTO membrane_users (username, password_hash, role) VALUES (?, ?, 'admin')",
+            (username, hash_password(password)),
         )
     conn.commit()
     conn.close()
