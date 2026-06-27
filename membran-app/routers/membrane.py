@@ -16,6 +16,7 @@ from costs import material_cost_per_m2, total_cost_per_m2, door_cost
 from nesting import nest
 from gcode import generate_model_nc, generate_job_nc
 import templates_lib
+import cfg
 import dxf_utils
 
 router = APIRouter()
@@ -594,3 +595,104 @@ async def configurator_quote(request: Request):
 async def configurator_delete(id: int = Form(...)):
     db.execute("DELETE FROM membrane_shelf_quotes WHERE id=?", (id,))
     return RedirectResponse("/membrane/configurator", status_code=303)
+
+
+# ==========================================================================
+# YÖNETİCİ PANELİ (fiyat / renk yönetimi)
+# ==========================================================================
+@router.get("/membrane/admin", response_class=HTMLResponse)
+async def admin_index(request: Request):
+    return templates.TemplateResponse(request, "admin_index.html", {"request": request})
+
+
+@router.get("/membrane/admin/prices", response_class=HTMLResponse)
+async def admin_prices(request: Request):
+    return templates.TemplateResponse(request, "admin_prices.html", {
+        "request": request, "prices": cfg.get_prices_full(),
+    })
+
+
+@router.post("/membrane/admin/prices")
+async def admin_prices_save(request: Request):
+    form = await request.form()
+    for row in cfg.get_prices_full():
+        val = form.get(row["key"])
+        if val is not None:
+            try:
+                db.execute("UPDATE cfg_prices SET value=? WHERE key=?", (float(val), row["key"]))
+            except ValueError:
+                pass
+    return RedirectResponse("/membrane/admin/prices", status_code=303)
+
+
+@router.get("/membrane/admin/colors", response_class=HTMLResponse)
+async def admin_colors(request: Request):
+    return templates.TemplateResponse(request, "admin_colors.html", {
+        "request": request, "colors": cfg.get_colors(active_only=False),
+    })
+
+
+@router.post("/membrane/admin/colors/save")
+async def admin_colors_save(request: Request):
+    f = await request.form()
+    cid = int(_f(f, "id", "0") or 0)
+    args = (_f(f, "name", ""), _f(f, "hex", "#d8b88a"),
+            float(_f(f, "premium_pct", "0") or 0), int(_f(f, "seq", "0") or 0),
+            1 if f.get("active") else 0)
+    if cid > 0:
+        db.execute("UPDATE cfg_colors SET name=?, hex=?, premium_pct=?, seq=?, active=? WHERE id=?",
+                   args + (cid,))
+    else:
+        db.execute("INSERT INTO cfg_colors (name, hex, premium_pct, seq, active) VALUES (?,?,?,?,?)", args)
+    return RedirectResponse("/membrane/admin/colors", status_code=303)
+
+
+@router.post("/membrane/admin/colors/delete")
+async def admin_colors_delete(id: int = Form(...)):
+    db.execute("DELETE FROM cfg_colors WHERE id=?", (id,))
+    return RedirectResponse("/membrane/admin/colors", status_code=303)
+
+
+# ==========================================================================
+# GARDIROP KONFİGÜRATÖRÜ (pilot - tam opsiyonlu)
+# ==========================================================================
+@router.get("/membrane/gardirop", response_class=HTMLResponse)
+async def gardirop(request: Request):
+    quotes = db.query("SELECT * FROM membrane_shelf_quotes WHERE params_json LIKE '%gardirop_pro%' "
+                      "ORDER BY id DESC LIMIT 30")
+    for q in quotes:
+        try:
+            q["params"] = json.loads(q.get("params_json") or "{}").get("params", {})
+        except Exception:
+            q["params"] = {}
+    return templates.TemplateResponse(request, "gardirop.html", {
+        "request": request, "colors": cfg.get_colors(),
+        "prices": {r["key"]: r["value"] for r in cfg.get_prices_full()},
+        "quotes": quotes,
+    })
+
+
+@router.post("/membrane/gardirop/price")
+async def gardirop_price(request: Request):
+    params = await request.json()
+    return JSONResponse(cfg.price_gardirop(params))
+
+
+@router.post("/membrane/gardirop/quote")
+async def gardirop_quote(request: Request):
+    body = await request.json()
+    params = body.get("params", {})
+    pricing = cfg.price_gardirop(params)
+    store = {"template": "gardirop_pro", "params": params}
+    qid = db.execute(
+        "INSERT INTO membrane_shelf_quotes (name, customer, params_json, price) VALUES (?,?,?,?)",
+        (body.get("name", "") or "Gardırop", body.get("customer", ""),
+         json.dumps(store), pricing["total"]),
+    )
+    return JSONResponse({"ok": True, "id": qid, "price": pricing["total"]})
+
+
+@router.post("/membrane/gardirop/delete")
+async def gardirop_delete(id: int = Form(...)):
+    db.execute("DELETE FROM membrane_shelf_quotes WHERE id=?", (id,))
+    return RedirectResponse("/membrane/gardirop", status_code=303)

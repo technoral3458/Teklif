@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Yönetici{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">⚙️ Yönetici Paneli</h1>
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <a href="/membrane/admin/prices" class="bg-white rounded-xl shadow p-5 hover:shadow-md">
+    <div class="text-3xl mb-2">₺</div>
+    <div class="font-bold">Fiyatlar</div>
+    <div class="text-sm text-slate-500">Gövde, kapak tipleri, baza, ayak, çekmece, kulp… birim fiyatları.</div>
+  </a>
+  <a href="/membrane/admin/colors" class="bg-white rounded-xl shadow p-5 hover:shadow-md">
+    <div class="text-3xl mb-2">🎨</div>
+    <div class="font-bold">Renkler / Kaplamalar</div>
+    <div class="text-sm text-slate-500">Renk paleti, kodları ve fiyat farkları.</div>
+  </a>
+  <a href="/membrane/gardirop" class="bg-white rounded-xl shadow p-5 hover:shadow-md">
+    <div class="text-3xl mb-2">🚪</div>
+    <div class="font-bold">Gardırop Konfigüratörü</div>
+    <div class="text-sm text-slate-500">Tüm opsiyonlu pilot ürün — 3B + fiyat + teklif.</div>
+  </a>
+</div>
+{% endblock %}

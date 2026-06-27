@@ -10,10 +10,12 @@
 <body class="bg-slate-100 text-slate-800 min-h-screen">
   {% set nav = request.url.path %}
   {% set items = [
+      ('/membrane/gardirop', '🚪 Gardırop', nav.startswith('/membrane/gardirop')),
+      ('/membrane/configurator', '🪑 Konfigüratör', nav.startswith('/membrane/configurator')),
+      ('/membrane/admin', '⚙️ Yönetici', nav.startswith('/membrane/admin')),
       ('/membrane', 'Maliyet', nav == '/membrane'),
       ('/membrane/caps', 'Kapak Modelleri', nav.startswith('/membrane/caps')),
       ('/membrane/jobs', 'Nesting', nav.startswith('/membrane/jobs')),
-      ('/membrane/configurator', '🪑 Konfigüratör', nav.startswith('/membrane/configurator')),
   ] %}
   <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
     <div class="max-w-7xl mx-auto px-4">

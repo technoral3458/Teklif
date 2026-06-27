@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Fiyatlar{% endblock %}
+{% block content %}
+<a href="/membrane/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<h1 class="text-2xl font-bold mb-4">₺ Fiyatlar</h1>
+<form method="post" action="/membrane/admin/prices" class="bg-white rounded-xl shadow p-4 max-w-2xl">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Kalem</th><th>Birim</th><th class="w-40">Fiyat</th></tr></thead>
+    <tbody>
+      {% for p in prices %}
+      <tr class="border-b">
+        <td class="py-2 font-medium">{{ p.label }}</td>
+        <td class="text-slate-500">{{ p.unit }}</td>
+        <td><input name="{{ p.key }}" type="number" step="0.01" value="{{ p.value }}" class="border rounded px-2 py-1 w-full"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button class="mt-4 bg-blue-600 text-white rounded px-4 py-2">Kaydet</button>
+  <p class="text-xs text-slate-400 mt-2">Bu fiyatlar gardırop konfigüratöründe anında kullanılır.</p>
+</form>
+{% endblock %}

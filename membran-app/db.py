@@ -139,7 +139,51 @@ CREATE TABLE IF NOT EXISTS membrane_users (
     role TEXT DEFAULT 'admin',
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ===== Konfigüratör: yönetici fiyatları =====
+CREATE TABLE IF NOT EXISTS cfg_prices (
+    key TEXT PRIMARY KEY,
+    label TEXT DEFAULT '',
+    value REAL DEFAULT 0,
+    unit TEXT DEFAULT '',
+    seq INTEGER DEFAULT 0
+);
+
+-- ===== Konfigüratör: renk/kaplama paleti =====
+CREATE TABLE IF NOT EXISTS cfg_colors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    hex TEXT DEFAULT '#d8b88a',
+    premium_pct REAL DEFAULT 0,
+    seq INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1
+);
 """
+
+DEFAULT_PRICES = [
+    ("assembly_base", "Taban / montaj (sabit)", 500, "TL", 1),
+    ("body_per_m2", "Gövde paneli", 900, "TL/m²", 2),
+    ("back_per_m2", "Arkalık", 350, "TL/m²", 3),
+    ("door_flat_per_m2", "Düz kapak", 1100, "TL/m²", 4),
+    ("door_glass_per_m2", "Camlı kapak", 1800, "TL/m²", 5),
+    ("door_pattern_per_m2", "Desenli kapak", 1500, "TL/m²", 6),
+    ("door_sliding_extra_per_m2", "Sürgü sistemi eki", 600, "TL/m²", 7),
+    ("shelf_each", "Raf", 180, "TL/adet", 8),
+    ("drawer_each", "Çekmece", 650, "TL/adet", 9),
+    ("base_plinth", "Baza", 400, "TL", 10),
+    ("legs_set", "Ayak takımı", 350, "TL", 11),
+    ("hanging_rail", "Askı borusu", 120, "TL/adet", 12),
+    ("handle_each", "Kulp", 45, "TL/adet", 13),
+    ("two_tone_extra_pct", "Çift renk ek", 8, "%", 14),
+]
+
+DEFAULT_COLORS = [
+    ("Natürel Meşe", "#d8b88a", 0, 1),
+    ("Beyaz", "#efe9e0", 3, 2),
+    ("Antrasit", "#3a3f44", 8, 3),
+    ("Ceviz", "#6b4a2f", 10, 4),
+    ("Gri", "#9aa0a6", 4, 5),
+]
 
 DEFAULT_RATES = [("USD", 1.0), ("EUR", 1.0), ("GBP", 1.0)]
 
@@ -168,6 +212,19 @@ def init():
             "INSERT INTO membrane_users (username, password_hash, role) VALUES (?, ?, 'admin')",
             (username, hash_password(password)),
         )
+    # Konfigüratör fiyatları (eksik anahtarları ekle, mevcutlara dokunma)
+    for key, label, value, unit, seq in DEFAULT_PRICES:
+        conn.execute(
+            "INSERT OR IGNORE INTO cfg_prices (key, label, value, unit, seq) VALUES (?,?,?,?,?)",
+            (key, label, value, unit, seq),
+        )
+    # Renk paleti (ilk açılışta)
+    if conn.execute("SELECT COUNT(*) FROM cfg_colors").fetchone()[0] == 0:
+        for name, hexv, prem, seq in DEFAULT_COLORS:
+            conn.execute(
+                "INSERT INTO cfg_colors (name, hex, premium_pct, seq) VALUES (?,?,?,?)",
+                (name, hexv, prem, seq),
+            )
     conn.commit()
     conn.close()
 

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Gardırop Konfigüratörü{% endblock %}
+{% block content %}
+<div class="grid lg:grid-cols-3 gap-4">
+  <!-- 3B -->
+  <div class="lg:col-span-2 bg-white rounded-xl shadow p-2 relative">
+    <div id="scene" class="w-full rounded-lg overflow-hidden bg-slate-100" style="height:min(72vh,600px)"></div>
+    <button onclick="resetView()" class="absolute top-4 left-4 bg-white/90 border rounded px-3 py-1 text-sm shadow">↺ Görünüm</button>
+    <label class="absolute top-4 right-4 bg-white/90 border rounded px-3 py-1 text-sm shadow flex items-center gap-1">
+      <input type="checkbox" id="showDoors" checked onchange="rebuild()"> Kapaklar
+    </label>
+  </div>
+
+  <!-- KONTROLLER -->
+  <div class="bg-white rounded-xl shadow p-4 space-y-3">
+    <div class="flex justify-between items-baseline">
+      <h2 class="font-bold text-lg">Gardırop</h2>
+      <div class="text-3xl font-extrabold text-emerald-700"><span id="price">0</span> <span class="text-base text-slate-400">TL</span></div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-2 text-sm">
+      <label>Genişlik<input id="W" type="number" value="1500" class="border rounded px-2 py-1 w-full"></label>
+      <label>Yükseklik<input id="H" type="number" value="2200" class="border rounded px-2 py-1 w-full"></label>
+      <label>Derinlik<input id="D" type="number" value="600" class="border rounded px-2 py-1 w-full"></label>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <label>Kapak tipi
+        <select id="door_type" class="border rounded px-2 py-1 w-full">
+          <option value="duz">Düz kapak</option>
+          <option value="camli">Camlı kapak</option>
+          <option value="desenli">Desenli kapak</option>
+          <option value="surgu">Sürgü kapak</option>
+          <option value="kapaksiz">Kapaksız</option>
+        </select>
+      </label>
+      <label>Gövde tipi
+        <select id="base_type" class="border rounded px-2 py-1 w-full">
+          <option value="bazali">Bazalı</option>
+          <option value="ayakli">Ayaklı</option>
+          <option value="yok">Bazasız</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+      <label class="flex justify-between items-center">Kapak sayısı <input id="doors" type="number" min="1" max="6" value="3" class="border rounded px-2 py-1 w-16"></label>
+      <label class="flex justify-between items-center">Raf <input id="shelves" type="number" min="0" max="6" value="4" class="border rounded px-2 py-1 w-16"></label>
+      <label class="flex justify-between items-center">Çekmece <input id="drawers" type="number" min="0" max="4" value="2" class="border rounded px-2 py-1 w-16"></label>
+      <label class="flex items-center gap-2"><input type="checkbox" id="back" checked> Arkalık</label>
+      <label class="flex items-center gap-2"><input type="checkbox" id="hanging" checked> Askı borusu</label>
+      <label class="flex items-center gap-2"><input type="checkbox" id="handles" checked> Kulp</label>
+      <label class="flex items-center gap-2"><input type="checkbox" id="two_tone"> Çift renk kapak</label>
+    </div>
+
+    <div class="space-y-2">
+      <div>
+        <div class="text-sm mb-1">Gövde rengi</div>
+        <div id="bodyColors" class="flex gap-2 flex-wrap"></div>
+      </div>
+      <div>
+        <div class="text-sm mb-1">Kapak rengi</div>
+        <div id="doorColors" class="flex gap-2 flex-wrap"></div>
+      </div>
+      <div id="door2Wrap" class="hidden">
+        <div class="text-sm mb-1">Kapak 2. renk</div>
+        <div id="door2Colors" class="flex gap-2 flex-wrap"></div>
+      </div>
+    </div>
+
+    <div id="breakdown" class="bg-slate-50 rounded-lg p-3 text-xs space-y-1"></div>
+
+    <div class="border-t pt-3 space-y-2">
+      <input id="q_name" placeholder="Ürün adı" class="border rounded px-2 py-1 w-full text-sm">
+      <input id="q_customer" placeholder="Müşteri (opsiyonel)" class="border rounded px-2 py-1 w-full text-sm">
+      <button onclick="saveQuote()" class="w-full bg-blue-600 text-white rounded py-2">Teklif Kaydet</button>
+      <div id="saveMsg" class="text-sm text-center"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bg-white rounded-xl shadow p-4 mt-4">
+  <h2 class="font-bold mb-2">Kayıtlı Teklifler</h2>
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-1">Ürün</th><th>Müşteri</th><th>Ölçü</th><th>Fiyat</th><th>Tarih</th><th></th></tr></thead>
+    <tbody>
+      {% for q in quotes %}
+      <tr class="border-b">
+        <td class="py-1 font-medium">{{ q.name }}</td><td>{{ q.customer or '-' }}</td>
+        <td>{{ q.params.get('W','?') }}×{{ q.params.get('H','?') }}×{{ q.params.get('D','?') }}</td>
+        <td class="font-semibold text-emerald-700">{{ "%.0f"|format(q.price) }} TL</td>
+        <td>{{ q.created_at[:10] }}</td>
+        <td class="text-right">
+          <button onclick='loadQuote({{ q.params|tojson }})' class="text-blue-600 text-xs">yükle</button>
+          <form method="post" action="/membrane/gardirop/delete" class="inline" onsubmit="return confirm('Silinsin mi?')">
+            <input type="hidden" name="id" value="{{ q.id }}"><button class="text-red-600 text-xs">sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="6" class="py-3 text-center text-slate-400">Henüz teklif yok.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const COLORS = {{ colors|tojson }};
+const HEX = {}; COLORS.forEach(c=>HEX[c.id]=c.hex);
+const PT=0.018;
+let params = { W:1500,H:2200,D:600, doors:3, door_type:'duz', base_type:'bazali',
+  back:1, shelves:4, drawers:2, hanging:1, handles:1, two_tone:0,
+  body_color: COLORS[0]?COLORS[0].id:null, door_color: COLORS[0]?COLORS[0].id:null, door_color2: COLORS[0]?COLORS[0].id:null };
+let showDoors=true;
+let scene,camera,renderer,controls,unit;
+
+function initThree(){
+  const el=document.getElementById('scene');
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xf1f5f9);
+  camera=new THREE.PerspectiveCamera(45, el.clientWidth/el.clientHeight, 0.05, 100);
+  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(el.clientWidth, el.clientHeight); renderer.setPixelRatio(window.devicePixelRatio);
+  el.appendChild(renderer.domElement);
+  controls=new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true;
+  scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.05));
+  const dir=new THREE.DirectionalLight(0xffffff,0.55); dir.position.set(3,6,4); scene.add(dir);
+  scene.add(new THREE.GridHelper(10,20,0xcbd5e1,0xe2e8f0));
+  window.addEventListener('resize', ()=>{ camera.aspect=el.clientWidth/el.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth, el.clientHeight); });
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+}
+function hx(id){ return parseInt((HEX[id]||'#d8b88a').slice(1),16); }
+function darken(hexInt,f){ const r=(hexInt>>16&255)*f,g=(hexInt>>8&255)*f,b=(hexInt&255)*f; return (r<<16)|(g<<8)|b; }
+function mat(colorInt, opts){ return new THREE.MeshStandardMaterial(Object.assign({color:colorInt, roughness:0.82}, opts||{})); }
+function box(g,w,h,d,x,y,z,m){ const me=new THREE.Mesh(new THREE.BoxGeometry(Math.max(w,0.004),Math.max(h,0.004),Math.max(d,0.004)),m); me.position.set(x,y,z); g.add(me); return me; }
+function resetView(){ const H=params.H/1000,W=params.W/1000; camera.position.set(W*0.9,H*0.6,Math.max(W,1.4)*1.5); controls.target.set(0,H/2,0); controls.update(); }
+
+function buildGardirop(){
+  const g=new THREE.Group();
+  const W=params.W/1000,H=params.H/1000,D=params.D/1000;
+  const bt=params.base_type, legH = bt==='ayakli'?0.10 : (bt==='bazali'?0.08:0);
+  const cB=legH, cH=H-legH;
+  const bodyC=hx(params.body_color), doorC=hx(params.door_color), door2C=hx(params.door_color2);
+  const bodyMat=mat(bodyC), backMat=mat(darken(bodyC,0.85)), metalMat=mat(0x333333,{metalness:0.6,roughness:0.5});
+
+  // gövde
+  box(g,PT,cH,D,-W/2+PT/2,cB+cH/2,0,bodyMat);
+  box(g,PT,cH,D, W/2-PT/2,cB+cH/2,0,bodyMat);
+  box(g,W,PT,D,0,cB+cH-PT/2,0,bodyMat);
+  box(g,W,PT,D,0,cB+PT/2,0,bodyMat);
+  box(g,PT,cH,D,0,cB+cH/2,0,bodyMat);                 // orta bölme
+  if(params.back) box(g,W,cH,PT,0,cB+cH/2,-D/2+PT/2,backMat);
+
+  // baza / ayak
+  if(bt==='bazali') box(g,W-0.04,0.08,D-0.06,0,0.04,0.0,mat(darken(bodyC,0.7)));
+  if(bt==='ayakli'){ const lx=W/2-0.06, lz=D/2-0.06; [[-lx,-lz],[lx,-lz],[-lx,lz],[lx,lz]].forEach(([x,z])=>box(g,0.045,legH,0.045,x,legH/2,z,metalMat)); }
+
+  // raflar (sağ bölme)
+  for(let s=0;s<params.shelves;s++){ const y=cB+PT+(s+1)*(cH-2*PT)/(params.shelves+1); box(g,W/2-PT,PT,D-PT,W/4,y,0,bodyMat); }
+  // askı borusu (sol bölme)
+  if(params.hanging) box(g,W/2-PT,0.03,0.03,-W/4,cB+cH-0.22,0,metalMat);
+  // çekmeceler (sol alt)
+  for(let k=0;k<params.drawers;k++){ box(g,W/2-PT-0.02,0.16,PT,-W/4,cB+0.11+k*0.18,D/2-PT/2,mat(doorC)); }
+
+  // kapaklar
+  if(showDoors && params.door_type!=='kapaksiz'){
+    const dt=params.door_type, n=params.doors, bayW=W/n;
+    const front=D/2-PT/2;
+    for(let i=0;i<n;i++){
+      const cx=-W/2+i*bayW+bayW/2, dw=bayW-0.012, dh=cH-0.012, cy=cB+cH/2;
+      const z = (dt==='surgu') ? (front - (i%2)*0.028) : front;
+      const ww = (dt==='surgu') ? bayW*1.06 : dw;
+      if(dt==='camli'){
+        // çerçeve + cam
+        const fr=mat(doorC); const t=0.06;
+        box(g,ww,t,PT,cx,cy+dh/2-t/2,z,fr); box(g,ww,t,PT,cx,cy-dh/2+t/2,z,fr);
+        box(g,t,dh,PT,cx-ww/2+t/2,cy,z,fr); box(g,t,dh,PT,cx+ww/2-t/2,cy,z,fr);
+        box(g,ww-2*t,dh-2*t,0.006,cx,cy,z,mat(0xbcd6e6,{transparent:true,opacity:0.32,roughness:0.1,metalness:0.1}));
+      } else if(dt==='desenli'){
+        box(g,ww,dh,PT,cx,cy,z,mat(doorC));
+        // dikey desen çizgileri
+        for(let l=-1;l<=1;l++) box(g,0.02,dh-0.06,0.006,cx+l*(ww/4),cy,z+PT/2,mat(darken(doorC,0.8)));
+      } else {
+        box(g,ww,dh,PT,cx,cy,z,mat(doorC));
+        if(params.two_tone) box(g,ww*0.7,dh*0.82,0.006,cx,cy,z+PT/2,mat(door2C)); // iç panel 2. renk
+      }
+      if(params.handles){ const hx_=cx + (i%2?-1:1)*(bayW/2-0.04); box(g,0.02,0.12,0.03,hx_,cy,z+PT/2+0.01,metalMat); }
+    }
+  }
+  return g;
+}
+
+function rebuild(){
+  showDoors=document.getElementById('showDoors').checked;
+  if(unit) scene.remove(unit);
+  unit=buildGardirop(); scene.add(unit);
+  refreshPrice();
+}
+let priceTimer=null;
+function refreshPrice(){
+  clearTimeout(priceTimer);
+  priceTimer=setTimeout(async ()=>{
+    const r=await fetch('/membrane/gardirop/price',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});
+    const d=await r.json();
+    document.getElementById('price').textContent=Math.round(d.total).toLocaleString('tr-TR');
+    document.getElementById('breakdown').innerHTML=d.items.filter(x=>x.value>0).map(x=>`<div class="flex justify-between"><span>${x.label}</span><b>${x.value.toLocaleString('tr-TR')} TL</b></div>`).join('');
+  },150);
+}
+
+// kontroller
+function bindNum(id){ const e=document.getElementById(id); e.addEventListener('input',()=>{ params[id]=+e.value||0; rebuild(); }); }
+function bindSel(id){ const e=document.getElementById(id); e.addEventListener('change',()=>{ params[id]=e.value; if(id==='door_type'){} rebuild(); }); }
+function bindChk(id){ const e=document.getElementById(id); e.addEventListener('change',()=>{ params[id]=e.checked?1:0; if(id==='two_tone') document.getElementById('door2Wrap').classList.toggle('hidden',!e.checked); rebuild(); }); }
+
+function swatches(containerId, key){
+  const cw=document.getElementById(containerId); cw.innerHTML='';
+  COLORS.forEach(c=>{ const b=document.createElement('button'); b.style.background=c.hex; b.title=c.name+(c.premium_pct?` (+%${c.premium_pct})`:'');
+    b.className='w-8 h-8 rounded-full border-2'; b.style.borderColor=(c.id===params[key])?'#2563eb':'#cbd5e1';
+    b.onclick=()=>{ params[key]=c.id; [...cw.children].forEach(x=>x.style.borderColor='#cbd5e1'); b.style.borderColor='#2563eb'; rebuild(); };
+    cw.appendChild(b); });
+}
+
+function loadQuote(p){
+  params=Object.assign(params, p);
+  ['W','H','D','doors','shelves','drawers'].forEach(k=>{ if(document.getElementById(k)) document.getElementById(k).value=params[k]; });
+  document.getElementById('door_type').value=params.door_type; document.getElementById('base_type').value=params.base_type;
+  ['back','hanging','handles','two_tone'].forEach(k=>document.getElementById(k).checked=!!params[k]);
+  document.getElementById('door2Wrap').classList.toggle('hidden',!params.two_tone);
+  swatches('bodyColors','body_color'); swatches('doorColors','door_color'); swatches('door2Colors','door_color2');
+  rebuild(); resetView(); window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function saveQuote(){
+  const body={ name:document.getElementById('q_name').value, customer:document.getElementById('q_customer').value, params };
+  const r=await fetch('/membrane/gardirop/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json(); const m=document.getElementById('saveMsg');
+  if(d.ok){ m.innerHTML='<span class="text-emerald-700">Kaydedildi ('+Math.round(d.price).toLocaleString('tr-TR')+' TL). Yenileniyor...</span>'; setTimeout(()=>location.reload(),900); }
+  else m.innerHTML='<span class="text-red-600">Kaydedilemedi</span>';
+}
+
+// başlat
+initThree();
+['W','H','D','doors','shelves','drawers'].forEach(bindNum);
+['door_type','base_type'].forEach(bindSel);
+['back','hanging','handles','two_tone'].forEach(bindChk);
+swatches('bodyColors','body_color'); swatches('doorColors','door_color'); swatches('door2Colors','door_color2');
+rebuild(); resetView();
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Renkler{% endblock %}
+{% block content %}
+<a href="/membrane/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<div class="flex justify-between items-center mb-4">
+  <h1 class="text-2xl font-bold">🎨 Renkler / Kaplamalar</h1>
+  <button onclick="openColor()" class="bg-blue-600 text-white px-3 py-1.5 rounded">+ Renk Ekle</button>
+</div>
+
+<div class="bg-white rounded-xl shadow p-4 max-w-3xl">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Renk</th><th>Ad</th><th>Kod</th><th>Fiyat farkı</th><th>Durum</th><th></th></tr></thead>
+    <tbody>
+      {% for c in colors %}
+      <tr class="border-b">
+        <td class="py-2"><span class="inline-block w-7 h-7 rounded-full border" style="background:{{ c.hex }}"></span></td>
+        <td class="font-medium">{{ c.name }}</td>
+        <td class="font-mono text-slate-500">{{ c.hex }}</td>
+        <td>%{{ c.premium_pct }}</td>
+        <td>{% if c.active %}<span class="text-emerald-600">Aktif</span>{% else %}<span class="text-slate-400">Pasif</span>{% endif %}</td>
+        <td class="text-right">
+          <button onclick='openColor({{ c|tojson }})' class="text-blue-600 text-xs">düzenle</button>
+          <form method="post" action="/membrane/admin/colors/delete" class="inline" onsubmit="return confirm('Silinsin mi?')">
+            <input type="hidden" name="id" value="{{ c.id }}"><button class="text-red-600 text-xs">sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="py-3 text-center text-slate-400">Henüz renk yok.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="colorModal" class="modal-bg hidden">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-3">Renk</h3>
+    <form method="post" action="/membrane/admin/colors/save" class="space-y-2">
+      <input type="hidden" name="id" id="c_id" value="0">
+      <input name="name" id="c_name" placeholder="Ad (örn. Antrasit)" required class="border rounded px-2 py-1 w-full">
+      <div class="flex items-center gap-2">
+        <input name="hex" id="c_hex" type="color" value="#d8b88a" class="w-12 h-9 border rounded">
+        <input id="c_hex_txt" value="#d8b88a" class="border rounded px-2 py-1 flex-1 font-mono" oninput="document.getElementById('c_hex').value=this.value">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="text-sm">Fiyat farkı %<input name="premium_pct" id="c_prem" type="number" step="0.1" value="0" class="border rounded px-2 py-1 w-full"></label>
+        <label class="text-sm">Sıra<input name="seq" id="c_seq" type="number" value="0" class="border rounded px-2 py-1 w-full"></label>
+      </div>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="active" id="c_active" checked> Aktif</label>
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal('colorModal')" class="flex-1 border rounded py-1.5">İptal</button>
+        <button class="flex-1 bg-blue-600 text-white rounded py-1.5">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('c_hex').addEventListener('input', e=>{ document.getElementById('c_hex_txt').value=e.target.value; });
+function openColor(c){ c=c||{}; c_id.value=c.id||0; c_name.value=c.name||''; const hex=c.hex||'#d8b88a';
+  c_hex.value=hex; c_hex_txt.value=hex; c_prem.value=c.premium_pct||0; c_seq.value=c.seq||0; c_active.checked=(c.active===undefined)?true:!!c.active;
+  openModal('colorModal'); }
+</script>
+{% endblock %}
