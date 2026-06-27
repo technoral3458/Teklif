@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Şablonlar{% endblock %}
+{% block content %}
+<a href="/membrane/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<div class="flex justify-between items-center mb-4">
+  <h1 class="text-2xl font-bold">🧩 No-code Şablonlar</h1>
+  <form method="post" action="/membrane/admin/sablonlar/new"><button class="bg-blue-600 text-white px-3 py-1.5 rounded">+ Yeni Şablon</button></form>
+</div>
+<p class="text-sm text-slate-500 mb-3">Kendi ürün tipini kod yazmadan tanımla: parçalar (panel/raf/kapak) + parametreler + fiyat formülü. Canlı 3B önizleme ile.</p>
+<div class="bg-white rounded-xl shadow p-4">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left border-b text-slate-500"><th class="py-2">Ad</th><th>Durum</th><th></th></tr></thead>
+    <tbody>
+      {% for t in rows %}
+      <tr class="border-b">
+        <td class="py-2 font-medium">{{ t.name }}</td>
+        <td>{% if t.enabled %}<span class="text-emerald-600">Aktif</span>{% else %}<span class="text-slate-400">Pasif</span>{% endif %}</td>
+        <td class="text-right whitespace-nowrap">
+          <a href="/membrane/admin/sablon/{{ t.id }}" class="text-blue-600 text-xs">düzenle</a>
+          <a href="/membrane/sablon/{{ t.id }}" target="_blank" class="text-emerald-700 text-xs">kullan</a>
+          <form method="post" action="/membrane/admin/sablon/{{ t.id }}/delete" class="inline" onsubmit="return confirm('Silinsin mi?')">
+            <input type="hidden" name="id" value="{{ t.id }}"><button class="text-red-600 text-xs">sil</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="3" class="py-3 text-center text-slate-400">Henüz şablon yok.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

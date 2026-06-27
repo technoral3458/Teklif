@@ -750,9 +750,11 @@ async def teklif_print(request: Request, qid: int):
     p = store.get("params", {})
     pricing = cfg.price_cabinet(p)
     cmap = {str(c["id"]): c["name"] for c in db.query("SELECT id, name FROM cfg_colors")}
-    prod = products_lib.get(store.get("template", "")) or {"name": store.get("template", "Ürün")}
+    prod_name = (store.get("product_name")
+                 or (products_lib.get(store.get("template", "")) or {}).get("name")
+                 or store.get("template", "Ürün"))
     details = [
-        ("Ürün", prod["name"]),
+        ("Ürün", prod_name),
         ("Ölçü (G×Y×D)", f"{p.get('W','?')} × {p.get('H','?')} × {p.get('D','?')} mm"),
         ("Kapak tipi", DOOR_LABELS.get(p.get("door_type"), p.get("door_type", "-"))),
         ("Gövde tipi", BASE_LABELS.get(p.get("base_type"), p.get("base_type", "-"))),
@@ -768,6 +770,89 @@ async def teklif_print(request: Request, qid: int):
         "items": [i for i in pricing["items"] if i["value"] > 0],
         "total": pricing["total"], "contact": contact,
     })
+
+
+# ==========================================================================
+# NO-CODE ŞABLON EDİTÖRÜ
+# ==========================================================================
+@router.get("/membrane/admin/sablonlar", response_class=HTMLResponse)
+async def admin_sablonlar(request: Request):
+    rows = db.query("SELECT id, name, enabled FROM cfg_templates ORDER BY seq, id")
+    return templates.TemplateResponse(request, "admin_sablonlar.html", {"request": request, "rows": rows})
+
+
+@router.post("/membrane/admin/sablonlar/new")
+async def admin_sablon_new():
+    blank = {"category": "Özel", "params": [
+        {"key": "W", "label": "Genişlik (mm)", "min": 300, "max": 3000, "default": 1000},
+        {"key": "H", "label": "Yükseklik (mm)", "min": 300, "max": 2400, "default": 800},
+        {"key": "D", "label": "Derinlik (mm)", "min": 200, "max": 700, "default": 400},
+    ], "parts": [], "price_expr": "500"}
+    tid = db.execute("INSERT INTO cfg_templates (name, enabled, def_json) VALUES (?,?,?)",
+                     ("Yeni Şablon", 1, json.dumps(blank)))
+    return RedirectResponse(f"/membrane/admin/sablon/{tid}", status_code=303)
+
+
+@router.get("/membrane/admin/sablon/{tid}", response_class=HTMLResponse)
+async def admin_sablon_edit(request: Request, tid: int):
+    t = db.one("SELECT * FROM cfg_templates WHERE id=?", (tid,))
+    if not t:
+        return RedirectResponse("/membrane/admin/sablonlar", status_code=303)
+    try:
+        deff = json.loads(t.get("def_json") or "{}")
+    except Exception:
+        deff = {}
+    return templates.TemplateResponse(request, "admin_sablon_edit.html", {
+        "request": request, "t": t, "deff": deff, "colors": cfg.get_colors(),
+    })
+
+
+@router.post("/membrane/admin/sablon/{tid}")
+async def admin_sablon_save(tid: int, request: Request):
+    body = await request.json()
+    db.execute("UPDATE cfg_templates SET name=?, enabled=?, def_json=? WHERE id=?",
+               (body.get("name", "Şablon"), 1 if body.get("enabled", True) else 0,
+                json.dumps(body.get("def", {})), tid))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/membrane/admin/sablon/{tid}/delete")
+async def admin_sablon_delete(tid: int):
+    db.execute("DELETE FROM cfg_templates WHERE id=?", (tid,))
+    return RedirectResponse("/membrane/admin/sablonlar", status_code=303)
+
+
+@router.get("/membrane/sablon/{tid}", response_class=HTMLResponse)
+async def sablon_konfig(request: Request, tid: int):
+    t = db.one("SELECT * FROM cfg_templates WHERE id=?", (tid,))
+    if not t:
+        return RedirectResponse("/membrane/admin/sablonlar", status_code=303)
+    deff = json.loads(t.get("def_json") or "{}")
+    return templates.TemplateResponse(request, "sablon_konfig.html", {
+        "request": request, "t": t, "deff": deff, "colors": cfg.get_colors(),
+    })
+
+
+@router.post("/membrane/sablon/{tid}/price")
+async def sablon_price(tid: int, request: Request):
+    t = db.one("SELECT def_json FROM cfg_templates WHERE id=?", (tid,))
+    deff = json.loads(t.get("def_json") or "{}") if t else {}
+    return JSONResponse(cfg.price_custom(deff, await request.json()))
+
+
+@router.post("/membrane/sablon/{tid}/quote")
+async def sablon_quote(tid: int, request: Request):
+    t = db.one("SELECT * FROM cfg_templates WHERE id=?", (tid,))
+    deff = json.loads(t.get("def_json") or "{}") if t else {}
+    body = await request.json()
+    params = body.get("params", {})
+    pricing = cfg.price_custom(deff, params)
+    store = {"template": f"tpl{tid}", "product_name": t["name"] if t else "Şablon", "params": params}
+    qid = db.execute(
+        "INSERT INTO membrane_shelf_quotes (name, customer, params_json, price) VALUES (?,?,?,?)",
+        (body.get("name", "") or (t["name"] if t else "Şablon"), body.get("customer", ""),
+         json.dumps(store), pricing["total"]))
+    return JSONResponse({"ok": True, "id": qid, "price": pricing["total"]})
 
 
 @router.get("/membrane/admin/talepler", response_class=HTMLResponse)

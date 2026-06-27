@@ -107,3 +107,23 @@ def price_gardirop(p):
 
 # Çok ürünlü konfigüratör aynı (jenerik dolap) fiyat mantığını kullanır.
 price_cabinet = price_gardirop
+
+
+def price_custom(deff, params):
+    """No-code şablon fiyatı: def.price_expr'i parametrelerle değerlendirir."""
+    from expr import eval_expr
+    variables = {"PT": 18}
+    for p in deff.get("params", []):
+        key = p["key"]
+        try:
+            variables[key] = float(params.get(key, p.get("default", 0)))
+        except (TypeError, ValueError):
+            variables[key] = p.get("default", 0) or 0
+    material = eval_expr(deff.get("price_expr", "0"), variables)
+    prem = 0.0
+    bc = str(params.get("body_color"))
+    for c in db.query("SELECT id, premium_pct FROM cfg_colors"):
+        if str(c["id"]) == bc:
+            prem = c["premium_pct"] / 100.0
+    total = material * (1 + prem)
+    return {"material": round(material, 2), "total": round(total, 2)}

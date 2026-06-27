@@ -1,4 +1,5 @@
 """SQLite veri katmanı - şema ve yardımcı sorgu fonksiyonları."""
+import json
 import os
 import sqlite3
 
@@ -166,7 +167,36 @@ CREATE TABLE IF NOT EXISTS cfg_products (
     enabled INTEGER DEFAULT 1,
     seq INTEGER DEFAULT 0
 );
+
+-- ===== No-code şablonlar (yöneticinin panelden tanımladığı ürünler) =====
+CREATE TABLE IF NOT EXISTS cfg_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    enabled INTEGER DEFAULT 1,
+    def_json TEXT DEFAULT '{}',
+    seq INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
+
+EXAMPLE_TEMPLATE = {
+    "category": "Özel",
+    "params": [
+        {"key": "W", "label": "Genişlik (mm)", "min": 600, "max": 3000, "default": 1600},
+        {"key": "H", "label": "Yükseklik (mm)", "min": 600, "max": 2400, "default": 2000},
+        {"key": "D", "label": "Derinlik (mm)", "min": 250, "max": 600, "default": 350},
+        {"key": "columns", "label": "Kolon", "min": 1, "max": 6, "default": 3},
+        {"key": "shelves", "label": "Raf", "min": 2, "max": 8, "default": 5},
+    ],
+    "parts": [
+        {"mat": "panel", "repeat": [["c", "columns+1"]], "when": "",
+         "x": "-W/2 + c*(W/columns)", "y": "H/2", "z": "0", "w": "PT", "h": "H", "d": "D"},
+        {"mat": "shelf", "repeat": [["c", "columns"], ["s", "shelves"]], "when": "",
+         "x": "-W/2 + c*(W/columns) + (W/columns)/2", "y": "s*(H-PT)/(shelves-1) + PT/2", "z": "0",
+         "w": "(W/columns)-PT", "h": "PT", "d": "D"},
+    ],
+    "price_expr": "500 + (((columns+1)*H*D + shelves*W*D)/1000000)*900",
+}
 
 DEFAULT_PRICES = [
     ("assembly_base", "Taban / montaj (sabit)", 500, "TL", 1),
@@ -238,6 +268,10 @@ def init():
     for seqi, p in enumerate(_PRODUCTS):
         conn.execute("INSERT OR IGNORE INTO cfg_products (id, name, enabled, seq) VALUES (?,?,1,?)",
                      (p["id"], p["name"], seqi))
+    # Örnek no-code şablon (ilk açılışta)
+    if conn.execute("SELECT COUNT(*) FROM cfg_templates").fetchone()[0] == 0:
+        conn.execute("INSERT INTO cfg_templates (name, enabled, def_json, seq) VALUES (?,?,?,0)",
+                     ("Örnek Açık Raf", 1, json.dumps(EXAMPLE_TEMPLATE)))
     conn.commit()
     conn.close()
 

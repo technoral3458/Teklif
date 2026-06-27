@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ t.name }}{% endblock %}
+{% block content %}
+<a href="/membrane/admin/sablonlar" class="text-blue-600 text-sm">← Şablonlar</a>
+<div class="grid lg:grid-cols-3 gap-4 mt-2">
+  <div class="lg:col-span-2 bg-white rounded-xl shadow p-2 relative">
+    <div id="scene" class="w-full rounded-lg bg-slate-100" style="height:min(72vh,600px)"></div>
+    <label class="absolute top-4 right-4 bg-white/90 border rounded px-3 py-1 text-sm shadow flex items-center gap-1"><input type="checkbox" id="showDoors" checked> Kapaklar</label>
+  </div>
+  <div class="bg-white rounded-xl shadow p-4 space-y-3">
+    <div class="flex justify-between items-baseline">
+      <h2 class="font-bold text-lg">{{ t.name }}</h2>
+      <div class="text-3xl font-extrabold text-emerald-700"><span id="price">0</span> <span class="text-base text-slate-400">TL</span></div>
+    </div>
+    <div id="params" class="space-y-2"></div>
+    <div><div class="text-sm mb-1">Gövde rengi</div><div id="bodyColors" class="flex gap-2 flex-wrap"></div></div>
+    <div><div class="text-sm mb-1">Kapak rengi</div><div id="doorColors" class="flex gap-2 flex-wrap"></div></div>
+    <div class="border-t pt-3 space-y-2">
+      <input id="q_name" placeholder="Ürün adı" class="border rounded px-2 py-1 w-full text-sm">
+      <input id="q_customer" placeholder="Müşteri" class="border rounded px-2 py-1 w-full text-sm">
+      <button onclick="saveQuote()" class="w-full bg-blue-600 text-white rounded py-2">Teklif Kaydet</button>
+      <div id="saveMsg" class="text-sm text-center"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="/static/parts_engine.js"></script>
+<script>
+const DEF={{ deff|tojson }}, COLORS={{ colors|tojson }};
+const HEX={}; COLORS.forEach(c=>HEX[c.id]=c.hex);
+let params={}, bodyColor=COLORS[0]?COLORS[0].id:null, doorColor=COLORS[0]?COLORS[0].id:null, showDoors=true;
+let scene,camera,renderer,controls,unit,framed=false;
+function hxi(id){ return parseInt((HEX[id]||'#d8b88a').slice(1),16); }
+function init(){ const el=document.getElementById('scene');
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xeef2f7);
+  camera=new THREE.PerspectiveCamera(42,el.clientWidth/el.clientHeight,0.05,100);
+  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(el.clientWidth,el.clientHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; el.appendChild(renderer.domElement);
+  controls=new THREE.OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.5;
+  scene.add(new THREE.HemisphereLight(0xffffff,0xb6bcc6,0.85)); scene.add(new THREE.AmbientLight(0xffffff,0.18));
+  const k=new THREE.DirectionalLight(0xffffff,0.62); k.position.set(4.5,8,6); k.castShadow=true; k.shadow.mapSize.set(2048,2048); k.shadow.bias=-0.0004; const sc=k.shadow.camera; sc.near=0.5;sc.far=40;sc.left=-4;sc.right=4;sc.top=4;sc.bottom=-4; scene.add(k);
+  const g=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0xe4e9ef,roughness:0.97})); g.rotation.x=-Math.PI/2; g.position.y=-0.003; g.receiveShadow=true; scene.add(g);
+  scene.add(new THREE.GridHelper(12,24,0xd2d9e2,0xe2e8f0));
+  addEventListener('resize',()=>{ camera.aspect=el.clientWidth/el.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth,el.clientHeight); });
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+}
+function rebuild(){ showDoors=document.getElementById('showDoors').checked; if(unit) scene.remove(unit);
+  unit=PartsEngine.buildGroup(DEF,params,{bodyHex:hxi(bodyColor),doorHex:hxi(doorColor),showDoors}); scene.add(unit);
+  const H=(params.H||1000)/1000,W=(params.W||1000)/1000; if(!framed){ camera.position.set(W*0.95,H*0.6,Math.max(W,1)*1.7); controls.target.set(0,H/2,0); controls.update(); framed=true; }
+  price();
+}
+let pt=null; function price(){ clearTimeout(pt); pt=setTimeout(async()=>{
+  const body=Object.assign({},params,{body_color:bodyColor,door_color:doorColor});
+  const r=await fetch(location.pathname+'/price',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json();
+  document.getElementById('price').textContent=Math.round(d.total).toLocaleString('tr-TR');
+},150); }
+function buildParams(){ const pc=document.getElementById('params'); pc.innerHTML='';
+  (DEF.params||[]).forEach(p=>{ params[p.key]=p.default;
+    const w=document.createElement('div'); w.innerHTML=`<label class="text-sm flex justify-between"><span>${p.label||p.key}</span><b id="v_${p.key}">${p.default}</b></label>`;
+    const i=document.createElement('input'); i.type='range'; i.min=p.min; i.max=p.max; i.value=p.default; i.className='w-full';
+    i.addEventListener('input',()=>{ params[p.key]=+i.value; document.getElementById('v_'+p.key).textContent=i.value; rebuild(); });
+    w.appendChild(i); pc.appendChild(w);
+  });
+}
+function swatches(cid,get,set){ const cw=document.getElementById(cid); cw.innerHTML=''; COLORS.forEach(c=>{ const b=document.createElement('button'); b.style.background=c.hex; b.title=c.name; b.className='w-8 h-8 rounded-full border-2'; b.style.borderColor=(c.id===get())?'#2563eb':'#cbd5e1'; b.onclick=()=>{ set(c.id); [...cw.children].forEach(x=>x.style.borderColor='#cbd5e1'); b.style.borderColor='#2563eb'; rebuild(); }; cw.appendChild(b); }); }
+async function saveQuote(){ const body={ name:document.getElementById('q_name').value, customer:document.getElementById('q_customer').value, params:Object.assign({},params,{body_color:bodyColor,door_color:doorColor}) };
+  const r=await fetch(location.pathname+'/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json();
+  document.getElementById('saveMsg').innerHTML=d.ok?'<span class="text-emerald-700">Kaydedildi ('+Math.round(d.price).toLocaleString('tr-TR')+' TL)</span>':'<span class="text-red-600">Hata</span>'; }
+init(); buildParams(); swatches('bodyColors',()=>bodyColor,v=>bodyColor=v); swatches('doorColors',()=>doorColor,v=>doorColor=v);
+document.getElementById('showDoors').addEventListener('change',rebuild);
+rebuild();
+</script>
+{% endblock %}

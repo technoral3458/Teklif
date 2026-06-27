@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Şablon Düzenle{% endblock %}
+{% block content %}
+<a href="/membrane/admin/sablonlar" class="text-blue-600 text-sm">← Şablonlar</a>
+<div class="grid lg:grid-cols-2 gap-4 mt-2">
+  <!-- SOL: editör -->
+  <div class="bg-white rounded-xl shadow p-4 space-y-4">
+    <div class="flex gap-2 items-center">
+      <input id="t_name" value="{{ t.name }}" class="border rounded px-2 py-1 flex-1 font-medium">
+      <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="t_enabled" {% if t.enabled %}checked{% endif %}> Aktif</label>
+      <button onclick="save()" class="bg-blue-600 text-white rounded px-4 py-1.5">Kaydet</button>
+    </div>
+    <div id="saveMsg" class="text-sm"></div>
+
+    <div>
+      <div class="flex justify-between items-center mb-1"><h3 class="font-bold">Parametreler</h3><button onclick="addParam()" class="text-blue-600 text-sm">+ ekle</button></div>
+      <div class="text-xs text-slate-400 mb-1 grid grid-cols-12 gap-1"><span class="col-span-2">anahtar</span><span class="col-span-4">etiket</span><span class="col-span-2">min</span><span class="col-span-2">max</span><span class="col-span-2">varsayılan</span></div>
+      <div id="params"></div>
+    </div>
+
+    <div>
+      <div class="flex justify-between items-center mb-1"><h3 class="font-bold">Parçalar</h3><button onclick="addPart()" class="text-blue-600 text-sm">+ ekle</button></div>
+      <div id="parts" class="space-y-2"></div>
+    </div>
+
+    <div>
+      <label class="font-bold text-sm">Fiyat formülü (TL)</label>
+      <input id="price_expr" class="border rounded px-2 py-1 w-full font-mono text-xs" value="{{ deff.get('price_expr','500') }}">
+    </div>
+
+    <div class="bg-slate-50 rounded p-2 text-xs text-slate-600">
+      <b>Kullanılabilir değişkenler:</b> parametre anahtarların (örn. W, H, D, columns), <code>PT</code> (panel kalınlığı=18),
+      tekrar indexleri (örn. c, s), fonksiyonlar: min, max, floor, round, sqrt.<br>
+      <b>Koordinat:</b> mm; x merkez(-W/2..W/2), y taban(0..H), z derinlik(-D/2..D/2). Malzeme: panel/shelf/door/back/drawer/metal/glass.
+    </div>
+  </div>
+
+  <!-- SAĞ: canlı önizleme -->
+  <div class="bg-white rounded-xl shadow p-2 lg:sticky lg:top-20 self-start">
+    <div id="scene" class="w-full rounded-lg bg-slate-100" style="height:min(70vh,560px)"></div>
+    <div class="text-xs text-slate-400 p-2">Canlı önizleme (varsayılan ölçülerle). Sürükle: döndür.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="/static/parts_engine.js"></script>
+<script>
+const DEF = {{ deff|tojson }};
+const COLORS = {{ colors|tojson }};
+const bodyHex = parseInt((COLORS[0]?COLORS[0].hex:'#d8b88a').slice(1),16);
+const doorHex = parseInt((COLORS[1]?COLORS[1].hex:(COLORS[0]?COLORS[0].hex:'#c8a06a')).slice(1),16);
+const MATS=['panel','shelf','door','back','drawer','metal','glass'];
+
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+function addParam(p){ p=p||{key:'',label:'',min:0,max:1000,default:0};
+  const row=el(`<div class="grid grid-cols-12 gap-1 mb-1">
+    <input class="col-span-2 border rounded px-1 py-0.5 text-xs pk" value="${p.key||''}" placeholder="W">
+    <input class="col-span-4 border rounded px-1 py-0.5 text-xs pl" value="${p.label||''}" placeholder="Genişlik">
+    <input type="number" class="col-span-2 border rounded px-1 py-0.5 text-xs pmin" value="${p.min||0}">
+    <input type="number" class="col-span-2 border rounded px-1 py-0.5 text-xs pmax" value="${p.max||0}">
+    <div class="col-span-2 flex gap-1"><input type="number" class="border rounded px-1 py-0.5 text-xs pdef w-full" value="${p.default||0}"><button onclick="this.closest('div.grid').remove();schedule()" class="text-red-500 text-xs">×</button></div>
+  </div>`);
+  row.querySelectorAll('input').forEach(i=>i.addEventListener('input',schedule));
+  document.getElementById('params').appendChild(row);
+}
+function addPart(p){ p=p||{mat:'panel',repeat:[],when:'',x:'0',y:'0',z:'0',w:'PT',h:'100',d:'100'};
+  const r=p.repeat||[]; const r0=r[0]||['',''], r1=r[1]||['',''];
+  const opts=MATS.map(m=>`<option ${m===p.mat?'selected':''}>${m}</option>`).join('');
+  const row=el(`<div class="border rounded p-2 space-y-1">
+    <div class="flex gap-1 items-center">
+      <select class="border rounded px-1 py-0.5 text-xs xmat">${opts}</select>
+      <span class="text-xs text-slate-400">tekrar:</span>
+      <input class="border rounded px-1 py-0.5 text-xs w-12 rv1" placeholder="c" value="${r0[0]}">
+      <input class="border rounded px-1 py-0.5 text-xs w-20 rc1" placeholder="columns" value="${r0[1]}">
+      <input class="border rounded px-1 py-0.5 text-xs w-12 rv2" placeholder="s" value="${r1[0]}">
+      <input class="border rounded px-1 py-0.5 text-xs w-20 rc2" placeholder="shelves" value="${r1[1]}">
+      <button onclick="this.closest('div.border').remove();schedule()" class="text-red-500 text-xs ml-auto">sil</button>
+    </div>
+    <div class="grid grid-cols-6 gap-1 text-xs">
+      <input class="border rounded px-1 py-0.5 xx" placeholder="x" value="${p.x||'0'}">
+      <input class="border rounded px-1 py-0.5 xy" placeholder="y" value="${p.y||'0'}">
+      <input class="border rounded px-1 py-0.5 xz" placeholder="z" value="${p.z||'0'}">
+      <input class="border rounded px-1 py-0.5 xw" placeholder="en" value="${p.w||'PT'}">
+      <input class="border rounded px-1 py-0.5 xh" placeholder="boy" value="${p.h||'100'}">
+      <input class="border rounded px-1 py-0.5 xd" placeholder="der" value="${p.d||'100'}">
+    </div>
+    <input class="border rounded px-1 py-0.5 text-xs w-full xwhen" placeholder="koşul (opsiyonel, örn: doors>0)" value="${p.when||''}">
+  </div>`);
+  row.querySelectorAll('input,select').forEach(i=>i.addEventListener('input',schedule));
+  document.getElementById('parts').appendChild(row);
+}
+
+function gather(){
+  const params=[...document.querySelectorAll('#params > div')].map(r=>({
+    key:r.querySelector('.pk').value.trim(), label:r.querySelector('.pl').value,
+    min:+r.querySelector('.pmin').value, max:+r.querySelector('.pmax').value, default:+r.querySelector('.pdef').value
+  })).filter(p=>p.key);
+  const parts=[...document.querySelectorAll('#parts > div')].map(r=>{
+    const rep=[]; const v1=r.querySelector('.rv1').value.trim(),c1=r.querySelector('.rc1').value.trim();
+    const v2=r.querySelector('.rv2').value.trim(),c2=r.querySelector('.rc2').value.trim();
+    if(v1&&c1) rep.push([v1,c1]); if(v2&&c2) rep.push([v2,c2]);
+    return { mat:r.querySelector('.xmat').value, repeat:rep, when:r.querySelector('.xwhen').value.trim(),
+      x:r.querySelector('.xx').value, y:r.querySelector('.xy').value, z:r.querySelector('.xz').value,
+      w:r.querySelector('.xw').value, h:r.querySelector('.xh').value, d:r.querySelector('.xd').value };
+  });
+  return { category:'Özel', params, parts, price_expr: document.getElementById('price_expr').value };
+}
+
+// preview scene
+let scene,camera,renderer,controls,unit;
+function initScene(){
+  const el=document.getElementById('scene');
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xeef2f7);
+  camera=new THREE.PerspectiveCamera(42, el.clientWidth/el.clientHeight,0.05,100);
+  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(el.clientWidth,el.clientHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  el.appendChild(renderer.domElement);
+  controls=new THREE.OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.5;
+  scene.add(new THREE.HemisphereLight(0xffffff,0xb6bcc6,0.85)); scene.add(new THREE.AmbientLight(0xffffff,0.18));
+  const k=new THREE.DirectionalLight(0xffffff,0.62); k.position.set(4.5,8,6); k.castShadow=true; k.shadow.mapSize.set(2048,2048); k.shadow.bias=-0.0004;
+  const sc=k.shadow.camera; sc.near=0.5; sc.far=40; sc.left=-4;sc.right=4;sc.top=4;sc.bottom=-4; scene.add(k);
+  const g=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0xe4e9ef,roughness:0.97})); g.rotation.x=-Math.PI/2; g.position.y=-0.003; g.receiveShadow=true; scene.add(g);
+  scene.add(new THREE.GridHelper(12,24,0xd2d9e2,0xe2e8f0));
+  addEventListener('resize',()=>{ camera.aspect=el.clientWidth/el.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth,el.clientHeight); });
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+}
+function preview(){
+  const def=gather(); const params={}; def.params.forEach(p=>params[p.key]=p.default);
+  if(unit) scene.remove(unit);
+  unit=PartsEngine.buildGroup(def,params,{bodyHex,doorHex,showDoors:true}); scene.add(unit);
+  const H=(params.H||1000)/1000,W=(params.W||1000)/1000;
+  camera.position.set(W*0.95,H*0.6,Math.max(W,1)*1.7); controls.target.set(0,H/2,0); controls.update();
+}
+let timer=null; function schedule(){ clearTimeout(timer); timer=setTimeout(preview,250); }
+
+async function save(){
+  const body={ name:document.getElementById('t_name').value, enabled:document.getElementById('t_enabled').checked, def:gather() };
+  const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json(); document.getElementById('saveMsg').innerHTML=d.ok?'<span class="text-emerald-700">Kaydedildi.</span>':'<span class="text-red-600">Hata</span>';
+}
+
+// yükle
+initScene();
+(DEF.params||[]).forEach(addParam); (DEF.parts||[]).forEach(addPart);
+if(!(DEF.params||[]).length) addParam({key:'W',label:'Genişlik',min:300,max:3000,default:1000});
+preview();
+</script>
+{% endblock %}
