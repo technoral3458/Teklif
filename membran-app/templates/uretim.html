@@ -45,6 +45,12 @@
   </div>
 </form>
 
+<!-- 3B önizleme -->
+<div class="bg-white rounded-xl shadow p-2 mb-4 print:hidden">
+  <div id="cab3d" class="w-full rounded-lg bg-slate-100" style="height:min(60vh,460px)"></div>
+  <div class="text-xs text-slate-400 p-1">Canlı 3B (ölçü/opsiyon değişince “Patlat”a basınca güncellenir). Sürükle: döndür.</div>
+</div>
+
 <!-- Özet -->
 <div class="grid grid-cols-4 gap-3 mb-4">
   <div class="bg-white rounded-xl shadow p-3"><div class="text-slate-500 text-xs">Parça</div><div class="text-xl font-bold">{{ result.summary.pieces }}</div></div>
@@ -102,6 +108,48 @@
 <p class="text-xs text-slate-400 mt-3 print:hidden">Sıradaki: nesting (plakaya diz) → CNC/DWD (altı-kenar delme XML).</p>
 {% endblock %}
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// --- Üretim ekranı canlı 3B (alt dolap) ---
+const SPEC = {{ spec|tojson }};
+(function cab3d(){
+  const el = document.getElementById('cab3d'); if(!el || !window.THREE) return;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0xeef2f7);
+  const camera = new THREE.PerspectiveCamera(42, el.clientWidth/el.clientHeight, 0.05, 100);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(el.clientWidth, el.clientHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; el.appendChild(renderer.domElement);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true; controls.maxPolarAngle=Math.PI*0.5;
+  scene.add(new THREE.HemisphereLight(0xffffff,0xb6bcc6,0.85)); scene.add(new THREE.AmbientLight(0xffffff,0.18));
+  const k=new THREE.DirectionalLight(0xffffff,0.62); k.position.set(4.5,8,6); k.castShadow=true; k.shadow.mapSize.set(2048,2048); k.shadow.bias=-0.0004;
+  const sc=k.shadow.camera; sc.near=0.5;sc.far=40;sc.left=-4;sc.right=4;sc.top=4;sc.bottom=-4; scene.add(k);
+  const g=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0xe4e9ef,roughness:0.97})); g.rotation.x=-Math.PI/2; g.position.y=-0.003; g.receiveShadow=true; scene.add(g);
+  scene.add(new THREE.GridHelper(12,24,0xd2d9e2,0xe2e8f0));
+  const EDGE=new THREE.LineBasicMaterial({color:0x1f2937,transparent:true,opacity:0.14});
+  function box(w,h,d,x,y,z,col,opt){ w=Math.max(w,0.004);h=Math.max(h,0.004);d=Math.max(d,0.004);
+    const geo=new THREE.BoxGeometry(w,h,d); const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial(Object.assign({color:col,roughness:0.8},opt||{})));
+    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; scene.add(m);
+    if([w,h,d].filter(v=>v>0.08).length>=2){ const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),EDGE); e.position.set(x,y,z); scene.add(e); }
+  }
+  const S=SPEC, W=S.W/1000,H=S.H/1000,D=S.D/1000,t=(S.t||18)/1000;
+  const baseH = (S.base_type!=='none' ? (S.base_h||100) : 0)/1000;
+  const cB=baseH, cH=H-baseH, wood=0xd8b88a, woodD=0xc9bca6, metal=0x565b62;
+  // gövde
+  box(t,cH,D,-W/2+t/2,cB+cH/2,0,wood); box(t,cH,D,W/2-t/2,cB+cH/2,0,wood);
+  box(W,t,D,0,cB+t/2,0,wood); box(W,t,D,0,cB+cH-t/2,0,wood);
+  box(W,cH,t,0,cB+cH/2,-D/2+t/2,woodD); // arkalık
+  for(let s=0;s<(S.shelves||0);s++){ const y=cB+t+(s+1)*(cH-2*t)/((S.shelves)+1); box(W-2*t,t,D-0.02,0,y,0,wood); }
+  if(S.base_type==='plinth') box(W-0.04,baseH,D-0.06,0,baseH/2,0,woodD);
+  if(S.base_type==='legs'){ const lx=W/2-0.06,lz=D/2-0.06; [[-lx,-lz],[lx,-lz],[-lx,lz],[lx,lz]].forEach(([x,z])=>box(0.045,baseH,0.045,x,baseH/2,z,metal,{metalness:0.35,roughness:0.42})); }
+  // kapaklar (taşmalı)
+  const n=Math.max(S.doors||0,0), gap=(S.gap||3)/1000;
+  for(let i=0;i<n;i++){ const bw=W/n, cx=-W/2+i*bw+bw/2; box(bw-gap, cH-2*gap, t, cx, cB+cH/2, D/2-t/2, wood); box(0.022,0.12,0.028, cx+(i%2?-1:1)*(bw/2-0.05), cB+cH/2, D/2+0.01, metal,{metalness:0.35,roughness:0.42}); }
+  camera.position.set(W*0.95,H*0.6,Math.max(W,1)*1.7); controls.target.set(0,H/2,0); controls.update();
+  addEventListener('resize',()=>{ camera.aspect=el.clientWidth/el.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth, el.clientHeight); });
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+})();
+</script>
 <script>
 const PANELS = {{ drill.panels|tojson }};
 const COLOR = { 'Minifix kovan':'#1565c0','Minifix gövde':'#1565c0','Dübel':'#ef6c00','Raf pimi':'#6d28d9','Menteşe yuvası':'#be185d' };
