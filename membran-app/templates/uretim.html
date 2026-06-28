@@ -37,9 +37,11 @@
     </label>
     <label>Baza/Ayak (mm)<input name="base_h" type="number" value="{{ spec.base_h }}" class="border rounded px-2 py-1 w-full"></label>
   </div>
-  <div class="flex gap-2 mt-3">
+  <div class="flex gap-2 mt-3 flex-wrap">
     <button class="bg-blue-600 text-white rounded px-4 py-2">Patlat</button>
     <button type="button" onclick="window.print()" class="border rounded px-4 py-2">🖨️ Yazdır</button>
+    <a href="/membrane/uretim/dwd?W={{ spec.W }}&H={{ spec.H }}&D={{ spec.D }}&doors={{ spec.doors }}&shelves={{ spec.shelves }}&drawers={{ spec.drawers }}&t={{ spec.t }}&gap={{ spec.gap }}&back_method={{ spec.back_method }}&door_type={{ spec.door_type }}&base_type={{ spec.base_type }}&base_h={{ spec.base_h }}"
+       class="bg-slate-800 text-white rounded px-4 py-2">⬇️ CNC/DWD (.xml) indir</a>
   </div>
 </form>
 

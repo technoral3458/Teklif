@@ -792,6 +792,22 @@ async def uretim(request: Request, W: float = 600, H: float = 720, D: float = 56
     })
 
 
+@router.get("/membrane/uretim/dwd")
+async def uretim_dwd(W: float = 600, H: float = 720, D: float = 560,
+                     doors: int = 2, shelves: int = 1, drawers: int = 0, t: float = 18,
+                     gap: float = 3, back_method: str = "groove", door_type: str = "overlay",
+                     base_type: str = "plinth", base_h: float = 100):
+    import hardware
+    import dwd_export
+    spec = {"type": "base", "W": W, "H": H, "D": D, "doors": doors, "shelves": shelves,
+            "drawers": drawers, "t": t, "gap": gap, "back_method": back_method,
+            "door_type": door_type, "base_type": base_type, "base_h": base_h}
+    drill = hardware.drill_panels(spec, cabinet.explode(spec))
+    xml = dwd_export.build_dwd(f"Kabinet_{int(W)}x{int(H)}x{int(D)}", drill["panels"])
+    return Response(xml, media_type="application/xml", headers={
+        "Content-Disposition": f'attachment; filename="kabinet_{int(W)}x{int(H)}x{int(D)}.xml"'})
+
+
 # ==========================================================================
 # NO-CODE ŞABLON EDİTÖRÜ
 # ==========================================================================
