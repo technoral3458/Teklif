@@ -19,7 +19,11 @@
     </div>
 
     <div>
-      <div class="flex justify-between items-center mb-1"><h3 class="font-bold">Parçalar</h3><button onclick="addPart()" class="text-blue-600 text-sm">+ ekle</button></div>
+      <div class="flex justify-between items-center mb-1"><h3 class="font-bold">Parçalar</h3><button onclick="addPart()" class="text-blue-600 text-sm">+ boş ekle</button></div>
+      <div class="bg-blue-50 border border-blue-100 rounded p-2 mb-2">
+        <div class="text-xs text-slate-600 mb-1">Hazır parça ekle (formül otomatik gelir):</div>
+        <div class="flex flex-wrap gap-1" id="presetBar"></div>
+      </div>
       <div id="parts" class="space-y-2"></div>
     </div>
 
@@ -140,6 +144,27 @@ async function save(){
   const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json(); document.getElementById('saveMsg').innerHTML=d.ok?'<span class="text-emerald-700">Kaydedildi.</span>':'<span class="text-red-600">Hata</span>';
 }
+
+// ---- Hazır parça şablonları (formüller otomatik) ----
+const PRESETS = {
+  'Yan paneller':   { params:[], part:{mat:'panel',repeat:[['i','2']],when:'', x:'i==0 ? -W/2+PT/2 : W/2-PT/2', y:'H/2', z:'0', w:'PT', h:'H', d:'D'} },
+  'Üst':            { params:[], part:{mat:'panel',repeat:[],when:'', x:'0', y:'H-PT/2', z:'0', w:'W-2*PT', h:'PT', d:'D'} },
+  'Alt':            { params:[], part:{mat:'panel',repeat:[],when:'', x:'0', y:'PT/2', z:'0', w:'W-2*PT', h:'PT', d:'D'} },
+  'Raf (çoklu)':    { params:[{key:'shelves',label:'Raf',min:0,max:12,default:3}], part:{mat:'shelf',repeat:[['s','shelves']],when:'', x:'0', y:'PT + (s+1)*(H-2*PT)/(shelves+1)', z:'0', w:'W-2*PT', h:'PT', d:'D-20'} },
+  'Kolon (dikey bölme)':{ params:[{key:'columns',label:'Kolon',min:1,max:8,default:3}], part:{mat:'panel',repeat:[['c','columns-1']],when:'', x:'-W/2 + (c+1)*(W/columns)', y:'H/2', z:'0', w:'PT', h:'H', d:'D'} },
+  'Kapak (çoklu)':  { params:[{key:'doors',label:'Kapak',min:1,max:6,default:2}], part:{mat:'door',repeat:[['i','doors']],when:'', x:'-W/2 + i*(W/doors) + (W/doors)/2', y:'H/2', z:'D/2-PT/2', w:'(W/doors)-4', h:'H-4', d:'PT'} },
+  'Arkalık':        { params:[], part:{mat:'back',repeat:[],when:'', x:'0', y:'H/2', z:'-D/2+PT/2', w:'W-2*PT', h:'H-2*PT', d:'PT'} },
+};
+function hasParam(key){ return [...document.querySelectorAll('#params .pk')].some(i=>i.value===key); }
+function addPreset(name){
+  const p=PRESETS[name];
+  (p.params||[]).forEach(pp=>{ if(!hasParam(pp.key)) addParam(pp); });
+  addPart(p.part); schedule();
+}
+(function buildPresetBar(){
+  const bar=document.getElementById('presetBar');
+  Object.keys(PRESETS).forEach(name=>{ const b=document.createElement('button'); b.type='button'; b.textContent='+ '+name; b.className='bg-white border border-blue-300 text-blue-700 rounded px-2 py-1 text-xs hover:bg-blue-100'; b.onclick=()=>addPreset(name); bar.appendChild(b); });
+})();
 
 // yükle
 initScene();
