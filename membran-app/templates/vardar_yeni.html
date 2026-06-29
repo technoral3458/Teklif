@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Vardar — Yeni Sipariş{% endblock %}
+{% block content %}
+<a href="/membrane/vardar/havuz/havuz" class="text-blue-600 text-sm">← Sipariş Havuzu</a>
+<h1 class="text-xl font-bold mb-3">Yeni Sipariş</h1>
+<form method="post" action="/membrane/vardar/yeni" class="bg-white rounded-xl shadow p-4 max-w-3xl">
+  <div class="grid sm:grid-cols-2 gap-3 text-sm">
+    <label class="sm:col-span-2">Müşteri *<input name="customer" required class="border rounded px-2 py-1 w-full"></label>
+    <label>Müşteri İl<input name="city" placeholder="İSTANBUL - Esenyurt" class="border rounded px-2 py-1 w-full"></label>
+    <label>Siparişi Giren<input name="entered_by" placeholder="EMRE ŞENVARDAR" class="border rounded px-2 py-1 w-full"></label>
+    <label>Model<input name="model" placeholder="V-100 DÜZ KAPAK" class="border rounded px-2 py-1 w-full"></label>
+    <label>Renk<input name="color" placeholder="VR1001-SOFT İNCİ" class="border rounded px-2 py-1 w-full"></label>
+    <label>Renk Grubu<input name="color_group" placeholder="*1000*SOFT RENKLER" class="border rounded px-2 py-1 w-full"></label>
+    <label>Malzeme<input name="material" value="MEMBRAN" class="border rounded px-2 py-1 w-full"></label>
+    <label>Alan (m²)<input name="area" type="number" step="0.01" value="0" class="border rounded px-2 py-1 w-full"></label>
+    <label>Tutar (TL)<input name="amount" type="number" step="0.01" value="0" class="border rounded px-2 py-1 w-full"></label>
+    <label>Termin Tarihi<input name="term_date" type="date" class="border rounded px-2 py-1 w-full"></label>
+  </div>
+  <div class="flex gap-2 mt-4">
+    <a href="/membrane/vardar/havuz/havuz" class="border rounded px-4 py-2">İptal</a>
+    <button class="bg-emerald-600 text-white rounded px-4 py-2">Siparişi Kaydet</button>
+  </div>
+  <p class="text-xs text-slate-400 mt-2">Kaydedilen sipariş "Sipariş Havuzu"na düşer; oradan → ile aşamalar arasında ilerletirsin.</p>
+</form>
+{% endblock %}

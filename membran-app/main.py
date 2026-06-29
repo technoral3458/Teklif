@@ -40,10 +40,12 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 
 from routers.auth_routes import router as auth_router  # noqa: E402
 from routers.public_routes import router as public_router  # noqa: E402
+from routers.vardar import router as vardar_router  # noqa: E402
 from routers.membrane import router as membrane_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(public_router)
+app.include_router(vardar_router)
 app.include_router(membrane_router)
 
 

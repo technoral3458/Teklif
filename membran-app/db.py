@@ -177,7 +177,39 @@ CREATE TABLE IF NOT EXISTS cfg_templates (
     seq INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ===== VARDAR: sipariş & üretim takip =====
+CREATE TABLE IF NOT EXISTS vardar_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sn TEXT DEFAULT '',
+    grup TEXT DEFAULT '',
+    customer TEXT NOT NULL,
+    city TEXT DEFAULT '',
+    area REAL DEFAULT 0,
+    model TEXT DEFAULT '',
+    color TEXT DEFAULT '',
+    color_group TEXT DEFAULT '',
+    material TEXT DEFAULT 'MEMBRAN',
+    entered_by TEXT DEFAULT '',
+    amount REAL DEFAULT 0,
+    order_date TEXT DEFAULT (datetime('now')),
+    approve_date TEXT DEFAULT '',
+    term_date TEXT DEFAULT '',
+    stage TEXT DEFAULT 'havuz',
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
+
+DEMO_ORDERS = [
+    ("ÇELİK MOBİLYA", "İSTANBUL - Zeytinburnu", 0.27, "ÖZEL-5", "VR1001-SOFT İNCİ", "*1000*SOFT", "EMRE ŞENVARDAR", 3918, "havuz"),
+    ("MODESAN MOBİLYA", "İSTANBUL - Büyükşehir", 1.24, "V-404", "VR1001-SOFT İNCİ", "*1000*SOFT", "EMRE ŞENVARDAR", 5926, "havuz"),
+    ("UĞUR MOBİLYA", "KIRKLARELİ - Lüleburgaz", 0.70, "V-303", "VR-1045 SOFT BEYAZ", "*1000*SOFT", "ESAT ŞENVARDAR", 8200, "muhasebe"),
+    ("HALİL ÇOLAK", "İSTANBUL - Esenyurt", 4.86, "KAFES CAM-1, V-504", "VR1009 KOYU GRİ", "*1000*SOFT", "NEHİR ŞENVARDAR", 13650, "muhasebe"),
+    ("MAVERAN MOBİLYA", "İSTANBUL - Bağcılar", 3.62, "ÖZEL-5", "VR1001-SOFT İNCİ", "*1000*SOFT", "İKİTELLİ", 9379, "planlama"),
+    ("HMS ENDÜSTRİYEL", "GAZİANTEP - Şehitkamil", 0.58, "V-100 DÜZ KAPAK", "VR1033 SAND GREY", "*1000*SOFT", "SEHER ZADE", 4200, "cnc"),
+    ("MODATEK ORM.ÜRÜN", "SAKARYA - Geyve", 2.16, "ÖZEL-5", "VR825 SATEN BEYAZ", "*800*PARLAK", "BEYZA ACAR", 6500, "tutkal"),
+    ("EM BANYO - ALİ ERGİN", "İSTANBUL - Beylikdüzü", 2.86, "ÖZEL-5", "VR1003 SOFT BEJ", "*1000*SOFT", "BEYZA ACAR", 7100, "paketleme"),
+]
 
 EXAMPLE_TEMPLATE = {
     "category": "Özel",
@@ -272,6 +304,13 @@ def init():
     if conn.execute("SELECT COUNT(*) FROM cfg_templates").fetchone()[0] == 0:
         conn.execute("INSERT INTO cfg_templates (name, enabled, def_json, seq) VALUES (?,?,?,0)",
                      ("Örnek Açık Raf", 1, json.dumps(EXAMPLE_TEMPLATE)))
+    # Vardar demo siparişleri (ilk açılışta)
+    if conn.execute("SELECT COUNT(*) FROM vardar_orders").fetchone()[0] == 0:
+        for i, (cust, city, area, model, color, cg, by, amt, stage) in enumerate(DEMO_ORDERS):
+            conn.execute(
+                "INSERT INTO vardar_orders (sn, customer, city, area, model, color, color_group, "
+                "entered_by, amount, term_date, stage) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (f"10 2606 {2090 - i}", cust, city, area, model, color, cg, by, amt, "2026-07-08", stage))
     conn.commit()
     conn.close()
 

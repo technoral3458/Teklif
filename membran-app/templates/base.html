@@ -10,6 +10,7 @@
 <body class="bg-slate-100 text-slate-800 min-h-screen">
   {% set nav = request.url.path %}
   {% set items = [
+      ('/membrane/vardar', '📋 Vardar', nav.startswith('/membrane/vardar')),
       ('/membrane/urunler', '🚪 Ürünler', nav.startswith('/membrane/urunler') or nav.startswith('/membrane/gardirop')),
       ('/membrane/admin', '⚙️ Yönetici', nav.startswith('/membrane/admin')),
       ('/membrane', 'Maliyet', nav == '/membrane'),

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Vardar — {{ stage_label }}{% endblock %}
+{% block content %}
+<div class="flex gap-3">
+  <!-- Aşama menüsü (havuzlar) -->
+  <aside class="w-48 shrink-0 hidden md:block">
+    <a href="/membrane/vardar/yeni" class="block text-center bg-emerald-600 text-white rounded py-2 mb-2 text-sm font-medium">+ Yeni Sipariş</a>
+    <div class="bg-white rounded-xl shadow overflow-hidden text-sm">
+      {% for key, label in stages %}
+      <a href="/membrane/vardar/havuz/{{ key }}"
+         class="flex justify-between items-center px-3 py-2 border-b hover:bg-slate-50 {% if key==stage %}bg-slate-800 text-white hover:bg-slate-800{% endif %}">
+        <span>{{ label }}</span>
+        <span class="text-xs {% if key==stage %}bg-white/20{% else %}bg-slate-200 text-slate-600{% endif %} rounded-full px-1.5">{{ counts[key] }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Ana içerik -->
+  <div class="flex-1 min-w-0">
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+      <h1 class="text-xl font-bold">» {{ stage_label }}</h1>
+      <form method="get" class="ml-auto flex gap-1">
+        <input name="q" value="{{ q }}" placeholder="Ara: müşteri / SN / model / renk" class="border rounded px-3 py-1.5 text-sm w-64">
+        <button class="border rounded px-3 py-1.5 text-sm bg-white">Ara</button>
+      </form>
+      <a href="/membrane/vardar/yeni" class="md:hidden bg-emerald-600 text-white rounded px-3 py-1.5 text-sm">+ Yeni</a>
+    </div>
+
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-xs whitespace-nowrap">
+        <thead><tr class="text-left border-b text-slate-500 bg-slate-50">
+          <th class="py-2 px-2">#SN</th><th>Grup</th><th>Müşteri</th><th>İl</th><th>Alan</th><th>Model</th><th>Renk</th><th>Renk Grubu</th><th>Malzeme</th><th>Siparişi Giren</th><th>Termin</th><th class="text-right px-2">İşlem</th>
+        </tr></thead>
+        <tbody>
+          {% for o in orders %}
+          <tr class="border-b hover:bg-slate-50">
+            <td class="py-1.5 px-2 font-mono">{{ o.sn }}</td>
+            <td>{% if o.grup %}<span class="bg-red-700 text-white rounded px-1.5 py-0.5">{{ o.grup }}</span>{% endif %}</td>
+            <td class="font-medium">{{ o.customer }}</td>
+            <td class="text-slate-500">{{ o.city }}</td>
+            <td>{{ o.area }}</td>
+            <td>{{ o.model }}</td>
+            <td>{{ o.color }}</td>
+            <td class="text-slate-500">{{ o.color_group }}</td>
+            <td>{{ o.material }}</td>
+            <td><span class="bg-indigo-600 text-white rounded px-1.5 py-0.5">{{ o.entered_by }}</span></td>
+            <td class="text-slate-500">{{ o.term_date }}</td>
+            <td class="text-right px-2 whitespace-nowrap">
+              {% if not is_first %}
+              <form method="post" action="/membrane/vardar/order/{{ o.id }}/geri" class="inline"><button title="Geri al" class="text-slate-400 px-1">←</button></form>
+              {% endif %}
+              {% if not is_last %}
+              <form method="post" action="/membrane/vardar/order/{{ o.id }}/ilerlet" class="inline"><button title="{{ next_label }}'ya ilerlet" class="text-emerald-700 font-bold px-1">→</button></form>
+              {% endif %}
+              <form method="post" action="/membrane/vardar/order/{{ o.id }}/sil" class="inline" onsubmit="return confirm('Silinsin mi?')">
+                <input type="hidden" name="stage" value="{{ stage }}"><button class="text-red-600 px-1">sil</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="12" class="py-4 text-center text-slate-400">Bu havuzda sipariş yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-red-700 text-white rounded-b-xl px-4 py-2 text-sm font-medium -mt-1">
+      {{ orders|length }} sipariş ({{ total_area }} m²) &nbsp; [{{ "%.2f"|format(total_amount) }} TL]
+      {% if not is_last and orders %}<span class="float-right text-white/80">→ ile bir sonraki aşamaya ({{ next_label }}) ilerlet</span>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
