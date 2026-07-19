@@ -1,41 +1,58 @@
 # AlphaCAM Post Optimizasyonu — Alpha Standard 3 ax Mill/Router
 
-## Sorun
-Takımlar farklı işlem derinliklerinde çalıştığında, post her operasyon
-başında spindle'ı **M05** ile durdurup tekrar başlatıyordu. Bu, router'da
-her operasyon arasında gereksiz durma/hızlanma bekleme süresi demekti.
+## Amaç
+Aynı takımla yapılan operasyonlarda takım bloğunun (T, devir, ofsetler)
+gereksiz tekrarını önlemek; takım değişiminde ise spindle'ı güvenli şekilde
+durdurup (M05) yeniden başlatmak.
 
-## Neden oluyordu?
-Postun `$80` (yeni takım seçme) bölümünde şu blok vardı:
+## Davranış (`$80` – yeni takım seçme)
 
-```
-$ELSE
-$IF OPN > 1
-M05          <-- ilk operasyondan sonraki HER operasyonda spindle durdu
-$ENDIF
-T[T]
-...
-```
+1. **Aynı takım devam ediyorsa** (T = önceki takım) — derinlik veya devir
+   farklı olsa bile — takım bloğu **hiç yazılmaz**. Operasyon sadece güvenli
+   mesafe hareketiyle devam eder.
+   ```
+   ... T5 operasyonu biter ...
+   G0 Z20.000
+   G0 X.. Y..        <- sadece güvenli mesafe, T5/devir tekrar yok
+   G0 Z10.000
+   G1 Z.. F..
+   ```
 
-`OPN` = operasyon numarası. Yani ilk operasyondan sonraki her operasyonda
-`M05` yazılıyordu. Ardından `[RT] S[S]` (M03 + devir) spindle'ı tekrar
-başlatıyordu → durdur/başlat döngüsü.
+2. **Başka bir takıma geçişte** önce `M05` (spindle dur), sonra yeni takım
+   yazılır:
+   ```
+   G0 Z20.000
+   M05               <- takım değişimi: spindle durur
+   T4
+   G43 H4
+   M03 S18000        <- yeni takım devri
+   G54
+   G52 Y-2100
+   G0 X.. Y.. Z..
+   ```
 
-## Çözüm
-Spindle zaten program başında **M405** (`$12` bölümü) ile bir kez çalışıyor
-ve sürekli açık kalıyor. Bu yüzden `$80` içindeki `$IF OPN > 1 / M05 / $ENDIF`
-bloğu tamamen kaldırıldı. Artık spindle operasyonlar arasında durmuyor.
+3. **İlk takımda M05 yazılmaz** (spindle program başında M405 ile yeni
+   başlamıştır).
 
-Programın **sonundaki** tek `M05` (`$15` bölümü, M30'dan önce) korundu —
-bu program bittiğinde spindle'ı güvenli şekilde durdurur ve doğrudur.
+4. Program **sonundaki** tek `M05` (`$15`, M30'dan önce) güvenli duruş için
+   korunmuştur.
 
-## Dosya
-`Alpha_Standard_3ax_Mill_Router_optimized.txt` — mevcut post dosyanızın
-yerine kullanılabilecek tam sürüm. AlphaCAM'de kendi post kaynağınızın
-dosya adı/uzantısıyla değiştirip APS ile yeniden derleyin (compile).
+## Nasıl çalışıyor?
+`$1000` bölümüne `LAST_TOOL` değişkeni eklendi (başlangıç değeri 0). `$80`
+her çağrıldığında yeni takım `T` ile `LAST_TOOL` karşılaştırılır:
+- Eşitse → blok atlanır.
+- Farklıysa → (ilk takım değilse) M05 + takım bloğu yazılır ve
+  `LAST_TOOL = T` güncellenir.
 
-## Not
-Takım değişiminde hâlâ `M03 S....` (spindle yönü + devir) satırı çıkıyor.
-Bu spindle'ı durdurmaz, sadece devri teyit eder — zararsızdır. Eğer
-makinanızda takım değişiminde de M03/S satırının hiç çıkmasını istemezseniz,
-söyleyin, `$80` içindeki `[RT] S[S]` satırını da kaldırırım.
+## Önemli not — aynı takımda farklı devir
+Aynı takım numarasıyla iki operasyon **farklı devirlerde** programlanmışsa
+(örn. T1 önce S18000, sonra S20000), ikinci operasyon **ilk operasyonun
+deviriyle** (S18000) çalışır; çünkü aynı takımda blok yeniden yazılmaz.
+İstediğin davranış bu. Eğer aynı takımda devir değişince **sadece devri**
+(motoru durdurmadan, M05 olmadan) güncellemek istersen, bunu ekleyebilirim —
+söylemen yeterli.
+
+## Kullanımı
+`Alpha_Standard_3ax_Mill_Router_optimized.txt` mevcut post kaynağının tam
+yerine geçer. AlphaCAM'de kendi post dosyanın adı/uzantısıyla değiştirip
+**APS ile yeniden derle (compile)**.

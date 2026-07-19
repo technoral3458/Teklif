@@ -9,13 +9,19 @@ Y Axis       : Normal
 Z-Axis       : Normal
 
 '' ==========================================================================
-'' OPTIMISED VERSION
-'' Change: The spindle is started ONCE with M405 in the program leading lines
-'' ($12) and is now kept running continuously. The M05 (spindle stop) that
-'' used to be emitted at the start of every operation after the first (in $80,
-'' "$IF OPN > 1 / M05") has been removed. This was what stopped and restarted
-'' the spindle between operations that machined at different depths. The only
-'' remaining M05 is the single one at program end ($15), which is correct.
+'' OPTIMISED VERSION  (tool-aware spindle handling)
+''
+'' Davranis ($80 bolumu):
+''  1) AYNI takim devam ediyorsa (T degismedi) - derinlik veya devir farkli
+''     olsa bile - takim blogu (T, G43, M03 devir, G54, G52) TEKRAR YAZILMAZ.
+''     Operasyon sadece guvenli mesafe hareketiyle devam eder.
+''  2) BASKA bir takima gecilirken once M05 (spindle stop), sonra yeni takim
+''     T, G43 H, M03 devir (S), G54, G52 yazilir. Boylece takim degisiminde
+''     spindle durur -> tezgah hata vermez.
+''  3) ILK takimda M05 yazilmaz (spindle M405 ile yeni baslamistir).
+''  4) Program sonundaki tek M05 ($15, M30 oncesi) guvenli durus icin korundu.
+''
+''  Onceki takim numarasi LAST_TOOL degiskeninde tutulur ($1000'de tanimli).
 '' ==========================================================================
 
 $----------------------------------------------------------------------------
@@ -92,22 +98,33 @@ $IF OFS=16
 M06 T0
 G43 H16
 M71
+$LET LAST_TOOL = T
+$LET FIRST_RAPID = 1
 $ELSEIF OFS=17
 M06 T0
 G43 H17
 M70
+$LET LAST_TOOL = T
+$LET FIRST_RAPID = 1
 $ELSE
-'' OPTIMISED: The spindle is running continuously (started by M405 in $12),
-'' so the spindle-stop that used to appear here between operations of
-'' different depths has been removed. The block below only re-selects the
-'' tool/offset; it no longer stops and restarts the spindle.
+'' Ayni takim ise (T = LAST_TOOL) asagidaki blok HIC yazilmaz -> operasyon
+'' sadece guvenli mesafe hareketiyle devam eder (T, G43, devir, G54, G52
+'' tekrarlanmaz). Sadece BASKA bir takima gecerken once M05, sonra yeni
+'' takim ve M03 devir yazilir. Ilk takimda (LAST_TOOL = 0) M05 yazilmaz;
+'' spindle zaten M405 ile yeni baslamistir.
+$IF T <> LAST_TOOL
+$IF LAST_TOOL <> 0
+M05
+$ENDIF
 T[T]
 G43 H[T]
 [RT] S[S]
 G54
 G52 Y-2100
-$ENDIF
+$LET LAST_TOOL = T
 $LET FIRST_RAPID = 1
+$ENDIF
+$ENDIF
 $----------------------------------------------------------------------------
 $88 Set Current Work Plane WVF = 0 to 4 for faces of Work Volume (see Introduction)
  (WORK PLANE NAME = [WPN], OFFSET CODE = [WPO])
@@ -409,6 +426,7 @@ SINE ()
 FRACTION ()
 ANGLE ()
 TOOL (8,4,0)
+LAST_TOOL (8,4,0) = 0   '' Bir onceki takim no. Ayni takimda $80 blok tekrarini engeller. Ilk takim icin sentinel = 0.
 WP_COUNT (6,0,0)
 COMP ("")                             ''Used for setting Comp ON/OFF
 FIRST_RAPID ( )
