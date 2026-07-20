@@ -39,6 +39,8 @@ $10 File LEADING lines
 #2002 = 18
 $12 Main Program LEADING lines
 M405
+G54
+G52 Y-2100
 $15 Main Program TRAILING lines
 G00 Z60.000
 M05
@@ -122,13 +124,8 @@ $ENDIF
 T[T]
 G43 H[T]
 [RT] S[S]
-'' G54 ve G52 modaldir; sadece ILK takimda yazilir, sonraki takim
-'' degisimlerinde tekrarlanmaz.
-$IF LAST_TOOL > 0
-$ELSE
-G54
-G52 Y-2100
-$ENDIF
+'' G54 ve G52 modaldir; NC programinin en basinda ($12) bir kez yazilir,
+'' takim degisimlerinde tekrarlanmaz.
 $LET LAST_TOOL = NT
 $LET FIRST_RAPID = 1
 $ENDIF
