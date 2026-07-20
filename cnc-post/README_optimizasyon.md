@@ -38,11 +38,19 @@ durdurup (M05) yeniden başlatmak.
    korunmuştur.
 
 ## Nasıl çalışıyor?
-`$1000` bölümüne `LAST_TOOL` değişkeni eklendi (başlangıç değeri 0). `$80`
-her çağrıldığında yeni takım `T` ile `LAST_TOOL` karşılaştırılır:
-- Eşitse → blok atlanır.
-- Farklıysa → (ilk takım değilse) M05 + takım bloğu yazılır ve
-  `LAST_TOOL = T` güncellenir.
+`$1000` bölümüne `LAST_TOOL` değişkeni eklendi (`FIRST_RAPID` gibi tanımlı).
+`$80` her çağrıldığında yeni takım **`NT`** ile `LAST_TOOL` karşılaştırılır:
+- Eşitse (`$IF NT = LAST_TOOL`) → blok atlanır (`$ELSE` boş gövde deseni,
+  postun `$25` bölümünde kullanılan kanıtlı yöntem).
+- Farklıysa → (ilk takım değilse, `LAST_TOOL > 0`) M05 + takım bloğu yazılır
+  ve `LAST_TOOL = NT` güncellenir.
+
+### Önemli düzeltme (v3)
+Önceki sürümde karşılaştırma `T` ile yapılıyordu. AlphaCAM APS'de takım
+numarası **ifade (expression) içinde `T` ile değil `NT` ile** okunuyor; `[T]`
+sadece çıktı token'ıdır. Bu yüzden aynı takımda blok yine tekrarlanıyordu.
+`T` → `NT` olarak düzeltildi. Ayrıca `<>` yerine `= / $ELSE` ve `> 0`
+kullanıldı (orijinal post da yalnızca bu operatörleri kullanıyor).
 
 ## Önemli not — aynı takımda farklı devir
 Aynı takım numarasıyla iki operasyon **farklı devirlerde** programlanmışsa

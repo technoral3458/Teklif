@@ -98,22 +98,25 @@ $IF OFS=16
 M06 T0
 G43 H16
 M71
-$LET LAST_TOOL = T
+$LET LAST_TOOL = NT
 $LET FIRST_RAPID = 1
 $ELSEIF OFS=17
 M06 T0
 G43 H17
 M70
-$LET LAST_TOOL = T
+$LET LAST_TOOL = NT
 $LET FIRST_RAPID = 1
 $ELSE
-'' Ayni takim ise (T = LAST_TOOL) asagidaki blok HIC yazilmaz -> operasyon
+'' Ayni takim ise (NT = LAST_TOOL) asagidaki blok HIC yazilmaz -> operasyon
 '' sadece guvenli mesafe hareketiyle devam eder (T, G43, devir, G54, G52
-'' tekrarlanmaz). Sadece BASKA bir takima gecerken once M05, sonra yeni
-'' takim ve M03 devir yazilir. Ilk takimda (LAST_TOOL = 0) M05 yazilmaz;
-'' spindle zaten M405 ile yeni baslamistir.
-$IF T <> LAST_TOOL
-$IF LAST_TOOL <> 0
+'' tekrarlanmaz). Sadece BASKA bir takima gecerken once M05, sonra yeni takim
+'' ve M03 devir yazilir. Ilk takimda (LAST_TOOL = 0) M05 yazilmaz; spindle
+'' zaten M405 ile yeni baslamistir.
+'' NOT: Takim numarasi ifade (expression) icinde NT ile okunur; [T] sadece
+'' cikti tokenidir. Bu yuzden karsilastirma ve $LET NT ile yapilir.
+$IF NT = LAST_TOOL
+$ELSE
+$IF LAST_TOOL > 0
 M05
 $ENDIF
 T[T]
@@ -121,7 +124,7 @@ G43 H[T]
 [RT] S[S]
 G54
 G52 Y-2100
-$LET LAST_TOOL = T
+$LET LAST_TOOL = NT
 $LET FIRST_RAPID = 1
 $ENDIF
 $ENDIF
@@ -426,7 +429,7 @@ SINE ()
 FRACTION ()
 ANGLE ()
 TOOL (8,4,0)
-LAST_TOOL (8,4,0) = 0   '' Bir onceki takim no. Ayni takimda $80 blok tekrarini engeller. Ilk takim icin sentinel = 0.
+LAST_TOOL ( )   '' Bir onceki takim no. Ayni takimda $80 blok tekrarini engeller (FIRST_RAPID gibi tanimli; ilk operasyonda bos/0 = ilk takim).
 WP_COUNT (6,0,0)
 COMP ("")                             ''Used for setting Comp ON/OFF
 FIRST_RAPID ( )
