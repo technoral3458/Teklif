@@ -139,14 +139,16 @@ def _solve(model, qp):
             except ValueError:
                 pass
     ev = doormac.evaluate(model, width, length, overrides)
-    segs = doormac.segments(ev["pts"])
-    pts = doormac.profile_points(segs)
+    paths = doormac.build_paths(model, ev)
     scale = 320.0 / max(width, length)
-    poly = " ".join(f"{x * scale:.1f},{(length - y) * scale:.1f}" for x, y in pts)
-    return ev, {
-        "poly": poly, "pw": width * scale, "ph": length * scale,
-        "width": width, "length": length, "overrides": overrides,
-    }
+    draw_paths = []
+    for p in paths:
+        pts = doormac.path_points(p["segs"])
+        poly = " ".join(f"{x * scale:.1f},{(length - y) * scale:.1f}" for x, y in pts)
+        draw_paths.append({"poly": poly, "closed": p["closed"], "role": p.get("role", "")})
+    draw = {"paths": draw_paths, "pw": width * scale, "ph": length * scale,
+            "width": width, "length": length, "overrides": overrides}
+    return ev, draw, paths
 
 
 @router.get("/membrane/kapak", response_class=HTMLResponse)
@@ -162,7 +164,7 @@ async def kapak_detail(request: Request, did: int):
     row, model = _door(did)
     if not model:
         return RedirectResponse("/membrane/kapak", status_code=303)
-    ev, draw = _solve(model, request.query_params)
+    ev, draw, _paths = _solve(model, request.query_params)
     return templates.TemplateResponse(request, "kapak_detail.html", {
         "request": request, "door": row, "model": model, "ev": ev, "draw": draw,
     })
@@ -173,9 +175,9 @@ async def kapak_gcode(request: Request, did: int):
     row, model = _door(did)
     if not model:
         return RedirectResponse("/membrane/kapak", status_code=303)
-    ev, draw = _solve(model, request.query_params)
+    ev, draw, paths = _solve(model, request.query_params)
     depth = float(request.query_params.get("depth", 8))
-    nc = doormac.gcode(row["name"], ev, depth=depth)
+    nc = doormac.gcode(row["name"], ev, paths, depth=depth)
     fn = f"{row['name']}_{int(draw['width'])}x{int(draw['length'])}.nc"
     return Response(nc, media_type="text/plain",
                     headers={"Content-Disposition": f'attachment; filename="{fn}"'})

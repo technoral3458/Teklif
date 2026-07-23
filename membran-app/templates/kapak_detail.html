@@ -40,10 +40,18 @@
     <div class="bg-slate-50 rounded-lg p-3 flex justify-center">
       <svg viewBox="-6 -6 {{ draw.pw + 12 }} {{ draw.ph + 12 }}" style="max-height:440px;width:auto">
         <rect x="0" y="0" width="{{ draw.pw }}" height="{{ draw.ph }}" rx="3" fill="#efe6d6" stroke="#caa46a" stroke-width="1.5"/>
-        <polygon points="{{ draw.poly }}" fill="#e2c99a" fill-opacity="0.5" stroke="#2e7d32" stroke-width="1.5"/>
+        {% for p in draw.paths %}
+          {% if p.closed %}
+          <polygon points="{{ p.poly }}" fill="#e2c99a" fill-opacity="0.45" stroke="#2e7d32" stroke-width="1.6"/>
+          {% elif p.role == 'kayit' %}
+          <polyline points="{{ p.poly }}" fill="none" stroke="#8d5a2b" stroke-width="1.4"/>
+          {% else %}
+          <polyline points="{{ p.poly }}" fill="none" stroke="#1565c0" stroke-width="1.2" stroke-dasharray="4 2"/>
+          {% endif %}
+        {% endfor %}
       </svg>
     </div>
-    <div class="text-xs text-slate-400 mt-1">Dış: panel ({{ "%.0f"|format(draw.width) }}×{{ "%.0f"|format(draw.length) }} mm) · Yeşil: frezelenen iç profil (kemerli kaset).</div>
+    <div class="text-xs text-slate-400 mt-1">Panel {{ "%.0f"|format(draw.width) }}×{{ "%.0f"|format(draw.length) }} mm · <span style="color:#2e7d32">yeşil</span>=iç profil (düz alt, kemerli üst) · <span style="color:#8d5a2b">kahve</span>=kenar kayıtları · <span style="color:#1565c0">mavi</span>=kaset bölmeleri (Ara).</div>
 
     <h2 class="font-bold mt-4 mb-2">MC / CNC Kodu</h2>
     <form method="get" action="/membrane/kapak/{{ door.id }}/gcode" class="flex flex-wrap items-end gap-2 text-sm">

@@ -196,6 +196,7 @@ def evaluate(model: dict, width: float, length: float, overrides: dict = None) -
 
 
 def segments(pts: list) -> list:
+    """Turns'ten (içe aktarılan .adoormac) tek kapalı profil segmentleri."""
     segs = []
     first = last = pending = None
     for p in pts:
@@ -235,7 +236,7 @@ def _sample_arc(a, b, c, r, steps=28):
              cy + r * math.sin(a0 + (a1 - a0) * k / steps)) for k in range(steps + 1)]
 
 
-def profile_points(segs: list) -> list:
+def path_points(segs: list) -> list:
     pts = []
     for s in segs:
         if s["kind"] == "line":
@@ -248,26 +249,70 @@ def profile_points(segs: list) -> list:
     return pts
 
 
-def gcode(name: str, ev: dict, depth=8.0, feed=3000, plunge=1200, safe=6.0) -> str:
-    segs = segments(ev["pts"])
-    if not segs:
-        return "(bos geometri)"
-    start = segs[0]["a"]
-    L = ["%", f"({name}  {ev['width']:.0f}x{ev['length']:.0f} mm  derinlik={depth}mm)",
-         "G21 G90 G17", f"G0 Z{safe:.1f}",
-         f"G0 X{start[0]:.2f} Y{start[1]:.2f}", f"G1 Z{-depth:.2f} F{plunge}"]
-    for s in segs:
-        bx, by = s["b"]
-        if s["kind"] == "line":
-            L.append(f"G1 X{bx:.2f} Y{by:.2f} F{feed}")
-        else:
-            ax, ay = s["a"]; cx, cy = s["c"]
-            cross = (ax - cx) * (by - cy) - (ay - cy) * (bx - cx)
-            gg = "G3" if cross > 0 else "G2"
-            L.append(f"{gg} X{bx:.2f} Y{by:.2f} I{cx - ax:.2f} J{cy - ay:.2f} F{feed}")
-    L += [f"G0 Z{safe:.1f}", "M30", "%"]
-    return "\n".join(L)
+def _paths_v105(ev: dict) -> list:
+    """AdoorMain (VBA) birebir portu: düz alt + kemerli üst profil, iki kayıt
+    (kenar çıtası), ve Ara'ya göre kaset bölme çizgileri (mullion)."""
+    v = ev["vals"]; W = ev["width"]; L = ev["length"]
+    Sol = v["Sol_Kenar"]; Sag = v["Sag_Kenar"]; Alt = v["Alt_Kenar"]; Ust = v["Üst_Kenar"]
+    Yay = v["Yay_Yuksekligi"]; Ara = v["Ara"]; yuz = v["Yuz"]; R = v["Yarı_Cap"]
+    midX = (W - (Sol + Sag)) / 2 + Sol
+    cY = L - Ust - R                      # üst yay merkezinin y'si
+    P1 = (Sol, Alt); P2 = (W - Sag, Alt)  # düz alt kenar
+    P3 = (W - Sag, L - Ust - Yay); P4 = (Sol, L - Ust - Yay)
+    profile = [
+        {"kind": "line", "a": P1, "b": P2},
+        {"kind": "line", "a": P2, "b": P3},
+        {"kind": "arc", "a": P3, "b": P4, "c": (midX, cY), "r": R},  # üst kemer (CCW)
+        {"kind": "line", "a": P4, "b": P1},
+    ]
+    paths = [{"closed": True, "segs": profile, "role": "profil"}]
+    # Geo2 / Geo3: kenar kayıtları (tam boy dikey)
+    paths.append({"closed": False, "role": "kayit",
+                  "segs": [{"kind": "line", "a": (yuz, 0), "b": (yuz, L)}]})
+    paths.append({"closed": False, "role": "kayit",
+                  "segs": [{"kind": "line", "a": (W - yuz, 0), "b": (W - yuz, L)}]})
+    # Kaset bölme çizgileri (stripes) — profile göre üstten kırpılı
+    inner = W - 2 * yuz
+    n_fp = int(inner / Ara) + 1 if Ara > 0 else 1
+    w_fp = inner / n_fp if n_fp else inner
+    for n in range(1, n_fp):
+        xm = yuz + w_fp * n
+        d = R * R - (xm - midX) ** 2
+        ytop = cY + math.sqrt(d) if d > 0 else (L - Ust - Yay)
+        paths.append({"closed": False, "role": "kaset",
+                      "segs": [{"kind": "line", "a": (xm, Alt), "b": (xm, ytop)}]})
+    return paths
+
+
+def build_paths(model: dict, ev: dict) -> list:
+    if model.get("program") == "v105":
+        return _paths_v105(ev)
+    return [{"closed": True, "role": "profil", "segs": segments(ev["pts"])}]
+
+
+def gcode(name: str, ev: dict, paths: list, depth=8.0, feed=3000, plunge=1200, safe=6.0) -> str:
+    out = ["%", f"({name}  {ev['width']:.0f}x{ev['length']:.0f} mm  derinlik={depth}mm)",
+           "G21 G90 G17"]
+    for path in paths:
+        segs = path["segs"]
+        if not segs:
+            continue
+        sx, sy = segs[0]["a"]
+        out += [f"G0 Z{safe:.1f}", f"G0 X{sx:.2f} Y{sy:.2f}", f"G1 Z{-depth:.2f} F{plunge}"]
+        for s in segs:
+            bx, by = s["b"]
+            if s["kind"] == "line":
+                out.append(f"G1 X{bx:.2f} Y{by:.2f} F{feed}")
+            else:
+                ax, ay = s["a"]; cx, cy = s["c"]
+                cross = (ax - cx) * (by - cy) - (ay - cy) * (bx - cx)
+                gg = "G3" if cross > 0 else "G2"
+                out.append(f"{gg} X{bx:.2f} Y{by:.2f} I{cx - ax:.2f} J{cy - ay:.2f} F{feed}")
+    out += [f"G0 Z{safe:.1f}", "M30", "%"]
+    return "\n".join(out)
 
 
 def default_models():
-    return [("V-105", parse_adoormac(V105_MACRO))]
+    m = parse_adoormac(V105_MACRO)
+    m["program"] = "v105"   # tam VBA geometrisi (profil + kayıt + kaset)
+    return [("V-105", m)]
