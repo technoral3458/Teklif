@@ -198,6 +198,14 @@ CREATE TABLE IF NOT EXISTS vardar_orders (
     stage TEXT DEFAULT 'havuz',
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ===== VARDAR: kapak modelleri (AlphaCAM/AlphaDOOR makroları) =====
+CREATE TABLE IF NOT EXISTS vardar_doors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    def_json TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 DEMO_ORDERS = [
@@ -311,6 +319,12 @@ def init():
                 "INSERT INTO vardar_orders (sn, customer, city, area, model, color, color_group, "
                 "entered_by, amount, term_date, stage) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (f"10 2606 {2090 - i}", cust, city, area, model, color, cg, by, amt, "2026-07-08", stage))
+    # Vardar kapak modelleri (ilk açılışta - AlphaCAM makroları)
+    if conn.execute("SELECT COUNT(*) FROM vardar_doors").fetchone()[0] == 0:
+        import doormac
+        for name, model in doormac.default_models():
+            conn.execute("INSERT INTO vardar_doors (name, def_json) VALUES (?,?)",
+                         (name, json.dumps(model)))
     conn.commit()
     conn.close()
 

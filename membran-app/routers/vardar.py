@@ -1,11 +1,14 @@
 """VARDAR - sipariş & üretim takip sistemi (üretim aşaması havuzları)."""
 import os
 
-from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+import json
+
+from fastapi import APIRouter, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 import db
+import doormac
 from config import BASE_DIR
 
 router = APIRouter()
@@ -112,3 +115,81 @@ async def vardar_geri(oid: int):
 async def vardar_sil(oid: int, stage: str = Form("havuz")):
     db.execute("DELETE FROM vardar_orders WHERE id=?", (oid,))
     return RedirectResponse(f"/membrane/vardar/havuz/{stage}", status_code=303)
+
+
+# ==========================================================================
+# KAPAK MODELLERİ (parametrik - AlphaCAM/AlphaDOOR makroları)
+# ==========================================================================
+def _door(did):
+    r = db.one("SELECT * FROM vardar_doors WHERE id=?", (did,))
+    if not r:
+        return None, None
+    return r, json.loads(r["def_json"])
+
+
+def _solve(model, qp):
+    """Query paramlardan width/length + değişken override alıp çözer + çizim üretir."""
+    width = float(qp.get("width", model["width"] or 500))
+    length = float(qp.get("length", model["length"] or 720))
+    overrides = {}
+    for v in model["vars"]:
+        if v["formula"] is None and v["name"] in qp:
+            try:
+                overrides[v["name"]] = float(qp[v["name"]])
+            except ValueError:
+                pass
+    ev = doormac.evaluate(model, width, length, overrides)
+    segs = doormac.segments(ev["pts"])
+    pts = doormac.profile_points(segs)
+    scale = 320.0 / max(width, length)
+    poly = " ".join(f"{x * scale:.1f},{(length - y) * scale:.1f}" for x, y in pts)
+    return ev, {
+        "poly": poly, "pw": width * scale, "ph": length * scale,
+        "width": width, "length": length, "overrides": overrides,
+    }
+
+
+@router.get("/membrane/kapak", response_class=HTMLResponse)
+async def kapak_list(request: Request):
+    doors = db.query("SELECT id, name, created_at FROM vardar_doors ORDER BY name")
+    return templates.TemplateResponse(request, "kapak_list.html", {
+        "request": request, "doors": doors, "stages": STAGES, "counts": _counts(),
+    })
+
+
+@router.get("/membrane/kapak/{did}", response_class=HTMLResponse)
+async def kapak_detail(request: Request, did: int):
+    row, model = _door(did)
+    if not model:
+        return RedirectResponse("/membrane/kapak", status_code=303)
+    ev, draw = _solve(model, request.query_params)
+    return templates.TemplateResponse(request, "kapak_detail.html", {
+        "request": request, "door": row, "model": model, "ev": ev, "draw": draw,
+    })
+
+
+@router.get("/membrane/kapak/{did}/gcode")
+async def kapak_gcode(request: Request, did: int):
+    row, model = _door(did)
+    if not model:
+        return RedirectResponse("/membrane/kapak", status_code=303)
+    ev, draw = _solve(model, request.query_params)
+    depth = float(request.query_params.get("depth", 8))
+    nc = doormac.gcode(row["name"], ev, depth=depth)
+    fn = f"{row['name']}_{int(draw['width'])}x{int(draw['length'])}.nc"
+    return Response(nc, media_type="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="{fn}"'})
+
+
+@router.post("/membrane/kapak/import")
+async def kapak_import(name: str = Form(""), macro: UploadFile = File(...)):
+    raw = (await macro.read())
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-5", errors="replace")  # Türkçe Windows kodlaması
+    model = doormac.parse_adoormac(text)
+    dname = name.strip() or (macro.filename or "Kapak").rsplit(".", 1)[0]
+    db.execute("INSERT INTO vardar_doors (name, def_json) VALUES (?,?)",
+               (dname, json.dumps(model)))
+    return RedirectResponse("/membrane/kapak", status_code=303)
