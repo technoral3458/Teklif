@@ -230,7 +230,7 @@ $520 Put sub-routines at end of main program (1 = Yes, 0 = put at start)
 $525 Quadrant Limit arcs (1 = Yes, 0 = Standard APS 180 degree limit)
 0
 $526 Output arcs as one move (1 = Yes, 0 = No - split arcs >= 180)
-1
+0
 $527 Output HELICAL (XYZ) arcs as straight line segments (1 = Yes, 0 = No)
 0
 ' 530 Determines which PLANAR arcs are output as straight line segments.
