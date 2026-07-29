@@ -65,14 +65,6 @@ $60 Feed CCW arc
 G3 X[AX] Y[AY] R[R] F[F]
 $------------------------ TOOL CHANGES --------------------------------------
 $70 Cancel current tool.  Use [T] for current tool number if required.
-$IF NT = 0
-$ELSE
-$IF OFS=16
-M72
-$ELSEIF OFS=17
-M72
-$ENDIF
-$ENDIF
 $----------------------------------------------------------------------------
 $75 Code for CLOCKWISE spindle rotation - entered into variable ROT (or RT)
 M03
@@ -80,19 +72,6 @@ $76 Code for COUNTER-CLOCKWISE spindle rotation - entered into variable ROT
 M04
 $----------------------------------------------------------------------------
 $80 Select new tool.  Use [T] for new tool number, [S] for spindle speed.
-$IF OFS=16
-M06 T0
-G43 H16
-M71
-$LET LAST_TOOL = NT
-$LET FIRST_RAPID = 1
-$ELSEIF OFS=17
-M06 T0
-G43 H17
-M70
-$LET LAST_TOOL = NT
-$LET FIRST_RAPID = 1
-$ELSE
 $IF NT = LAST_TOOL
 $ELSE
 $IF LAST_TOOL > 0
@@ -103,7 +82,6 @@ G43 H[T]
 [RT] S[S]
 $LET LAST_TOOL = NT
 $LET FIRST_RAPID = 1
-$ENDIF
 $ENDIF
 $----------------------------------------------------------------------------
 $88 Set Current Work Plane WVF = 0 to 4 for faces of Work Volume (see Introduction)

@@ -81,14 +81,7 @@ $60 Feed CCW arc
 G3 X[AX] Y[AY] R[R] F[F]
 $------------------------ TOOL CHANGES --------------------------------------
 $70 Cancel current tool.  Use [T] for current tool number if required.
-$IF NT = 0
-$ELSE
-$IF OFS=16
-M72
-$ELSEIF OFS=17
-M72
-$ENDIF
-$ENDIF
+'' OFS=16/17 (agrega kafa) M72 mantigi kaldirildi; tum takimlar normal calisir.
 $----------------------------------------------------------------------------
 $75 Code for CLOCKWISE spindle rotation - entered into variable ROT (or RT)
 M03
@@ -96,24 +89,12 @@ $76 Code for COUNTER-CLOCKWISE spindle rotation - entered into variable ROT
 M04
 $----------------------------------------------------------------------------
 $80 Select new tool.  Use [T] for new tool number, [S] for spindle speed.
-$IF OFS=16
-M06 T0
-G43 H16
-M71
-$LET LAST_TOOL = NT
-$LET FIRST_RAPID = 1
-$ELSEIF OFS=17
-M06 T0
-G43 H17
-M70
-$LET LAST_TOOL = NT
-$LET FIRST_RAPID = 1
-$ELSE
+'' OFS=16/17 (agrega kafa) M06 T0 / G43 H16-17 / M70-M71 mantigi kaldirildi.
+'' TUM takimlar asagidaki normal yoldan gecer -> T0, M70, M71, M72 cikmaz.
 '' Ayni takim ise (NT = LAST_TOOL) asagidaki blok HIC yazilmaz -> operasyon
-'' sadece guvenli mesafe hareketiyle devam eder (T, G43, devir, G54, G52
-'' tekrarlanmaz). Sadece BASKA bir takima gecerken once M05, sonra yeni takim
-'' ve M03 devir yazilir. Ilk takimda (LAST_TOOL = 0) M05 yazilmaz; spindle
-'' zaten M405 ile yeni baslamistir.
+'' sadece guvenli mesafe hareketiyle devam eder. Sadece BASKA bir takima
+'' gecerken once M05, sonra yeni takim ve M03 devir yazilir. Ilk takimda
+'' (LAST_TOOL = 0) M05 yazilmaz; spindle zaten M405 ile yeni baslamistir.
 '' NOT: Takim numarasi ifade (expression) icinde NT ile okunur; [T] sadece
 '' cikti tokenidir. Bu yuzden karsilastirma ve $LET NT ile yapilir.
 $IF NT = LAST_TOOL
@@ -124,11 +105,8 @@ $ENDIF
 T[T]
 G43 H[T]
 [RT] S[S]
-'' G54 ve G52 modaldir; NC programinin en basinda ($12) bir kez yazilir,
-'' takim degisimlerinde tekrarlanmaz.
 $LET LAST_TOOL = NT
 $LET FIRST_RAPID = 1
-$ENDIF
 $ENDIF
 $----------------------------------------------------------------------------
 $88 Set Current Work Plane WVF = 0 to 4 for faces of Work Volume (see Introduction)
