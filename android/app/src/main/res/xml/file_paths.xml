@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Dosya yuklerken cekilen fotograflar. -->
+    <cache-path name="camera" path="camera/" />
+    <!-- Android 9 ve oncesinde indirilen dosyayi acabilmek icin. -->
+    <external-path name="downloads" path="Download/" />
+</paths>

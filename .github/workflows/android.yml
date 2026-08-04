@@ -1,0 +1,100 @@
+name: Android APK
+
+# APK'yi bulutta derler ve telefondan tek dokunusla indirilebilmesi icin
+# GitHub Releases'e yukler. Actions sekmesinden "Run workflow" ile elle de calistirilabilir.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+      - "claude/**"
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      # Bos birakilirsa depodaki varsayilan imzalama anahtari kullanilir.
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Surum numarasini belirle
+        id: version
+        run: echo "name=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Ozel imzalama anahtarini yaz
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > keystore/ci-release.jks
+          {
+            echo "TEKLIF_KEYSTORE_FILE=../keystore/ci-release.jks"
+            echo "TEKLIF_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "TEKLIF_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+            echo "TEKLIF_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: APK derle
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease \
+            -PTEKLIF_VERSION_CODE="${GITHUB_RUN_NUMBER}" \
+            -PTEKLIF_VERSION_NAME="${{ steps.version.outputs.name }}"
+
+      - name: APK'yi hazirla
+        run: |
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk ../dist/teklif.apk
+
+      - name: APK'yi is ciktisi olarak sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: teklif-apk-${{ steps.version.outputs.name }}
+          path: dist/teklif.apk
+          if-no-files-found: error
+
+      - name: Surum yayinla
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: android-v${{ steps.version.outputs.name }}
+        run: |
+          cat > release-notes.md <<'NOTES'
+          Android uygulamasinin ${{ steps.version.outputs.name }} surumu.
+
+          **Kurulum**
+          1. Asagidaki `teklif.apk` dosyasina telefondan dokunun.
+          2. Android "bilinmeyen kaynaktan kurulum" uyarisi verirse tarayiciya izin verin.
+          3. Uygulamayi ilk actiginizda teklif sisteminizin adresini bir kez yazin.
+
+          Guncelleme icin uygulamayi silmenize gerek yok, mevcut surumun ustune kurulur.
+          NOTES
+
+          gh release create "$TAG" dist/teklif.apk \
+            --title "Teklif ${{ steps.version.outputs.name }}" \
+            --target "$GITHUB_SHA" \
+            --latest \
+            --notes-file release-notes.md

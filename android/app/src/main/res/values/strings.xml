@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Teklif</string>
+
+    <!--
+        Uygulamanin acacagi site adresi. Burasi bos birakilirsa uygulama ilk
+        acilista adresi kullanicidan ister. Ornek: https://teklif.sirketiniz.com
+    -->
+    <string name="default_site_url" translatable="false"></string>
+
+    <string name="setup_title">Site adresi</string>
+    <string name="setup_description">Uygulamanin acacagi teklif sisteminin internet adresini yazin.</string>
+    <string name="setup_hint">https://teklif.sirketiniz.com</string>
+    <string name="setup_hint_note">Adresi sonradan degistirmek icin uygulama simgesine basili tutup \"Site adresi\" kisayolunu kullanabilirsiniz.</string>
+    <string name="setup_save">Kaydet ve baglan</string>
+    <string name="setup_invalid_url">Gecerli bir adres yazin (ornek: teklif.sirketiniz.com)</string>
+
+    <string name="error_title">Baglanti kurulamadi</string>
+    <string name="error_message">Internet baglantinizi kontrol edip tekrar deneyin. Sorun surerse site adresinin dogru oldugundan emin olun.</string>
+    <string name="error_no_app_for_link">Bu baglantiyi acabilecek bir uygulama bulunamadi.</string>
+    <string name="action_retry">Tekrar dene</string>
+    <string name="action_change_url">Site adresini degistir</string>
+
+    <string name="file_chooser_title">Dosya secin</string>
+    <string name="download_in_progress">Dosya hazirlaniyor…</string>
+    <string name="download_started">Indiriliyor: %1$s</string>
+    <string name="download_saved">Indirilenler klasorune kaydedildi: %1$s</string>
+    <string name="download_failed">Dosya indirilemedi.</string>
+    <string name="download_permission_needed">Dosyayi kaydetmek icin depolama izni gerekiyor.</string>
+
+    <string name="shortcut_settings_short">Site adresi</string>
+    <string name="shortcut_settings_long">Site adresini degistir</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ temali simgeler icin tek renk surum. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#000000"
+        android:pathData="M39,26 h30 a5,5 0 0 1 5,5 v46 a5,5 0 0 1 -5,5 h-30 a5,5 0 0 1 -5,-5 v-46 a5,5 0 0 1 5,-5 z M42,37 h24 a2,2 0 0 1 0,4 h-24 a2,2 0 0 1 0,-4 z M42,47 h18 a2,2 0 0 1 0,4 h-18 a2,2 0 0 1 0,-4 z M42,57 h22 a2,2 0 0 1 0,4 h-22 a2,2 0 0 1 0,-4 z" />
+</vector>

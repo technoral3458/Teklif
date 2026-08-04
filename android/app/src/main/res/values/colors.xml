@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Web arayuzuyle ayni kurumsal renkler (MUI primary / secondary). -->
+    <color name="brand">#1A237E</color>
+    <color name="brand_dark">#0D1257</color>
+    <color name="accent">#F57C00</color>
+
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#08060D</color>
+    <color name="text_secondary">#6B6375</color>
+</resources>
