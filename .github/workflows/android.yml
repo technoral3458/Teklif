@@ -69,6 +69,13 @@ jobs:
           mkdir -p ../dist
           cp app/build/outputs/apk/release/app-release.apk ../dist/teklif.apk
 
+      # Kurulum hatalarinin buyuk kismi imzadan kaynaklandigi icin sonucu loga yaziyoruz.
+      - name: Imzayi dogrula
+        working-directory: .
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs dist/teklif.apk
+
       - name: APK'yi is ciktisi olarak sakla
         uses: actions/upload-artifact@v4
         with:

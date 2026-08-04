@@ -28,6 +28,13 @@ android {
                 storePassword = secret("TEKLIF_KEYSTORE_PASSWORD")
                 keyAlias = secret("TEKLIF_KEY_ALIAS")
                 keyPassword = secret("TEKLIF_KEY_PASSWORD")
+
+                // minSdk 26 oldugu icin Gradle eski JAR imzasini kendiliginden kapatiyor.
+                // Bazi ureticilerin kurulum servisleri v2-only paketleri reddedip
+                // "Uygulama yuklenmedi" hatasi verdigi icin tum semalari aciyoruz.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
