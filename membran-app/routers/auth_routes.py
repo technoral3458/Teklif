@@ -24,7 +24,7 @@ async def login_page(request: Request):
 async def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
     user = db.one("SELECT * FROM membrane_users WHERE username=?", (username,))
     if user and verify_password(password, user["password_hash"]):
-        resp = RedirectResponse("/membrane", status_code=303)
+        resp = RedirectResponse("/welcome", status_code=303)
         resp.set_cookie("session", sign_session(username), httponly=True,
                         samesite="lax", max_age=60 * 60 * 24 * 7)
         return resp
@@ -32,6 +32,13 @@ async def login_submit(request: Request, username: str = Form(...), password: st
         request, "login.html",
         {"request": request, "error": "Kullanıcı adı veya şifre hatalı"},
     )
+
+
+@router.get("/welcome", response_class=HTMLResponse)
+async def welcome(request: Request):
+    if not verify_session_cookie(request):
+        return RedirectResponse("/login", status_code=303)
+    return templates.TemplateResponse(request, "welcome.html", {"request": request})
 
 
 @router.get("/logout")

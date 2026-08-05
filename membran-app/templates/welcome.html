@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoş Geldiniz</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;font-family:system-ui,'Segoe UI',Roboto,sans-serif}
+  #stage{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a8a 0%,#4f46e5 45%,#7c3aed 100%);}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .balloon{position:absolute;bottom:-160px;width:64px;height:80px;border-radius:50% 50% 50% 50%/55% 55% 45% 45%;
+    box-shadow:inset -8px -6px 12px rgba(0,0,0,.18);will-change:transform,opacity;z-index:3}
+  .balloon::after{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);
+    border-left:5px solid transparent;border-right:5px solid transparent;border-top:9px solid rgba(255,255,255,.5)}
+  .balloon::before{content:'';position:absolute;bottom:-70px;left:50%;width:1px;height:70px;background:rgba(255,255,255,.35)}
+  @keyframes rise{0%{transform:translateY(0) translateX(0)}100%{transform:translateY(-115vh) translateX(var(--sway))}}
+  .card{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:8;text-align:center;color:#fff;padding:20px}
+  .emoji{font-size:clamp(56px,12vw,110px);animation:pop .7s cubic-bezier(.2,1.4,.4,1) both;filter:drop-shadow(0 6px 16px rgba(0,0,0,.3))}
+  .title{font-size:clamp(28px,6vw,52px);font-weight:800;letter-spacing:.5px;margin-top:6px;
+    text-shadow:0 4px 18px rgba(0,0,0,.35);animation:pop .7s .12s cubic-bezier(.2,1.4,.4,1) both}
+  .sub{font-size:clamp(15px,2.6vw,20px);opacity:.92;margin-top:10px;animation:fade .8s .5s both}
+  .bar{margin-top:26px;width:min(260px,60vw);height:6px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden;animation:fade .6s .5s both}
+  .bar>i{display:block;height:100%;width:0;background:#fff;border-radius:999px;animation:fill 3s linear forwards}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes fill{to{width:100%}}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<canvas id="confetti"></canvas>
+<div class="card">
+  <div class="emoji">🎉</div>
+  <div class="title">Sitemize Hoş Geldiniz!</div>
+  <div class="sub">Vardar Kapak Sipariş &amp; Üretim Sistemi hazırlanıyor…</div>
+  <div class="bar"><i></i></div>
+</div>
+<script>
+const NEXT = "/membrane", DUR = 3000;
+const COLORS = ["#ef4444","#f59e0b","#10b981","#3b82f6","#ec4899","#a855f7","#eab308","#06b6d4"];
+const stage = document.getElementById("stage");
+
+// Konfeti
+const cv = document.getElementById("confetti"), ctx = cv.getContext("2d");
+function size(){ cv.width = innerWidth; cv.height = innerHeight; }
+size(); addEventListener("resize", size);
+let parts = [];
+function burst(x, y, n=34){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = 2+Math.random()*7;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-3,
+      s:5+Math.random()*7, c:COLORS[i%COLORS.length], rot:Math.random()*6.28,
+      vr:(Math.random()-.5)*.4, life:1});
+  }
+}
+function tick(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  parts.forEach(p=>{ p.vy+=0.16; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life-=0.012;
+    ctx.save(); ctx.globalAlpha=Math.max(p.life,0); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+    ctx.fillStyle=p.c; ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); ctx.restore(); });
+  parts = parts.filter(p=>p.life>0 && p.y<cv.height+40);
+  requestAnimationFrame(tick);
+}
+tick();
+
+// Balonlar (yükselir, sonra patlar -> konfeti)
+const N = 11;
+for(let i=0;i<N;i++){
+  const b = document.createElement("div"); b.className="balloon";
+  const col = COLORS[i%COLORS.length];
+  b.style.background = `radial-gradient(circle at 32% 28%, #ffffffcc, ${col} 55%)`;
+  const left = 4 + Math.random()*88;
+  b.style.left = left+"vw";
+  b.style.setProperty("--sway",(Math.random()*80-40)+"px");
+  const dur = 2.4 + Math.random()*1.1;
+  b.style.animation = `rise ${dur}s linear forwards`;
+  b.style.animationDelay = (Math.random()*0.5)+"s";
+  b.style.transform = `scale(${0.7+Math.random()*0.6})`;
+  stage.appendChild(b);
+  // patlama zamanı: 0.6s - 2.4s arası
+  const popAt = 600 + Math.random()*1800;
+  setTimeout(()=>{
+    const r = b.getBoundingClientRect();
+    burst(r.left + r.width/2, r.top + r.height/2);
+    b.style.transition="transform .12s, opacity .12s";
+    b.style.transform="scale(1.5)"; b.style.opacity="0";
+    setTimeout(()=>b.remove(),140);
+  }, popAt);
+}
+// büyük final patlaması
+setTimeout(()=>{ burst(innerWidth/2, innerHeight*0.42, 80); }, 2200);
+
+// 3 sn sonra siteye gir
+setTimeout(()=>{ location.href = NEXT; }, DUR);
+</script>
+</body>
+</html>
