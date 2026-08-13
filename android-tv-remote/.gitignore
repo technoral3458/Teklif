@@ -1,0 +1,13 @@
+# Gradle / Android Studio
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Uygulamanin urettigi imzasiz ciktilar
+*.apk
+*.aab
