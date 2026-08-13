@@ -1,0 +1,80 @@
+name: TV Kumanda APK
+
+# Android SDK'sı olan bir makine gerektirdiği için APK burada, GitHub'ın
+# sunucusunda derlenir. Sonuç hem iş akışı çıktısı (artifact) olarak hem de
+# telefondan doğrudan indirilebilsin diye bir Release olarak yayınlanır.
+
+on:
+  push:
+    branches:
+      - claude/arcelic-android-tv-remote-snybax
+    paths:
+      - android-tv-remote/**
+      - .github/workflows/tv-kumanda-apk.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: android-tv-remote
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Android SDK bileşenlerini hazırla
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Protokol testleri
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: APK derle
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+      - name: APK'yı adlandır
+        run: cp app/build/outputs/apk/debug/app-debug.apk tv-kumanda.apk
+
+      - name: Test raporunu sakla (hata durumunda)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-raporu
+          path: android-tv-remote/app/build/reports/
+
+      - name: APK'yı çıktı olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv-kumanda-apk
+          path: android-tv-remote/tv-kumanda.apk
+          if-no-files-found: error
+
+      - name: Release olarak yayınla
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete tv-kumanda-v1.0 --yes --cleanup-tag 2>/dev/null || true
+          gh release create tv-kumanda-v1.0 tv-kumanda.apk \
+            --target "$GITHUB_SHA" \
+            --title "TV Kumanda v1.0" \
+            --notes "Arçelik / Android TV kumanda uygulaması.
+
+          Telefona kurmak için \`tv-kumanda.apk\` dosyasını indirip açın.
+          Android \"bilinmeyen kaynaklardan kuruluma izin ver\" diye soracak, izin verin.
+
+          Kullanım: telefon ve TV aynı Wi-Fi ağında olmalı. Uygulamayı açın,
+          listeden TV'ye dokunun, TV ekranında çıkan 6 haneli kodu girin."
