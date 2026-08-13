@@ -397,18 +397,22 @@ private class FakeRemoteServer : AutoCloseable {
 
             write(
                 output,
+                // RemoteSetVolumeLevel: volume_max = 6, volume_level = 7, volume_muted = 8
                 ProtoWriter().message(50) {
-                    int32(1, 0); int32(2, 0); string(3, "TV"); int32(4, 100); int32(5, 12); bool(6, false)
+                    int32(1, 0); int32(2, 0); string(3, "TV")
+                    int32(4, 0); int32(5, 0); int32(6, 100); int32(7, 12); bool(8, false)
                 }.toByteArray(),
             )
             write(
                 output,
-                ProtoWriter().message(20) { message(1) { string(1, "com.google.android.youtube") } }.toByteArray(),
+                // RemoteImeKeyInject.app_info -> RemoteAppInfo.app_package = 12
+                ProtoWriter().message(20) { message(1) { string(12, "com.google.android.youtube") } }.toByteArray(),
             )
 
             while (true) {
                 val message = read(input)
-                message.message(10)?.let { key -> keys.put((key.int(1) ?: 0) to (key.int(2) ?: 0)) }
+                // RemoteKeyInject { key_code = 1; direction = 2 }; ciftler (yon, tus) olarak tutuluyor.
+                message.message(10)?.let { key -> keys.put((key.int(2) ?: 0) to (key.int(1) ?: 0)) }
                 message.message(90)?.let { link -> appLinks.put(link.string(1) ?: "") }
             }
         }

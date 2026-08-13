@@ -1,6 +1,7 @@
 package com.technoral.tvkumanda.protocol
 
 import java.io.Closeable
+import java.io.EOFException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
@@ -67,7 +68,15 @@ class RemoteClient(
         } finally {
             isReady = false
             runCatching { socket?.close() }
-            listener.onDisconnected(failure)
+            // Kullanici ayrildiysa sessizce kapatiyoruz; TV kendiliginden kapattiysa
+            // bunu sebep olarak bildiriyoruz, aksi halde ekran hicbir aciklama
+            // vermeden baglanti ekranina donuyor.
+            val reason = when {
+                closed -> null
+                failure != null -> failure
+                else -> EOFException("TV bağlantıyı kapattı")
+            }
+            listener.onDisconnected(reason)
         }
     }
 
@@ -113,16 +122,18 @@ class RemoteClient(
             if (start.bool(1) != false) markReady()
             return
         }
+        // RemoteSetVolumeLevel { ... volume_max = 6; volume_level = 7; volume_muted = 8 }
         message.message(FIELD_SET_VOLUME_LEVEL)?.let { volume ->
             listener.onVolume(
-                level = volume.int(5) ?: 0,
-                max = volume.int(4) ?: 0,
-                muted = volume.bool(6) ?: false,
+                level = volume.int(7) ?: 0,
+                max = volume.int(6) ?: 0,
+                muted = volume.bool(8) ?: false,
             )
             return
         }
+        // RemoteImeKeyInject { app_info = 1 }, RemoteAppInfo { app_package = 12 }
         message.message(FIELD_IME_KEY_INJECT)?.let { ime ->
-            ime.message(1)?.string(1)?.takeIf { it.contains('.') }?.let(listener::onCurrentApp)
+            ime.message(1)?.string(12)?.takeIf { it.contains('.') }?.let(listener::onCurrentApp)
             return
         }
         message.message(FIELD_ERROR)?.let {
@@ -199,10 +210,12 @@ class RemoteClient(
         .message(FIELD_PING_RESPONSE) { int32(1, value) }
         .toByteArray()
 
+    // RemoteKeyInject { key_code = 1; direction = 2 } - alan sirasi onemli:
+    // ters yazilirsa TV mesaji reddedip baglantiyi kapatir.
     private fun keyInject(direction: Int, keyCode: Int) = ProtoWriter()
         .message(FIELD_KEY_INJECT) {
-            int32(1, direction)
-            int32(2, keyCode)
+            int32(1, keyCode)
+            int32(2, direction)
         }
         .toByteArray()
 
