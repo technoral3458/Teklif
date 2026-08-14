@@ -229,18 +229,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             lastBestPrice = best
         )
         watchStore.add(watch)
-        PriceWatchWorker.schedule(getApplication())
+        PriceWatchWorker.schedule(getApplication<Application>())
         reloadWatches()
     }
 
     fun removeWatch(id: String) {
         watchStore.remove(id)
         val remaining = watchStore.all()
-        if (remaining.isEmpty()) PriceWatchWorker.cancel(getApplication())
+        if (remaining.isEmpty()) PriceWatchWorker.cancel(getApplication<Application>())
         reloadWatches()
     }
 
     fun checkWatchesNow() {
-        PriceWatchWorker.checkNow(getApplication())
+        PriceWatchWorker.checkNow(getApplication<Application>())
     }
 }
