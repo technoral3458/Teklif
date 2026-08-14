@@ -1,0 +1,75 @@
+name: UcusBul APK
+
+on:
+  push:
+    branches:
+      - claude/flight-ticket-search-app-losw63
+    paths:
+      - 'flight-finder/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flight-finder
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: |
+          set -e
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build release APK
+        env:
+          FF_VERSION_CODE: ${{ github.run_number }}
+          FF_VERSION_NAME: 1.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Rename APK
+        id: apk
+        run: |
+          set -e
+          SRC=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
+          DEST="UcusBul-1.${{ github.run_number }}.apk"
+          cp "$SRC" "$DEST"
+          echo "path=flight-finder/$DEST" >> "$GITHUB_OUTPUT"
+          echo "name=$DEST" >> "$GITHUB_OUTPUT"
+          ls -la "$DEST"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UcusBul-apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 90
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG="apk-v1.${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.apk.outputs.name }}" \
+            --title "UçuşBul 1.${{ github.run_number }}" \
+            --notes "Telefonunuzda bu sayfayı açıp APK dosyasına dokunarak kurabilirsiniz. Kurulum için Ayarlar > Güvenlik > Bilinmeyen kaynaklara izin verilmesi gerekir." \
+            --target "${{ github.sha }}"

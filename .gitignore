@@ -25,6 +25,14 @@ frontend/dist/
 frontend/.env
 .env
 
+# Android (flight-finder)
+flight-finder/.gradle/
+flight-finder/local.properties
+flight-finder/.kotlin/
+flight-finder/app/release/
+*.apk
+*.aab
+
 # IDE
 .vscode/
 .idea/
