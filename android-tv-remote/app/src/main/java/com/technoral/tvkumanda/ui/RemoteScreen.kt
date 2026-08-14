@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -59,7 +60,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.technoral.tvkumanda.VolumeState
-import com.technoral.tvkumanda.protocol.TvApp
 import com.technoral.tvkumanda.protocol.TvApps
 import com.technoral.tvkumanda.protocol.TvKeys
 
@@ -201,11 +201,14 @@ fun RemoteScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Geri", { onKey(TvKeys.BACK) }, enabled = connected)
-            RoundKey(Icons.Filled.Home, "Ana ekran", { onKey(TvKeys.HOME) }, enabled = connected)
-            RoundKey(Icons.Filled.Menu, "Menü", { onKey(TvKeys.MENU) }, enabled = connected)
-            RoundKey(Icons.Filled.Info, "Bilgi", { onKey(TvKeys.INFO) }, enabled = connected)
-            RoundKey(Icons.Filled.Subtitles, "Altyazı", { onKey(TvKeys.CAPTIONS) }, enabled = connected)
+            // Alti tus var; dar ekranlarda tasmamasi icin biraz kucuk.
+            val navSize = 48.dp
+            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Geri", { onKey(TvKeys.BACK) }, size = navSize, enabled = connected)
+            RoundKey(Icons.Filled.Home, "Ana ekran", { onKey(TvKeys.HOME) }, size = navSize, enabled = connected)
+            RoundKey(Icons.Filled.Menu, "Menü", { onKey(TvKeys.MENU) }, size = navSize, enabled = connected)
+            RoundKey(Icons.AutoMirrored.Filled.List, "Rehber", { onKey(TvKeys.GUIDE) }, size = navSize, enabled = connected)
+            RoundKey(Icons.Filled.Info, "Bilgi", { onKey(TvKeys.INFO) }, size = navSize, enabled = connected)
+            RoundKey(Icons.Filled.Subtitles, "Altyazı", { onKey(TvKeys.CAPTIONS) }, size = navSize, enabled = connected)
         }
 
         // --- Oynatma ---
@@ -229,41 +232,28 @@ fun RemoteScreen(
             RoundKey(Icons.Filled.SkipNext, "Sonraki", { onKey(TvKeys.MEDIA_NEXT) }, enabled = connected)
         }
 
-        // --- Girisler ---
-        SectionTitle("Girişler")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            LabelKey("Kaynak", { onKey(TvKeys.TV_INPUT) }, Modifier.weight(1.2f), connected,
-                container = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
-            LabelKey("TV", { onKey(TvKeys.TV) }, Modifier.weight(1f), connected)
-            LabelKey("HDMI 1", { onKey(TvKeys.TV_INPUT_HDMI_1) }, Modifier.weight(1f), connected)
-            LabelKey("HDMI 2", { onKey(TvKeys.TV_INPUT_HDMI_2) }, Modifier.weight(1f), connected)
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            LabelKey("HDMI 3", { onKey(TvKeys.TV_INPUT_HDMI_3) }, Modifier.weight(1f), connected)
-            LabelKey("HDMI 4", { onKey(TvKeys.TV_INPUT_HDMI_4) }, Modifier.weight(1f), connected)
-            LabelKey("AV", { onKey(TvKeys.TV_INPUT_COMPOSITE_1) }, Modifier.weight(1f), connected)
-            LabelKey("Rehber", { onKey(TvKeys.GUIDE) }, Modifier.weight(1f), connected)
-        }
+        // --- Girisler ve uygulamalar (tek bolum) ---
+        SectionTitle("Girişler ve uygulamalar")
+        Text(
+            text = "Kaydırırken yanlışlıkla açılmasın diye bu tuşlar 1 saniye " +
+                "basılı tutunca çalışır.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        ShortcutGrid(
+            shortcuts = rememberShortcuts(onKey = onKey, onApp = onApp),
+            enabled = connected,
+        )
         Text(
             text = "Bazı modellerde doğrudan HDMI tuşları çalışmaz; o durumda " +
                 "\"Kaynak\" ile listeyi açıp yön tuşlarıyla seçin.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 2.dp),
         )
-
-        // --- Uygulamalar ---
-        SectionTitle("Uygulamalar")
-        AppGrid(apps = TvApps.defaults, enabled = connected, onApp = onApp)
 
         // --- Klavye ---
         SectionTitle("Yazı ve arama")
@@ -343,21 +333,57 @@ private fun buildStatusLine(
     return if (parts.isEmpty()) "Bağlı" else parts.joinToString(" · ")
 }
 
+/** Girisler ve uygulamalar ayni listede; [isInput] yalnizca rengi belirler. */
+private data class Shortcut(
+    val label: String,
+    val isInput: Boolean,
+    val onActivate: () -> Unit,
+)
+
 @Composable
-private fun AppGrid(apps: List<TvApp>, enabled: Boolean, onApp: (String) -> Unit) {
+private fun rememberShortcuts(
+    onKey: (Int) -> Unit,
+    onApp: (String) -> Unit,
+): List<Shortcut> = remember(onKey, onApp) {
+    buildList {
+        add(Shortcut("Kaynak", true) { onKey(TvKeys.TV_INPUT) })
+        add(Shortcut("TV", true) { onKey(TvKeys.TV) })
+        add(Shortcut("HDMI 1", true) { onKey(TvKeys.TV_INPUT_HDMI_1) })
+        add(Shortcut("HDMI 2", true) { onKey(TvKeys.TV_INPUT_HDMI_2) })
+        add(Shortcut("HDMI 3", true) { onKey(TvKeys.TV_INPUT_HDMI_3) })
+        add(Shortcut("HDMI 4", true) { onKey(TvKeys.TV_INPUT_HDMI_4) })
+        add(Shortcut("AV", true) { onKey(TvKeys.TV_INPUT_COMPOSITE_1) })
+        TvApps.defaults.forEach { app ->
+            add(Shortcut(app.label, false) { onApp(app.link) })
+        }
+    }
+}
+
+@Composable
+private fun ShortcutGrid(shortcuts: List<Shortcut>, enabled: Boolean) {
     // Sabit ve kisa bir liste oldugu icin LazyGrid yerine basit satirlar;
     // ic ice kaydirma sorunlarindan da kacinmis oluruz.
-    apps.chunked(3).forEach { row ->
+    shortcuts.chunked(3).forEach { row ->
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            row.forEach { app ->
-                LabelKey(
-                    label = app.label,
-                    onClick = { onApp(app.link) },
+            row.forEach { shortcut ->
+                HoldKey(
+                    label = shortcut.label,
+                    onActivate = shortcut.onActivate,
                     modifier = Modifier.weight(1f),
                     enabled = enabled,
+                    container = if (shortcut.isInput) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = if (shortcut.isInput) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                 )
             }
             repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }

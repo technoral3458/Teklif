@@ -1,5 +1,8 @@
 package com.technoral.tvkumanda.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -27,11 +30,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -43,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Composable
@@ -82,14 +89,90 @@ private fun Modifier.pressable(
 
     return this.pointerInput(enabled, repeatable) {
         if (!enabled) return@pointerInput
-        detectTapGestures(
-            onPress = {
-                pressed = true
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                onPress()
-                tryAwaitRelease()
-                pressed = false
-            },
+        if (repeatable) {
+            // Ses/kanal/yon tuslari kumanda gibi davranmali: parmak degdigi an
+            // tetiklenir ve basili tutuldukca tekrarlar.
+            detectTapGestures(
+                onPress = {
+                    pressed = true
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onPress()
+                    tryAwaitRelease()
+                    pressed = false
+                },
+            )
+        } else {
+            // Tek dokunusluk tuslar parmak kalkinca tetiklenir. Parmak degdigi
+            // anda tetiklenirse, listeyi kaydirmaya bir tusun uzerinden
+            // baslamak o tusa basmis sayiliyordu.
+            detectTapGestures(
+                onTap = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onPress()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Yanlislikla tetiklenmemesi gereken tuslar icin: yalnizca [holdMillis] kadar
+ * basili tutuldugunda calisir. Beklerken tusun uzerinde bir dolum cubugu ilerler,
+ * parmak erken kalkarsa hicbir sey gonderilmez.
+ */
+@Composable
+fun HoldKey(
+    label: String,
+    onActivate: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    container: Color = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    fill: Color = MaterialTheme.colorScheme.primary,
+    holdMillis: Int = 1_000,
+    shape: RoundedCornerShape = RoundedCornerShape(16.dp),
+) {
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val progress = remember { Animatable(0f) }
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(if (enabled) container else container.copy(alpha = 0.4f))
+            .drawBehind {
+                val done = progress.value
+                if (done > 0f) {
+                    drawRect(color = fill.copy(alpha = 0.45f), size = Size(size.width * done, size.height))
+                }
+            }
+            .pointerInput(enabled, holdMillis, onActivate) {
+                if (!enabled) return@pointerInput
+                detectTapGestures(
+                    onPress = {
+                        val countdown = scope.launch {
+                            progress.animateTo(1f, tween(holdMillis, easing = LinearEasing))
+                            // Sure doldu: parmak hala uzerindeyken tetikliyoruz ki
+                            // kullanici "oldu" geri bildirimini aninda alsin.
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onActivate()
+                        }
+                        tryAwaitRelease()
+                        countdown.cancel()
+                        progress.snapTo(0f)
+                    },
+                )
+            }
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = if (enabled) contentColor else contentColor.copy(alpha = 0.4f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
         )
     }
 }
