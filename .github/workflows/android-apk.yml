@@ -1,0 +1,103 @@
+name: Android APK derle
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/android-app-development-va3kum
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: APK derle ve yayınla
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle önbelleği
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Gradle sürümünü doğrula
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      - name: Imza anahtarini hazirla
+        working-directory: android
+        env:
+          ANAHTAR_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANAHTAR_PAROLA: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -e
+          mkdir -p keystore
+          PAROLA="${ANAHTAR_PAROLA:-petkit2026}"
+          if [ -n "$ANAHTAR_B64" ]; then
+            echo "$ANAHTAR_B64" | base64 -d > keystore/petkit-tr.jks
+            echo "Depo sirrindaki kalici anahtar kullanilacak."
+          else
+            keytool -genkeypair -noprompt \
+              -keystore keystore/petkit-tr.jks -storetype PKCS12 \
+              -alias petkittr -keyalg RSA -keysize 2048 -validity 10950 \
+              -storepass "$PAROLA" -keypass "$PAROLA" \
+              -dname "CN=PetkitTR, OU=Kisisel, O=Technoral, C=TR"
+            echo "::warning::Kalici imza anahtari (ANDROID_KEYSTORE_BASE64 sirri) tanimli degil. Her derleme farkli imzalanir; guncellerken onceki surumu kaldirmaniz gerekir. README'deki 'Kalici imza' bolumune bakin."
+          fi
+        # Anahtar parolasi yalnizca bu kisisel imza icin kullanilir.
+        # Kalici anahtar icin depo sirri tanimlanmalidir.
+        continue-on-error: false
+
+      - name: APK derle (release)
+        working-directory: android
+        env:
+          PETKIT_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'petkit2026' }}
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: APK'yı adlandır
+        id: apk
+        run: |
+          set -e
+          SRC=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "Bulunan APK: $SRC"
+          mkdir -p cikti
+          DEST="cikti/PetkitTR-1.0.0-build${{ github.run_number }}.apk"
+          cp "$SRC" "$DEST"
+          echo "yol=$DEST" >> "$GITHUB_OUTPUT"
+          echo "ad=$(basename "$DEST")" >> "$GITHUB_OUTPUT"
+          ls -lh cikti
+
+      - name: APK'yı iş çıktısı olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: PetkitTR-APK
+          path: cikti/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Sürüm (release) oluştur
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="apk-build${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.apk.outputs.yol }}" \
+            --target "${{ github.sha }}" \
+            --title "Petkit Türkçe APK (derleme ${{ github.run_number }})" \
+            --notes "Petkit YumShare Dual-Hopper 2 için Türkçe Android uygulaması.
+
+          **Kurulum:** Telefonunuzda aşağıdaki \`.apk\` dosyasına dokunun ve \"bilinmeyen kaynaklardan kuruluma izin ver\" uyarısını onaylayın.
+
+          Derleme: \`${{ github.sha }}\`"
