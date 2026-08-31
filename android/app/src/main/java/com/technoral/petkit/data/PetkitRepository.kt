@@ -55,20 +55,32 @@ class PetkitRepository(val api: PetkitApi, val prefs: Prefs) {
     /**
      * Hesaba bağlı tüm cihazları getirir.
      *
-     * İki ayrı uç nokta denenir. İkisi de hata verirse hatalar yutulmaz;
-     * "cihaz yok" ile "istek reddedildi" ayırt edilebilsin diye birleştirilip
-     * fırlatılır.
+     * İki ayrı uç nokta denenir. Bir uç nokta yanıt verdiyse (hata vermediyse)
+     * boş sonuç gerçekten "hesapta cihaz yok" demektir; hata ancak hiçbir uç
+     * nokta yanıt vermediğinde bildirilir. Böylece "cihaz yok" ile
+     * "istek reddedildi" karıştırılmaz.
      */
     suspend fun cihazlar(): List<Cihaz> {
         val bulunanlar = LinkedHashMap<String, Cihaz>()
         val hatalar = mutableListOf<String>()
+        var yanitVerenUcNokta = 0
 
-        // 1) Ana yol: cihaz listesi
-        try {
-            val sonuc = api.postYenilemeli("discovery/device_roster", mapOf("day" to bugunKodu()))
-            cihazRosterAyikla(sonuc).forEach { bulunanlar[it.id] = it }
-        } catch (e: Exception) {
-            hatalar += "device_roster: ${e.message ?: e.javaClass.simpleName}"
+        // 1) Cihaz listesi. Sunucu fazladan parametreyi reddedebiliyor
+        //    ("İstek yanlış"), bu yüzden önce parametresiz biçim denenir.
+        val rosterDenemeleri = listOf(
+            emptyMap<String, String>(),
+            mapOf("day" to bugunKodu())
+        )
+        for (parametreler in rosterDenemeleri) {
+            try {
+                val sonuc = api.postYenilemeli("discovery/device_roster", parametreler)
+                cihazRosterAyikla(sonuc).forEach { bulunanlar[it.id] = it }
+                yanitVerenUcNokta++
+                break
+            } catch (e: Exception) {
+                val etiket = if (parametreler.isEmpty()) "device_roster" else "device_roster(day)"
+                hatalar += "$etiket: ${e.message ?: e.javaClass.simpleName}"
+            }
         }
 
         // 2) Yedek yol: aile/grup listesi
@@ -76,12 +88,13 @@ class PetkitRepository(val api: PetkitApi, val prefs: Prefs) {
             try {
                 val sonuc = api.postYenilemeli("group/family/list", emptyMap())
                 aileListesiAyikla(sonuc).forEach { bulunanlar[it.id] = it }
+                yanitVerenUcNokta++
             } catch (e: Exception) {
                 hatalar += "family/list: ${e.message ?: e.javaClass.simpleName}"
             }
         }
 
-        if (bulunanlar.isEmpty() && hatalar.isNotEmpty()) {
+        if (bulunanlar.isEmpty() && yanitVerenUcNokta == 0) {
             throw IllegalStateException(
                 "Cihaz listesi alınamadı. " + hatalar.joinToString(" · ")
             )

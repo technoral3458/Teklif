@@ -51,15 +51,20 @@ fun CihazlarEkrani(
                 Icons.Filled.Devices
             )
             NotSeridi(
-                "En sık sebep: besleyici henüz bu hesaba eklenmemiştir. Hesap açmak tek " +
-                        "başına yetmez - cihazın resmi Petkit uygulamasıyla Wi-Fi'ye alınıp " +
-                        "hesabınıza bağlanması gerekir. Cihazı orada görüyorsanız:\n\n" +
-                        "1) Sağ üstteki yenile düğmesine dokunun.\n" +
-                        "2) Düzelmezse çıkış yapıp başka bir bölge sunucusuyla girin " +
-                        "(hesabınız hangi bölgede açıldıysa cihazlar orada görünür).\n" +
-                        "3) Yine olmazsa sağ üstteki konsol simgesine dokunup " +
-                        "\"Cihaz listesi\" ve \"Aile listesi\" şablonlarını çalıştırın; " +
-                        "sunucunun ham yanıtını kopyalayıp iletin."
+                "Sunucuya bağlanıldı, hesap okundu - hesapta kayıtlı cihaz yok.\n\n" +
+                        "Besleyicinin önce resmi Petkit uygulamasıyla Wi-Fi'ye alınıp bu " +
+                        "hesaba bağlanması (eşleştirilmesi) gerekir; hesap açmak tek başına " +
+                        "yetmez. Bu uygulama cihaz eşleştirme yapamaz, yalnızca hesaba " +
+                        "bağlı cihazları yönetir.\n\n" +
+                        "Resmi uygulamada eşleştirme sırasında \"Cihazın mevcut bölgede " +
+                        "kullanımı desteklenmemektedir\" hatası alıyorsanız cihaz bölge " +
+                        "kilitlidir: başka bir pazar için üretilmiş. O durumda hesabı " +
+                        "cihazın bölgesinde açmanız ya da satıcıyla görüşmeniz gerekir - " +
+                        "yazılımla çözülebilecek bir şey değil.\n\n" +
+                        "Cihazı resmi uygulamada görüyorsanız: yenile düğmesine dokunun, " +
+                        "olmazsa çıkış yapıp doğru bölge sunucusuyla girin, yine olmazsa " +
+                        "konsol simgesinden \"Cihaz listesi\" ve \"Aile listesi\" " +
+                        "şablonlarını çalıştırıp ham yanıtı iletin."
             )
         }
         return

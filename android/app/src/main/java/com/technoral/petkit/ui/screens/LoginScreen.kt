@@ -194,8 +194,17 @@ fun GirisEkrani(
             "Petkit hesabınızın kendi e-posta ve şifresiyle giriş yapın - bu uygulama " +
                     "doğrudan Petkit bulut sunucusuna bağlanır, araya başka bir sunucu girmez. " +
                     "Giriş bilgileri yalnızca telefonunuzda saklanır.\n\n" +
-                    "Türkiye'deki hesaplar için \"Türkiye / Avrupa / ABD\" seçeneği doğrudur. " +
+                    "Bölge: hesabınız hangi bölgede açıldıysa onu seçin. Türkiye'deki " +
+                    "hesaplar genelde \"Türkiye / Avrupa / ABD\" sunucusundadır. " +
                     "\"Hesap bulunamadı\" hatası alırsanız diğer bölgeleri deneyin."
+        )
+        Spacer(Modifier.height(10.dp))
+        NotSeridi(
+            "Dikkat: Petkit hesapları aynı anda yalnızca tek oturuma izin verir. " +
+                    "Burada giriş yaparsanız resmi Petkit uygulamasından çıkış yapılır " +
+                    "(tersi de geçerli). İkisini birlikte kullanmak isterseniz Petkit'te " +
+                    "aile paylaşımıyla ikinci bir hesap açıp cihazı ona paylaştırın; " +
+                    "resmi uygulamada ana hesapla, burada ikincil hesapla kalın."
         )
         Spacer(Modifier.height(24.dp))
         Row(horizontalArrangement = Arrangement.Center) {
