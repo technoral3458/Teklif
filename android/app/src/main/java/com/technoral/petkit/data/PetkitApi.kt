@@ -128,22 +128,44 @@ class PetkitApi(private val prefs: Prefs) {
         }.build()
 
         val istek = Request.Builder().url(url).post(govde).ortakBasliklar().build()
-        val istekMetni = parametreler.entries.joinToString("&") { "${it.key}=${it.value}" }
+        val istekMetni = gunlukIcinMetin(parametreler)
         val baslangic = System.currentTimeMillis()
 
+        var gunlugeYazildi = false
         try {
             istemci.newCall(istek).execute().use { yanit ->
                 val govdeMetni = yanit.body?.string().orEmpty()
                 val sure = System.currentTimeMillis() - baslangic
-                val ayristirilmis = cozumle(govdeMetni, yanit.code)
-                ApiLog.ekle(yol, istekMetni, govdeMetni.take(8000), true, sure)
-                return@withContext ayristirilmis
+                // Giriş yanıtı oturum kimliğini taşıdığı için günlüğe yazılmaz.
+                val gunlukGovde =
+                    if (yol.contains("login", ignoreCase = true))
+                        "(giriş yanıtı gizlendi - oturum kimliği içerir)"
+                    else govdeMetni.take(8000)
+                try {
+                    val ayristirilmis = cozumle(govdeMetni, yanit.code)
+                    ApiLog.ekle(yol, istekMetni, gunlukGovde, true, sure)
+                    gunlugeYazildi = true
+                    return@withContext ayristirilmis
+                } catch (e: Exception) {
+                    // Sunucunun ham yanıtı günlüğe yazılır: hangi alanın
+                    // reddedildiğini görmenin tek yolu bu.
+                    ApiLog.ekle(
+                        yol, istekMetni,
+                        "HTTP ${yanit.code} · $gunlukGovde",
+                        false, sure
+                    )
+                    gunlugeYazildi = true
+                    throw e
+                }
             }
-        } catch (e: PetkitOturumHatasi) {
-            ApiLog.ekle(yol, istekMetni, "OTURUM HATASI: ${e.message}", false, System.currentTimeMillis() - baslangic)
-            throw e
         } catch (e: Exception) {
-            ApiLog.ekle(yol, istekMetni, "HATA: ${e.javaClass.simpleName}: ${e.message}", false, System.currentTimeMillis() - baslangic)
+            if (!gunlugeYazildi) {
+                ApiLog.ekle(
+                    yol, istekMetni,
+                    "BAĞLANTI HATASI: ${e.javaClass.simpleName}: ${e.message}",
+                    false, System.currentTimeMillis() - baslangic
+                )
+            }
             throw e
         }
     }
@@ -164,6 +186,27 @@ class PetkitApi(private val prefs: Prefs) {
             ApiLog.ekle(tamUrl, "GET", "HATA: ${e.message}", false, System.currentTimeMillis() - baslangic)
             throw e
         }
+    }
+
+    /**
+     * Günlüğe yazılacak istek metni. Şifre özeti ve kullanıcı adı gibi
+     * hassas alanlar maskelenir; günlük panoya kopyalanıp paylaşılabildiği
+     * için ham hâlleri yazılmaz.
+     */
+    private fun gunlukIcinMetin(parametreler: Map<String, String>): String =
+        parametreler.entries.joinToString("&") { (k, v) ->
+            val deger = when (k.lowercase()) {
+                "password", "oldpassword", "token", "session" -> "***"
+                "username", "account", "email", "mobile" -> maskele(v)
+                else -> v
+            }
+            "$k=$deger"
+        }
+
+    private fun maskele(metin: String): String = when {
+        metin.length <= 3 -> "***"
+        metin.contains("@") -> metin.take(2) + "***@" + metin.substringAfter("@")
+        else -> metin.take(2) + "***" + metin.takeLast(2)
     }
 
     /** Petkit yanıt zarfını açar: {"result":...} / {"error":{"code":..,"msg":".."}} */

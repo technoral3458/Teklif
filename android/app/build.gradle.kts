@@ -34,6 +34,11 @@ android {
                 keyAlias = System.getenv("PETKIT_KEY_ALIAS") ?: "petkittr"
                 keyPassword = System.getenv("PETKIT_KEY_PASSWORD")
                     ?: System.getenv("PETKIT_KEYSTORE_PASSWORD") ?: "petkit2026"
+                // Bazı üreticilerin kurulum servisi yalnızca v2/v3 imzalı paketleri
+                // reddediyor; üç şema da açıkça etkinleştirildi.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
@@ -69,6 +74,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)

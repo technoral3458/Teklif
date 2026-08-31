@@ -51,7 +51,7 @@ jobs:
           else
             keytool -genkeypair -noprompt \
               -keystore keystore/petkit-tr.jks -storetype PKCS12 \
-              -alias petkittr -keyalg RSA -keysize 2048 -validity 10950 \
+              -alias petkittr -keyalg RSA -keysize 2048 -sigalg SHA256withRSA -validity 10950 \
               -storepass "$PAROLA" -keypass "$PAROLA" \
               -dname "CN=PetkitTR, OU=Kisisel, O=Technoral, C=TR"
             echo "::warning::Kalici imza anahtari (ANDROID_KEYSTORE_BASE64 sirri) tanimli degil. Her derleme farkli imzalanir; guncellerken onceki surumu kaldirmaniz gerekir. README'deki 'Kalici imza' bolumune bakin."
@@ -64,7 +64,7 @@ jobs:
         working-directory: android
         env:
           PETKIT_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'petkit2026' }}
-        run: ./gradlew --no-daemon --stacktrace assembleRelease
+        run: ./gradlew --no-daemon assembleRelease
 
       - name: APK'yı adlandır
         id: apk

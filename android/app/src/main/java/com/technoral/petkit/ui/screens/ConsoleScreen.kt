@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +50,7 @@ import com.technoral.petkit.data.ApiLog
 import com.technoral.petkit.ui.BolumKarti
 import com.technoral.petkit.ui.NotSeridi
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun KonsolEkrani(
     cihazYolu: String,
