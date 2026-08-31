@@ -27,6 +27,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,13 +49,14 @@ import com.technoral.petkit.ui.NotSeridi
 @Composable
 fun GirisEkrani(
     yukleniyor: Boolean,
-    girisIstegi: (String, String, PetkitBolge) -> Unit
+    girisIstegi: (String, String, PetkitBolge, Boolean) -> Unit
 ) {
     var eposta by remember { mutableStateOf("") }
     var sifre by remember { mutableStateOf("") }
     var sifreGoster by remember { mutableStateOf(false) }
     var bolge by remember { mutableStateOf(PetkitBolge.VARSAYILAN) }
     var menuAcik by remember { mutableStateOf(false) }
+    var sifreyiSakla by remember { mutableStateOf(true) }
 
     Column(
         modifier = Modifier
@@ -145,9 +147,28 @@ fun GirisEkrani(
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Şifremi bu telefonda sakla", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (sifreyiSakla)
+                        "Oturum düşerse uygulama kendiliğinden yeniden giriş yapar."
+                    else
+                        "Hiçbir şey saklanmaz; oturum düşünce şifre yeniden istenir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = sifreyiSakla, onCheckedChange = { sifreyiSakla = it })
+        }
+
+        Spacer(Modifier.height(14.dp))
         Button(
-            onClick = { girisIstegi(eposta, sifre, bolge) },
+            onClick = { girisIstegi(eposta, sifre, bolge, sifreyiSakla) },
             enabled = !yukleniyor,
             modifier = Modifier
                 .fillMaxWidth()

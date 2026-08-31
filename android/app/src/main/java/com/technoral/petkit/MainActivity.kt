@@ -130,6 +130,9 @@ fun Uygulama(vm: AppViewModel = viewModel()) {
                         IconButton(onClick = { vm.cihazlariYukle() }) {
                             Icon(Icons.Filled.Refresh, "yenile")
                         }
+                        IconButton(onClick = { vm.ekranaGit(Ekran.KONSOL) }) {
+                            Icon(Icons.Filled.Terminal, "API konsolu")
+                        }
                         IconButton(onClick = { vm.cikisYap() }) {
                             Icon(Icons.AutoMirrored.Filled.Logout, "çıkış")
                         }
@@ -185,7 +188,9 @@ fun Uygulama(vm: AppViewModel = viewModel()) {
             }
             Box(Modifier.fillMaxSize()) {
                 when (ui.ekran) {
-                    Ekran.GIRIS -> GirisEkrani(ui.yukleniyor) { k, s, b -> vm.girisYap(k, s, b) }
+                    Ekran.GIRIS -> GirisEkrani(ui.yukleniyor) { k, s, b, sakla ->
+                        vm.girisYap(k, s, b, sakla)
+                    }
 
                     Ekran.CIHAZLAR -> CihazlarEkrani(
                         cihazlar = ui.cihazlar,
@@ -243,6 +248,8 @@ fun Uygulama(vm: AppViewModel = viewModel()) {
                                     porsiyonGramAyarla = { vm.porsiyonGramAyarla(it) },
                                     adDegistir = { vm.adDegistir(it) },
                                     komutGonder = { t, kv, e -> vm.komutGonder(t, kv, e) },
+                                    sifreKayitliMi = vm.sifreKayitliMi(),
+                                    kayitliSifreyiSil = { vm.kayitliSifreyiSil() },
                                     cikisYap = { vm.cikisYap() }
                                 )
                             }

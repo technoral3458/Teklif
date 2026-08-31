@@ -35,8 +35,14 @@ class PetkitRepository(val api: PetkitApi, val prefs: Prefs) {
 
     // ------------------------------------------------------------------ oturum
 
-    suspend fun girisYap(kullanici: String, sifre: String, bolge: PetkitBolge) {
+    suspend fun girisYap(
+        kullanici: String,
+        sifre: String,
+        bolge: PetkitBolge,
+        sifreyiSakla: Boolean = true
+    ) {
         prefs.sunucuUrl = bolge.taban
+        prefs.sifreyiSakla = sifreyiSakla
         api.girisYap(kullanici.trim(), sifre, bolge.kod)
     }
 
@@ -46,39 +52,59 @@ class PetkitRepository(val api: PetkitApi, val prefs: Prefs) {
 
     // ------------------------------------------------------------------ cihazlar
 
-    /** Hesaba bağlı tüm cihazları getirir. */
+    /**
+     * Hesaba bağlı tüm cihazları getirir.
+     *
+     * İki ayrı uç nokta denenir. İkisi de hata verirse hatalar yutulmaz;
+     * "cihaz yok" ile "istek reddedildi" ayırt edilebilsin diye birleştirilip
+     * fırlatılır.
+     */
     suspend fun cihazlar(): List<Cihaz> {
         val bulunanlar = LinkedHashMap<String, Cihaz>()
+        val hatalar = mutableListOf<String>()
 
         // 1) Ana yol: cihaz listesi
-        runCatching {
+        try {
             val sonuc = api.postYenilemeli("discovery/device_roster", mapOf("day" to bugunKodu()))
             cihazRosterAyikla(sonuc).forEach { bulunanlar[it.id] = it }
+        } catch (e: Exception) {
+            hatalar += "device_roster: ${e.message ?: e.javaClass.simpleName}"
         }
 
         // 2) Yedek yol: aile/grup listesi
         if (bulunanlar.isEmpty()) {
-            runCatching {
+            try {
                 val sonuc = api.postYenilemeli("group/family/list", emptyMap())
                 aileListesiAyikla(sonuc).forEach { bulunanlar[it.id] = it }
-            }.onFailure { if (bulunanlar.isEmpty()) throw it }
+            } catch (e: Exception) {
+                hatalar += "family/list: ${e.message ?: e.javaClass.simpleName}"
+            }
         }
 
+        if (bulunanlar.isEmpty() && hatalar.isNotEmpty()) {
+            throw IllegalStateException(
+                "Cihaz listesi alınamadı. " + hatalar.joinToString(" · ")
+            )
+        }
         return bulunanlar.values.toList()
     }
 
     private fun cihazRosterAyikla(sonuc: JsonElement): List<Cihaz> {
         val liste = when {
             sonuc is JsonObject && sonuc["devices"] != null -> sonuc["devices"].jsonArrayGuvenli()
+            sonuc is JsonObject && sonuc["list"] != null -> sonuc["list"].jsonArrayGuvenli()
+            sonuc is JsonObject && sonuc["result"] != null -> sonuc["result"].jsonArrayGuvenli()
             sonuc is JsonArray -> sonuc.toList()
             else -> emptyList()
         }
         return liste.mapNotNull { el ->
             val o = el as? JsonObject ?: return@mapNotNull null
             val veri = (o["data"] as? JsonObject) ?: o
-            val tip = (o.metin("type") ?: veri.metin("type") ?: veri.metin("typeCode") ?: return@mapNotNull null)
+            val tip = (o.metin("type") ?: veri.metin("type") ?: veri.metin("typeCode")
+                ?: o.metin("deviceType") ?: veri.metin("deviceType") ?: "bilinmeyen")
                 .lowercase()
-            val id = veri.metin("id") ?: o.metin("deviceId") ?: return@mapNotNull null
+            val id = veri.metin("id") ?: o.metin("deviceId") ?: o.metin("id")
+                ?: return@mapNotNull null
             Cihaz(
                 id = id,
                 ad = veri.metin("name") ?: o.metin("deviceName") ?: CihazTipleri.etiket(tip),

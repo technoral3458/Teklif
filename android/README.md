@@ -62,6 +62,27 @@ Durum verileri cihaz ekranındayken 30 saniyede bir kendiliğinden yenilenir.
   değiştirilebilir, görüntü resmi Petkit uygulamasından izlenir.
 - **Cihaz kurulumu (Wi-Fi eşleştirme) yok.** İlk kurulumu resmi uygulamayla yapın.
 
+## Cihaz listesi boş geliyorsa
+
+Giriş başarılı ama "Hesabınıza bağlı cihaz bulunamadı" yazıyorsa sırayla:
+
+1. **Cihaz hesaba eklenmiş mi?** Hesap açmak tek başına yetmez. Besleyicinin
+   resmi Petkit uygulamasıyla Wi-Fi'ye alınıp hesabınıza bağlanması gerekir.
+   Resmi uygulamada cihazı görmüyorsanız burada da görünmez.
+2. **Bölge doğru mu?** Çıkış yapıp diğer bölge sunucusuyla girin. Hesap hangi
+   bölgede açıldıysa cihazlar yalnızca orada görünür.
+3. **Ham yanıtı okuyun.** Sağ üstteki konsol simgesine dokunun, *Cihaz listesi*
+   ve *Aile listesi* şablonlarını çalıştırın. Sunucu gerçekten boş liste mi
+   döndürüyor, yoksa isteği mi reddediyor - orada görünür.
+
+## Gizlilik seçeneği: şifreyi saklamamak
+
+Giriş ekranındaki **"Şifremi bu telefonda sakla"** anahtarını kapatırsanız
+hiçbir şifre bilgisi kaydedilmez. Karşılığı: oturum düştüğünde uygulama
+sessizce yeniden giriş yapamaz, giriş ekranını açar. Açık bırakırsanız
+şifrenin MD5 özeti uygulamanın özel alanında tutulur; **Ayarlar → Hesap ve
+gizlilik** bölümünden sonradan da silebilirsiniz.
+
 ## Önemli: API hakkında dürüst not
 
 Petkit'in sunucu API'si resmi olarak belgelenmemiştir. Uç noktalar ve alan

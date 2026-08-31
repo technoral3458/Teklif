@@ -290,8 +290,9 @@ class PetkitApi(private val prefs: Prefs) {
 
         prefs.session = id
         prefs.kullanici = kullanici
-        prefs.sifreMd5 = sifreMd5
+        if (prefs.sifreyiSakla) prefs.sifreMd5 = sifreMd5 else prefs.kayitliSifreyiSil()
         prefs.bolgeKodu = bolgeKodu
+        prefs.anahtarIleGiris = false
         prefs.kullaniciAdiGoster = nesne["user"]?.jsonObject?.metin("nick")
             ?: nesne["user"]?.jsonObject?.metin("username")
         return id
@@ -317,7 +318,7 @@ class PetkitApi(private val prefs: Prefs) {
             post(yol, parametreler)
         } catch (e: PetkitOturumHatasi) {
             if (yenidenGirisDene()) post(yol, parametreler)
-            else throw IllegalStateException("Oturum süresi doldu, lütfen yeniden giriş yapın.")
+            else throw PetkitOturumHatasi("Oturum süresi doldu, lütfen yeniden giriş yapın.")
         }
     }
 

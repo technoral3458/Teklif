@@ -1,6 +1,8 @@
 package com.technoral.petkit.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,11 +41,25 @@ fun CihazlarEkrani(
     cihazSecildi: (Cihaz) -> Unit
 ) {
     if (cihazlar.isEmpty()) {
-        Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
             BosDurum(
-                "Hesabınıza bağlı cihaz bulunamadı.\nSağ üstteki yenile düğmesine dokunun " +
-                        "veya bölge seçimini kontrol etmek için çıkış yapıp yeniden girin.",
+                "Hesabınıza bağlı cihaz bulunamadı.",
                 Icons.Filled.Devices
+            )
+            NotSeridi(
+                "En sık sebep: besleyici henüz bu hesaba eklenmemiştir. Hesap açmak tek " +
+                        "başına yetmez - cihazın resmi Petkit uygulamasıyla Wi-Fi'ye alınıp " +
+                        "hesabınıza bağlanması gerekir. Cihazı orada görüyorsanız:\n\n" +
+                        "1) Sağ üstteki yenile düğmesine dokunun.\n" +
+                        "2) Düzelmezse çıkış yapıp başka bir bölge sunucusuyla girin " +
+                        "(hesabınız hangi bölgede açıldıysa cihazlar orada görünür).\n" +
+                        "3) Yine olmazsa sağ üstteki konsol simgesine dokunup " +
+                        "\"Cihaz listesi\" ve \"Aile listesi\" şablonlarını çalıştırın; " +
+                        "sunucunun ham yanıtını kopyalayıp iletin."
             )
         }
         return

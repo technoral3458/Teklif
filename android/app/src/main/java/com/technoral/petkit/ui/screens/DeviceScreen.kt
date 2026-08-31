@@ -585,6 +585,8 @@ fun AyarlarSekmesi(
     porsiyonGramAyarla: (Int) -> Unit,
     adDegistir: (String) -> Unit,
     komutGonder: (String, String, String) -> Unit,
+    sifreKayitliMi: Boolean,
+    kayitliSifreyiSil: () -> Unit,
     cikisYap: () -> Unit
 ) {
     val a: JsonObject? = ui.ayarlar
@@ -755,10 +757,29 @@ fun AyarlarSekmesi(
         }
 
         item {
-            BolumKarti("Hesap", Icons.Filled.Settings) {
+            BolumKarti("Hesap ve gizlilik", Icons.Filled.Settings) {
                 BilgiSatiri("Giriş yapan", ui.kullaniciAdi)
+                BilgiSatiri(
+                    "Şifre bu telefonda",
+                    if (sifreKayitliMi) "saklanıyor (özet olarak)" else "saklanmıyor"
+                )
+                Text(
+                    if (sifreKayitliMi)
+                        "Şifrenizin MD5 özeti yalnızca bu uygulamanın özel alanında tutulur; " +
+                                "oturum düştüğünde sessizce yeniden giriş yapabilmek için. " +
+                                "Silersiniz de olur - o zaman oturum düşünce şifre yeniden sorulur."
+                    else
+                        "Hiçbir şifre bilgisi saklanmıyor. Oturum düştüğünde giriş ekranı açılır.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = cikisYap) { Text("Çıkış yap") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (sifreKayitliMi) {
+                        OutlinedButton(onClick = kayitliSifreyiSil) { Text("Kayıtlı şifreyi sil") }
+                    }
+                    OutlinedButton(onClick = cikisYap) { Text("Çıkış yap") }
+                }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }

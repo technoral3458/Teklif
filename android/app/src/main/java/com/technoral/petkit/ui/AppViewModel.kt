@@ -8,6 +8,7 @@ import com.technoral.petkit.data.BesleyiciDurum
 import com.technoral.petkit.data.Cihaz
 import com.technoral.petkit.data.KayitSatiri
 import com.technoral.petkit.data.PetkitBolge
+import com.technoral.petkit.data.PetkitOturumHatasi
 import com.technoral.petkit.data.PlanOgun
 import com.technoral.petkit.data.alan
 import com.technoral.petkit.data.nesne
@@ -73,6 +74,34 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
     private fun hataMetni(e: Throwable): String =
         e.message?.takeIf { it.isNotBlank() } ?: "Beklenmeyen hata: ${e.javaClass.simpleName}"
 
+    /**
+     * Oturum düştüyse (ve şifre saklanmadığı için sessiz yeniden giriş
+     * yapılamadıysa) kullanıcıyı giriş ekranına döndürür.
+     */
+    private fun oturumDustuMu(e: Throwable): Boolean {
+        if (e !is PetkitOturumHatasi) return false
+        yenilemeIsi?.cancel()
+        prefs.oturumuTemizle()
+        _durum.update {
+            it.copy(
+                ekran = Ekran.GIRIS,
+                yukleniyor = false,
+                seciliCihaz = null,
+                cihazlar = emptyList(),
+                hata = "Oturum süresi doldu, lütfen yeniden giriş yapın."
+            )
+        }
+        return true
+    }
+
+    /** Şifre bu telefonda saklı mı? */
+    fun sifreKayitliMi(): Boolean = prefs.sifreKayitli
+
+    fun kayitliSifreyiSil() {
+        prefs.sifreyiSakla = false
+        _durum.update { it.copy(bilgi = "Kayıtlı şifre telefondan silindi.") }
+    }
+
     private fun <T> calistir(
         basariMesaji: String? = null,
         sonrasindaYenile: Boolean = false,
@@ -88,14 +117,16 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
                     cihazYenile(sessiz = true)
                 }
             } catch (e: Exception) {
-                _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
+                if (!oturumDustuMu(e)) {
+                    _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
+                }
             }
         }
     }
 
     // ------------------------------------------------------------ oturum
 
-    fun girisYap(kullanici: String, sifre: String, bolge: PetkitBolge) {
+    fun girisYap(kullanici: String, sifre: String, bolge: PetkitBolge, sifreyiSakla: Boolean = true) {
         if (kullanici.isBlank() || sifre.isBlank()) {
             _durum.update { it.copy(hata = "E-posta/telefon ve şifre boş olamaz.") }
             return
@@ -103,7 +134,7 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
         viewModelScope.launch {
             _durum.update { it.copy(yukleniyor = true, hata = null, bilgi = null) }
             try {
-                depo.girisYap(kullanici, sifre, bolge)
+                depo.girisYap(kullanici, sifre, bolge, sifreyiSakla)
                 _durum.update {
                     it.copy(
                         yukleniyor = false,
@@ -114,6 +145,7 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
                 }
                 cihazlariYukle()
             } catch (e: Exception) {
+                // Giriş sırasındaki hata "oturum düştü" değildir; gerçek sebebi göster.
                 _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
             }
         }
@@ -137,7 +169,9 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
                     _durum.update { it.copy(hata = "Hesapta cihaz bulunamadı. Bölge/sunucu seçimini kontrol edin.") }
                 }
             } catch (e: Exception) {
-                _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
+                if (!oturumDustuMu(e)) {
+                    _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
+                }
             }
         }
     }
@@ -180,8 +214,10 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
                     )
                 }
             } catch (e: Exception) {
-                _durum.update {
-                    it.copy(yukleniyor = false, hata = if (sessiz) it.hata else hataMetni(e))
+                if (!oturumDustuMu(e)) {
+                    _durum.update {
+                        it.copy(yukleniyor = false, hata = if (sessiz) it.hata else hataMetni(e))
+                    }
                 }
             }
         }
@@ -228,7 +264,9 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
                 cihazYenile(sessiz = true)
                 kayitlariYukle(sessiz = true)
             } catch (e: Exception) {
-                _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
+                if (!oturumDustuMu(e)) {
+                    _durum.update { it.copy(yukleniyor = false, hata = hataMetni(e)) }
+                }
             }
         }
     }
@@ -280,8 +318,10 @@ class AppViewModel(uygulama: Application) : AndroidViewModel(uygulama) {
                 val liste = depo.kayitlar(cihaz, gun)
                 _durum.update { it.copy(yukleniyor = false, kayitlar = liste) }
             } catch (e: Exception) {
-                _durum.update {
-                    it.copy(yukleniyor = false, hata = if (sessiz) it.hata else hataMetni(e))
+                if (!oturumDustuMu(e)) {
+                    _durum.update {
+                        it.copy(yukleniyor = false, hata = if (sessiz) it.hata else hataMetni(e))
+                    }
                 }
             }
         }

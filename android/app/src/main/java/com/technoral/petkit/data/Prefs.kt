@@ -35,6 +35,28 @@ class Prefs(context: Context) {
         get() = p.getString("sunucu", PetkitBolge.VARSAYILAN.taban) ?: PetkitBolge.VARSAYILAN.taban
         set(v) = p.edit().putString("sunucu", v).apply()
 
+    /**
+     * Şifre özetinin telefonda saklanıp saklanmayacağı. Kapalıyken oturum
+     * düştüğünde otomatik yeniden giriş yapılamaz, uygulama giriş ekranına döner.
+     */
+    var sifreyiSakla: Boolean
+        get() = p.getBoolean("sifreyi_sakla", true)
+        set(v) {
+            p.edit().putBoolean("sifreyi_sakla", v).apply()
+            if (!v) p.edit().remove("sifre_md5").apply()
+        }
+
+    /** Oturum, şifre yerine doğrudan oturum anahtarıyla açıldıysa true. */
+    var anahtarIleGiris: Boolean
+        get() = p.getBoolean("anahtar_ile", false)
+        set(v) = p.edit().putBoolean("anahtar_ile", v).apply()
+
+    val sifreKayitli: Boolean get() = !p.getString("sifre_md5", null).isNullOrBlank()
+
+    fun kayitliSifreyiSil() {
+        p.edit().remove("sifre_md5").apply()
+    }
+
     var kullaniciAdiGoster: String?
         get() = p.getString("ad", null)
         set(v) = p.edit().putString("ad", v).apply()
