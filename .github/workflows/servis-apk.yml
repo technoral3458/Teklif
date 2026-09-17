@@ -1,0 +1,80 @@
+name: TeknoServis APK
+
+on:
+  push:
+    branches:
+      - claude/machine-service-reports-mxfhlr
+    paths:
+      - 'servis-app/**'
+      - '.github/workflows/servis-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: servis-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: |
+          set -e
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build release APK
+        env:
+          TS_VERSION_CODE: ${{ github.run_number }}
+          TS_VERSION_NAME: 1.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Rename APK
+        id: apk
+        run: |
+          set -e
+          SRC=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
+          DEST="TeknoServis-1.${{ github.run_number }}.apk"
+          cp "$SRC" "$DEST"
+          echo "path=servis-app/$DEST" >> "$GITHUB_OUTPUT"
+          echo "name=$DEST" >> "$GITHUB_OUTPUT"
+          ls -la "$DEST"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeknoServis-apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 90
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG="servis-apk-v1.${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.apk.outputs.name }}" \
+            --title "TeknoServis 1.${{ github.run_number }}" \
+            --notes "Makine servis raporlama uygulaması.
+
+          **Kurulum:** Telefonunuzdan bu sayfayı açın, APK dosyasına dokunun ve kuruluma izin verin.
+          (Ayarlar > Güvenlik > Bilinmeyen kaynaklardan kuruluma izin verilmesi gerekir.)
+
+          Mail gönderimi için uygulama içinden **Ayarlar > Mail Ayarları** bölümüne SMTP bilgilerinizi girin." \
+            --target "${{ github.sha }}"

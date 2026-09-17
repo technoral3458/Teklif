@@ -1,0 +1,274 @@
+package com.technoral.servis.ui
+
+import android.app.Application
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.technoral.servis.data.AppSettings
+import com.technoral.servis.data.Customer
+import com.technoral.servis.data.Machine
+import com.technoral.servis.data.Repository
+import com.technoral.servis.data.ServicePhoto
+import com.technoral.servis.data.ServiceReport
+import com.technoral.servis.data.ServiceStatus
+import com.technoral.servis.mail.MailResult
+import com.technoral.servis.mail.MailSender
+import com.technoral.servis.mail.MailTemplates
+import com.technoral.servis.pdf.ReportPdf
+import com.technoral.servis.util.compressInPlace
+import com.technoral.servis.util.fileStamp
+import com.technoral.servis.util.importImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+
+class AppViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val repo = Repository.get(app)
+
+    val customers: StateFlow<List<Customer>> = repo.customers
+    val machines: StateFlow<List<Machine>> = repo.machines
+    val reports: StateFlow<List<ServiceReport>> = repo.reports
+    val settings: StateFlow<AppSettings> = repo.settings
+    val ready: StateFlow<Boolean> = repo.ready
+
+    private val _draft = MutableStateFlow<ServiceReport?>(null)
+    val draft: StateFlow<ServiceReport?> = _draft.asStateFlow()
+
+    private val _busy = MutableStateFlow<String?>(null)
+    val busy: StateFlow<String?> = _busy.asStateFlow()
+
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast: StateFlow<String?> = _toast.asStateFlow()
+
+    fun notify(message: String) {
+        _toast.value = message
+    }
+
+    fun clearToast() {
+        _toast.value = null
+    }
+
+    // ------------------------------------------------------------ kayıtlar
+
+    fun saveCustomer(customer: Customer) = repo.saveCustomer(customer)
+    fun deleteCustomer(id: String) = repo.deleteCustomer(id)
+    fun customer(id: String?) = repo.customer(id)
+
+    fun saveMachine(machine: Machine) = repo.saveMachine(machine)
+    fun deleteMachine(id: String) = repo.deleteMachine(id)
+    fun machine(id: String?) = repo.machine(id)
+    fun machinesOf(customerId: String?) = repo.machinesOf(customerId)
+
+    fun report(id: String?) = repo.report(id)
+    fun reportsOfMachine(machineId: String) = repo.reportsOfMachine(machineId)
+    fun reportsOfCustomer(customerId: String) = repo.reportsOfCustomer(customerId)
+    fun deleteReport(id: String) = repo.deleteReport(id)
+
+    fun saveSettings(settings: AppSettings) = repo.saveSettings(settings)
+
+    // -------------------------------------------------------------- taslak
+
+    fun startNewReport(machineId: String? = null, customerId: String? = null) {
+        val s = settings.value
+        val machine = machineId?.let { repo.machine(it) }
+        _draft.value = ServiceReport(
+            reportNo = repo.nextReportNo(),
+            technician = s.technicianName,
+            customerId = customerId ?: machine?.customerId ?: "",
+            machineId = machineId ?: "",
+            startTime = System.currentTimeMillis(),
+        )
+    }
+
+    fun editReport(id: String) {
+        _draft.value = repo.report(id)
+    }
+
+    fun updateDraft(transform: (ServiceReport) -> ServiceReport) {
+        _draft.value = _draft.value?.let(transform)
+    }
+
+    fun discardDraft() {
+        _draft.value = null
+    }
+
+    /** Taslağı kalıcı hale getirir ve rapor kimliğini döndürür. */
+    fun commitDraft(status: ServiceStatus? = null): String? {
+        val current = _draft.value ?: return null
+        val finished = current.copy(
+            status = status ?: if (current.status == ServiceStatus.TASLAK) ServiceStatus.ACIK else current.status,
+            technician = current.technician.ifBlank { settings.value.technicianName },
+        )
+        repo.saveReport(finished)
+        _draft.value = null
+        return finished.id
+    }
+
+    fun saveDraftSilently() {
+        _draft.value?.let { repo.saveReport(it) }
+    }
+
+    // ----------------------------------------------------------- fotoğraf
+
+    fun addPhotoFromGallery(uri: Uri) = viewModelScope.launch {
+        val file = withContext(Dispatchers.IO) {
+            importImage(getApplication<Application>(), uri, repo.photosDir)
+        }
+        if (file == null) {
+            notify("Fotoğraf eklenemedi.")
+        } else {
+            updateDraft { it.copy(photos = it.photos + ServicePhoto(path = file.absolutePath)) }
+        }
+    }
+
+    fun addPhotoFromCamera(file: File) = viewModelScope.launch {
+        withContext(Dispatchers.IO) { compressInPlace(file) }
+        updateDraft { it.copy(photos = it.photos + ServicePhoto(path = file.absolutePath)) }
+    }
+
+    fun cameraDir(): File = repo.photosDir
+
+    fun updatePhoto(photo: ServicePhoto) = updateDraft { report ->
+        report.copy(photos = report.photos.map { if (it.id == photo.id) photo else it })
+    }
+
+    fun removePhoto(photo: ServicePhoto) = updateDraft { report ->
+        runCatching { File(photo.path).delete() }
+        report.copy(photos = report.photos.filterNot { it.id == photo.id })
+    }
+
+    /** İmza çizimini PNG olarak kaydeder. */
+    fun saveSignature(bitmap: Bitmap) = viewModelScope.launch {
+        val file = withContext(Dispatchers.IO) {
+            val target = File(repo.signaturesDir, "IMZA_${fileStamp()}.png")
+            FileOutputStream(target).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            target
+        }
+        updateDraft { it.copy(signaturePath = file.absolutePath) }
+    }
+
+    fun clearSignature() = updateDraft { it.copy(signaturePath = null) }
+
+    // ---------------------------------------------------------------- PDF
+
+    suspend fun buildPdf(report: ServiceReport): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val safeNo = report.reportNo.ifBlank { "rapor" }.replace(Regex("[^A-Za-z0-9-_]"), "_")
+            val target = File(repo.documentsDir, "$safeNo.pdf")
+            ReportPdf.build(
+                target = target,
+                report = report,
+                customer = repo.customer(report.customerId),
+                machine = repo.machine(report.machineId),
+                settings = settings.value,
+            )
+        }.getOrNull()
+    }
+
+    // --------------------------------------------------------------- mail
+
+    fun defaultRecipients(report: ServiceReport): String {
+        val customerMail = repo.customer(report.customerId)?.email.orEmpty()
+        val configured = settings.value.mail.defaultTo
+        return listOf(customerMail, configured).filter { it.isNotBlank() }.distinct().joinToString(", ")
+    }
+
+    fun sendReportMail(
+        report: ServiceReport,
+        to: String,
+        cc: String,
+        extraNote: String,
+        includePhotos: Boolean,
+        onResult: (MailResult) -> Unit,
+    ) = viewModelScope.launch {
+        _busy.value = "Mail gönderiliyor…"
+        val s = settings.value
+        val customer = repo.customer(report.customerId)
+        val machine = repo.machine(report.machineId)
+        val pdf = buildPdf(report)
+
+        val attachments = buildList {
+            pdf?.let { add(it) }
+            if (includePhotos) {
+                report.photos.map { File(it.path) }.filter { it.exists() }.take(12).forEach { add(it) }
+            }
+        }
+
+        var html = MailTemplates.body(s, report, customer, machine)
+        if (extraNote.isNotBlank()) {
+            val note = extraNote
+                .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\n", "<br>")
+            html = html.replace(
+                "<p style=\"margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155\">Merhaba,</p>",
+                "<p style=\"margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155\">Merhaba,</p>" +
+                    "<div style=\"margin:0 0 16px;padding:12px 14px;background:#f1f5f9;border-left:3px solid #0f4c75;" +
+                    "font-size:14px;line-height:1.6;color:#334155\">$note</div>",
+            )
+        }
+
+        val result = MailSender.send(
+            settings = s.mail,
+            to = to,
+            cc = cc,
+            subject = MailTemplates.subject(s, report, customer, machine),
+            bodyHtml = html,
+            attachments = attachments,
+        )
+        if (result.success) {
+            repo.saveReport(report.copy(mailedTo = to, mailedAt = System.currentTimeMillis()))
+        }
+        _busy.value = null
+        onResult(result)
+    }
+
+    fun sendTestMail(to: String, onResult: (MailResult) -> Unit) = viewModelScope.launch {
+        _busy.value = "Test maili gönderiliyor…"
+        val s = settings.value
+        val result = MailSender.send(
+            settings = s.mail,
+            to = to,
+            subject = "TeknoServis • Mail ayarı testi",
+            bodyHtml = MailTemplates.testBody(s),
+        )
+        _busy.value = null
+        onResult(result)
+    }
+
+    // ----------------------------------------------------------- yedekleme
+
+    suspend fun exportBackup(): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val target = File(repo.backupDir, "teknoservis_yedek_${fileStamp()}.json")
+            target.writeText(repo.exportJson())
+            target
+        }.getOrNull()
+    }
+
+    fun importBackup(uri: Uri) = viewModelScope.launch {
+        val text = withContext(Dispatchers.IO) {
+            runCatching {
+                getApplication<Application>().contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+        }
+        if (text.isNullOrBlank()) {
+            notify("Yedek dosyası okunamadı.")
+            return@launch
+        }
+        val result = runCatching { repo.importJson(text) }.getOrNull()
+        if (result == null) {
+            notify("Yedek dosyası geçersiz.")
+        } else {
+            notify("Geri yüklendi: ${result.first} müşteri, ${result.second} makine, ${result.third} rapor.")
+        }
+    }
+
+    fun documentsDir(): File = repo.documentsDir
+}

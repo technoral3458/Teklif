@@ -34,3 +34,10 @@ frontend/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# Android
+servis-app/.gradle/
+servis-app/build/
+servis-app/app/build/
+servis-app/local.properties
+*.iml
