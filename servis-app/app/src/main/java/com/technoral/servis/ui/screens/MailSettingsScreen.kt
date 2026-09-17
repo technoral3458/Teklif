@@ -2,6 +2,7 @@ package com.technoral.servis.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -86,6 +87,7 @@ fun MailSettingsScreen(vm: AppViewModel, nav: Navigator) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AppTopBar(title = "Mail Ayarları", subtitle = "Raporlar bu hesaptan gönderilir", onBack = { nav.back() }) },
     ) { padding ->
         LazyColumn(

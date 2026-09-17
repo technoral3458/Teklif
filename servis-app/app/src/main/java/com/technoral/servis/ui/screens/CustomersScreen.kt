@@ -1,6 +1,7 @@
 package com.technoral.servis.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -78,6 +79,7 @@ fun CustomersScreen(vm: AppViewModel, nav: Navigator) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AppTopBar(title = "Müşteriler", subtitle = "${customers.size} kayıt") },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -193,6 +195,7 @@ fun CustomerDetailScreen(vm: AppViewModel, nav: Navigator, customerId: String) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AppTopBar(
                 title = customer.name,

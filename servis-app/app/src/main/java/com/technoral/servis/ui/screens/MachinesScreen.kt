@@ -1,6 +1,7 @@
 package com.technoral.servis.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -83,6 +84,7 @@ fun MachinesScreen(vm: AppViewModel, nav: Navigator) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { AppTopBar(title = "Makineler", subtitle = "${machines.size} kayıt") },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -205,6 +207,7 @@ fun MachineDetailScreen(vm: AppViewModel, nav: Navigator, machineId: String) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AppTopBar(
                 title = machine.displayName,

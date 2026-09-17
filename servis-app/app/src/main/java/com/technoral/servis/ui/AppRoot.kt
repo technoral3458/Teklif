@@ -1,7 +1,6 @@
 package com.technoral.servis.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -97,7 +96,9 @@ fun AppRoot(vm: AppViewModel) {
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            AnimatedVisibility(visible = showBottomBar) {
+            // Koşullu çizim: alt menü yokken Scaffold, gezinme çubuğu boşluğunu
+            // kendisi bıraksın (AnimatedVisibility sıfır yükseklikle bunu bozuyordu).
+            if (showBottomBar) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     navItems.forEach { item ->
                         NavigationBarItem(
