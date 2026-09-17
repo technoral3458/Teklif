@@ -13,6 +13,8 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -69,12 +71,20 @@ class Repository private constructor(private val appContext: Context) {
         _ready.value = true
     }
 
-    /** Yazma sırasında güç kesilirse dosya bozulmasın diye önce .tmp'ye yazılır. */
+    /**
+     * Önce .tmp dosyasına yazıp üzerine taşır. Taşıma tek adımda yapıldığı için
+     * yazma sırasında uygulama kapanırsa eski dosya bozulmadan kalır.
+     */
     private suspend fun writeAtomic(file: File, content: String) = writeLock.withLock {
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeText(content)
-        if (file.exists()) file.delete()
-        tmp.renameTo(file)
+        val moved = runCatching {
+            Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }.isSuccess
+        if (!moved) {
+            if (file.exists()) file.delete()
+            tmp.renameTo(file)
+        }
     }
 
     private fun persistCustomers() = scope.launch {
