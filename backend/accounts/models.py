@@ -7,12 +7,14 @@ class User(AbstractUser):
     ROLE_SALES = "sales"
     ROLE_DEALER = "dealer"
     ROLE_CNC = "cnc"
+    ROLE_SERVICE = "service"
 
     ROLES = [
         (ROLE_ADMIN, "Yönetici"),
         (ROLE_SALES, "Satış Ekibi"),
         (ROLE_DEALER, "Bayi"),
         (ROLE_CNC, "CNC Operatörü"),
+        (ROLE_SERVICE, "Servis Teknisyeni"),
     ]
 
     role = models.CharField(max_length=20, choices=ROLES, default=ROLE_DEALER)
@@ -31,6 +33,12 @@ class User(AbstractUser):
 
     def is_cnc(self):
         return self.role == self.ROLE_CNC
+
+    def is_service(self):
+        return self.role == self.ROLE_SERVICE
+
+    def can_manage_service(self):
+        return self.role in (self.ROLE_ADMIN, self.ROLE_SALES, self.ROLE_SERVICE)
 
     def can_approve_orders(self):
         return self.role in (self.ROLE_ADMIN, self.ROLE_SALES)

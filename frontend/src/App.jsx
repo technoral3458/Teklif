@@ -10,6 +10,10 @@ import NestingJobs from "./pages/cnc/NestingJobs";
 import NewNestingJob from "./pages/cnc/NewNestingJob";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminCatalog from "./pages/admin/AdminCatalog";
+import MailSettings from "./pages/admin/MailSettings";
+import ServiceReports from "./pages/service/ServiceReports";
+import ServiceReportForm from "./pages/service/ServiceReportForm";
+import ServiceMachines from "./pages/service/ServiceMachines";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -33,6 +37,11 @@ export default function App() {
           <Route path="/cnc/new-job" element={<ProtectedRoute><NewNestingJob /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/catalog" element={<ProtectedRoute><AdminCatalog /></ProtectedRoute>} />
+          <Route path="/admin/mail-settings" element={<ProtectedRoute><MailSettings /></ProtectedRoute>} />
+          <Route path="/service/reports" element={<ProtectedRoute><ServiceReports /></ProtectedRoute>} />
+          <Route path="/service/new-report" element={<ProtectedRoute><ServiceReportForm /></ProtectedRoute>} />
+          <Route path="/service/report/:id" element={<ProtectedRoute><ServiceReportForm /></ProtectedRoute>} />
+          <Route path="/service/machines" element={<ProtectedRoute><ServiceMachines /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>

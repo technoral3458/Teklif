@@ -8,8 +8,8 @@ import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuth } from "../context/AuthContext";
 
-const ROLE_LABELS = { admin: "Yönetici", sales: "Satış", dealer: "Bayi", cnc: "CNC Op." };
-const ROLE_COLORS = { admin: "error", sales: "primary", dealer: "success", cnc: "warning" };
+const ROLE_LABELS = { admin: "Yönetici", sales: "Satış", dealer: "Bayi", cnc: "CNC Op.", service: "Servis" };
+const ROLE_COLORS = { admin: "error", sales: "primary", dealer: "success", cnc: "warning", service: "info" };
 
 const MENUS = {
   dealer: [
@@ -19,6 +19,13 @@ const MENUS = {
   sales: [
     { label: "Onay Bekleyenler", path: "/sales/orders", icon: "⏳" },
     { label: "Tüm Siparişler", path: "/sales/all-orders", icon: "📋" },
+    { label: "Servis Raporları", path: "/service/reports", icon: "🛠️" },
+    { label: "Makineler", path: "/service/machines", icon: "⚙️" },
+  ],
+  service: [
+    { label: "Servis Raporları", path: "/service/reports", icon: "🛠️" },
+    { label: "Yeni Servis Raporu", path: "/service/new-report", icon: "➕" },
+    { label: "Makineler & Müşteriler", path: "/service/machines", icon: "⚙️" },
   ],
   cnc: [
     { label: "CNC Kuyruğu", path: "/cnc/queue", icon: "🔧" },
@@ -31,6 +38,9 @@ const MENUS = {
     { label: "Renkler", path: "/admin/colors", icon: "🎨" },
     { label: "Tüm Siparişler", path: "/sales/all-orders", icon: "📋" },
     { label: "CNC Kuyruğu", path: "/cnc/queue", icon: "🔧" },
+    { label: "Servis Raporları", path: "/service/reports", icon: "🛠️" },
+    { label: "Makineler & Müşteriler", path: "/service/machines", icon: "⚙️" },
+    { label: "Mail Ayarları", path: "/admin/mail-settings", icon: "✉️" },
   ],
 };
 

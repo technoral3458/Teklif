@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "catalog",
     "orders",
     "cnc",
+    "service",
 ]
 
 MIDDLEWARE = [
@@ -86,4 +87,13 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "static"
+
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Servis raporu mailleri, veritabanındaki service.MailSettings kaydından okunan
+# SMTP bilgileriyle gönderilir (bkz. service/mailer.py). Buradaki backend yalnızca
+# Django'nun kendi bildirimleri içindir.
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
