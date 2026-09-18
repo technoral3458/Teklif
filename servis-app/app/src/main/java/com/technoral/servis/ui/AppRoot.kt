@@ -76,6 +76,11 @@ fun AppRoot(vm: AppViewModel) {
     val nav = rememberNavigator(Screen.Dashboard)
     val snackbar = remember { SnackbarHostState() }
 
+    // Açılışta kur bayatsa sessizce güncellenir; hata olursa kullanıcı rahatsız edilmez.
+    LaunchedEffect(ready) {
+        if (ready) vm.refreshRates()
+    }
+
     LaunchedEffect(ready, settings.setupDone) {
         if (ready && !settings.setupDone && nav.current != Screen.Setup) {
             nav.switchRoot(Screen.Setup)

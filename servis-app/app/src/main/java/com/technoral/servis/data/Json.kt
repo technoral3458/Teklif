@@ -229,6 +229,8 @@ fun AppSettings.toJson(): JSONObject = JSONObject().apply {
     put("usdRate", usdRate)
     put("eurRate", eurRate)
     put("ratesUpdatedAt", ratesUpdatedAt ?: JSONObject.NULL)
+    put("rateSource", rateSource)
+    put("rateDateLabel", rateDateLabel)
     put("showChargeOnPdf", showChargeOnPdf)
     put("overdueGraceDays", overdueGraceDays)
 }
@@ -268,6 +270,8 @@ fun appSettingsFromJson(o: JSONObject): AppSettings {
         usdRate = o.optDouble("usdRate", 0.0),
         eurRate = o.optDouble("eurRate", 0.0),
         ratesUpdatedAt = o.optLongOrNull("ratesUpdatedAt"),
+        rateSource = o.str("rateSource"),
+        rateDateLabel = o.str("rateDateLabel"),
         showChargeOnPdf = o.optBoolean("showChargeOnPdf", false),
         overdueGraceDays = o.optInt("overdueGraceDays", 0),
     )

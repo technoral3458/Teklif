@@ -86,7 +86,8 @@ class ExpenseAdmin(admin.ModelAdmin):
 
 @admin.register(FinanceSettings)
 class FinanceSettingsAdmin(admin.ModelAdmin):
-    list_display = ("usd_rate", "eur_rate", "rates_updated_at", "show_charge_on_pdf")
+    list_display = ("usd_rate", "eur_rate", "rate_source", "rates_updated_at", "show_charge_on_pdf")
+    readonly_fields = ("rate_source", "rate_date_label", "rates_updated_at")
 
     def has_add_permission(self, request):
         return not FinanceSettings.objects.exists()

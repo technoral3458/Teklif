@@ -30,5 +30,6 @@ urlpatterns = [
     path("monthly-report/pdf/", views.monthly_report_pdf),
     path("monthly-report/mail/", views.monthly_report_mail),
     path("finance-settings/", views.finance_settings_view),
+    path("finance-settings/refresh-rates/", views.refresh_rates_view),
     path("sync/", views.sync_from_mobile),
 ]

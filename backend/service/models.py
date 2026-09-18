@@ -415,6 +415,12 @@ class FinanceSettings(models.Model):
     usd_rate = models.DecimalField(max_digits=10, decimal_places=4, default=0)
     eur_rate = models.DecimalField(max_digits=10, decimal_places=4, default=0)
     rates_updated_at = models.DateTimeField(null=True, blank=True)
+    rate_source = models.CharField(
+        max_length=80, blank=True, verbose_name="Kur kaynağı"
+    )
+    rate_date_label = models.CharField(
+        max_length=40, blank=True, verbose_name="Kur bülten tarihi"
+    )
     show_charge_on_pdf = models.BooleanField(
         default=False, verbose_name="Servis bedeli PDF raporda görünsün"
     )

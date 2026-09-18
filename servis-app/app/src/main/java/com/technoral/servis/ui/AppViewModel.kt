@@ -13,6 +13,7 @@ import com.technoral.servis.data.Finance
 import com.technoral.servis.data.LedgerEntry
 import com.technoral.servis.data.LedgerType
 import com.technoral.servis.data.MonthlySummary
+import com.technoral.servis.data.RateService
 import com.technoral.servis.data.Machine
 import com.technoral.servis.data.Repository
 import com.technoral.servis.data.ServicePhoto
@@ -54,6 +55,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _busy = MutableStateFlow<String?>(null)
     val busy: StateFlow<String?> = _busy.asStateFlow()
 
+    private val _ratesLoading = MutableStateFlow(false)
+    val ratesLoading: StateFlow<Boolean> = _ratesLoading.asStateFlow()
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
 
@@ -83,6 +87,96 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveSettings(settings: AppSettings) = repo.saveSettings(settings)
 
+    // ------------------------------------------------------------ döviz kuru
+
+    /**
+     * Güncel kuru internetten alıp ayarlara yazar. [force] false ise kur taze
+     * olduğunda (12 saat) ağa çıkılmaz.
+     */
+    fun refreshRates(force: Boolean = false, onDone: ((Boolean) -> Unit)? = null) {
+        val current = settings.value
+        if (!force && !RateService.isStale(current)) {
+            onDone?.invoke(true)
+            return
+        }
+        if (_ratesLoading.value) return
+
+        viewModelScope.launch {
+            _ratesLoading.value = true
+            val result = RateService.fetch()
+            _ratesLoading.value = false
+
+            result.onSuccess { quote ->
+                repo.saveSettings(
+                    settings.value.copy(
+                        usdRate = quote.usd,
+                        eurRate = quote.eur,
+                        ratesUpdatedAt = quote.fetchedAt,
+                        rateSource = quote.source,
+                        rateDateLabel = quote.dateLabel,
+                    )
+                )
+                if (force) {
+                    notify(
+                        "Kur güncellendi: 1 USD = ${money(quote.usd)} • 1 EUR = ${money(quote.eur)}"
+                    )
+                }
+                onDone?.invoke(true)
+            }.onFailure { error ->
+                if (force) notify(error.message ?: "Kur alınamadı.")
+                onDone?.invoke(false)
+            }
+        }
+    }
+
+    /**
+     * Seçilen para birimi için kuru döndürür; ayarlarda yoksa internetten
+     * çekmeyi dener ve sonucu [onRate] ile bildirir.
+     */
+    fun ensureRate(currency: Currency, onRate: (Double?) -> Unit) {
+        if (currency == Currency.TRY) {
+            onRate(1.0)
+            return
+        }
+        val existing = settings.value.rateFor(currency)
+        if (existing > 0 && !RateService.isStale(settings.value)) {
+            onRate(existing)
+            return
+        }
+        refreshRates(force = existing <= 0) { ok ->
+            val value = settings.value.rateFor(currency)
+            onRate(if (ok && value > 0) value else existing.takeIf { it > 0 })
+        }
+    }
+
+    /** Kuru girilmemiş (TL karşılığı yanlış) döviz kayıtları. */
+    fun recordsMissingRate(): Pair<List<LedgerEntry>, List<Expense>> =
+        ledger.value.filter { it.rateMissing } to expenses.value.filter { it.rateMissing }
+
+    /**
+     * Kuru eksik kayıtlara güncel kuru uygular. Geçmiş işlem için o günkü kur
+     * daha doğru olurdu; bu yüzden kullanıcı tek tek de düzenleyebilir.
+     */
+    fun fixMissingRates(): Int {
+        val current = settings.value
+        var fixed = 0
+        ledger.value.filter { it.rateMissing }.forEach { entry ->
+            val rate = current.rateFor(entry.currency)
+            if (rate > 0) {
+                repo.saveLedgerEntry(entry.copy(rate = rate))
+                fixed++
+            }
+        }
+        expenses.value.filter { it.rateMissing }.forEach { expense ->
+            val rate = current.rateFor(expense.currency)
+            if (rate > 0) {
+                repo.saveExpense(expense.copy(rate = rate))
+                fixed++
+            }
+        }
+        return fixed
+    }
+
     // ---------------------------------------------------------------- cari
 
     fun saveLedgerEntry(entry: LedgerEntry) = repo.saveLedgerEntry(entry)
@@ -111,11 +205,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         rate: Double,
         dueDate: Long?,
         description: String,
-    ) {
+    ): Boolean {
         val existing = repo.chargeOfReport(report.id)
         if (amount <= 0.0) {
             existing?.let { repo.deleteLedgerEntry(it.id) }
-            return
+            return true
+        }
+        // Döviz tutarını kursuz kaydetmek TL karşılığını yanlış gösterir;
+        // 1,0'a düşmek yerine kaydı reddediyoruz.
+        val effectiveRate = if (currency == Currency.TRY) 1.0 else rate
+        if (effectiveRate <= 0.0) {
+            notify("${currency.code} tutarı için kur gerekli. Kuru güncelleyin ya da elle girin.")
+            return false
         }
         val entry = (existing ?: LedgerEntry(reportId = report.id, type = LedgerType.BORC)).copy(
             customerId = report.customerId,
@@ -124,11 +225,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             date = report.serviceDate,
             amount = amount,
             currency = currency,
-            rate = if (rate > 0) rate else 1.0,
+            rate = effectiveRate,
             description = description.ifBlank { "Servis bedeli ${report.reportNo}" },
             dueDate = dueDate,
         )
         repo.saveLedgerEntry(entry)
+        return true
     }
 
     // -------------------------------------------------------------- masraf
@@ -201,6 +303,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         status: ServiceStatus? = null,
     ): String? {
         val current = _draft.value ?: return null
+        // Kursuz döviz bedeli kaydı bozar; rapor kaydedilmeden uyarılır.
+        if (amount > 0 && currency != Currency.TRY && rate <= 0) {
+            notify("${currency.code} tutarı için kur gerekli. Kuru güncelleyin ya da elle girin.")
+            return null
+        }
         val id = commitDraft(status) ?: return null
         repo.report(id)?.let { saved ->
             setReportCharge(saved, amount, currency, rate, dueDate, "Servis bedeli ${saved.reportNo}")

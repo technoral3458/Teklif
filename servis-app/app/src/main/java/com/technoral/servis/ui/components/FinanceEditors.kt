@@ -15,11 +15,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,7 +48,10 @@ import com.technoral.servis.util.asNumber
 import com.technoral.servis.util.money
 import java.io.File
 
-/** Tutar + para birimi + kur girişi. TL seçiliyken kur alanı gizlenir. */
+/**
+ * Tutar + para birimi + kur girişi. TL seçiliyken kur alanı gizlenir; döviz
+ * seçildiğinde kur otomatik çekilir, alanın yanındaki düğmeyle yenilenebilir.
+ */
 @Composable
 fun MoneyInput(
     amount: String,
@@ -54,6 +61,9 @@ fun MoneyInput(
     onCurrencyChange: (Currency) -> Unit,
     onRateChange: (String) -> Unit,
     label: String = "Tutar",
+    rateLoading: Boolean = false,
+    rateHint: String = "",
+    onRefreshRate: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         AppTextField(amount, onAmountChange, label, keyboardType = KeyboardType.Decimal)
@@ -66,18 +76,48 @@ fun MoneyInput(
         )
         if (currency != Currency.TRY) {
             AppTextField(
-                rate, onRateChange, "Kur (1 " + currency.code + " = ? ₺)",
+                value = rate,
+                onValueChange = onRateChange,
+                label = "Kur (1 " + currency.code + " = ? ₺)",
                 keyboardType = KeyboardType.Decimal,
-                supportingText = tryEquivalent(amount, rate),
+                supportingText = rateSupportText(amount, rate, rateLoading, rateHint),
+                trailingIcon = if (onRefreshRate != null) {
+                    {
+                        if (rateLoading) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(onClick = onRefreshRate) {
+                                Icon(Icons.Default.Refresh, "Kuru güncelle")
+                            }
+                        }
+                    }
+                } else null,
             )
+            if (!rateLoading && rate.replace(',', '.').toDoubleOrNull().let { it == null || it <= 0 }) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text(
+                        "Kur alınamadı. Yenile düğmesine basın ya da kuru elle yazın — " +
+                            "kursuz kayıtta TL karşılığı yanlış hesaplanır.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
         }
     }
 }
 
-private fun tryEquivalent(amount: String, rate: String): String {
-    val a = amount.replace(',', '.').toDoubleOrNull() ?: return "Kur girilirse TL karşılığı hesaplanır"
-    val r = rate.replace(',', '.').toDoubleOrNull() ?: return "Kur girilirse TL karşılığı hesaplanır"
-    return "TL karşılığı: ${money(a * r)}"
+private fun rateSupportText(amount: String, rate: String, loading: Boolean, hint: String): String {
+    if (loading) return "Güncel kur alınıyor…"
+    val r = rate.replace(',', '.').toDoubleOrNull()
+    if (r == null || r <= 0) return "Kur zorunlu"
+    val a = amount.replace(',', '.').toDoubleOrNull()
+    val equivalent = if (a != null && a > 0) "TL karşılığı: ${money(a * r)}" else ""
+    return listOf(equivalent, hint).filter { it.isNotBlank() }.joinToString("  •  ")
 }
 
 @Composable
@@ -88,6 +128,8 @@ fun LedgerEntryDialog(
     onSave: (LedgerEntry) -> Unit,
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
+    rateLoading: Boolean = false,
+    onEnsureRate: ((Currency, (Double?) -> Unit) -> Unit)? = null,
 ) {
     var type by remember { mutableStateOf(initial.type) }
     var amount by remember { mutableStateOf(if (initial.amount == 0.0) "" else initial.amount.asNumber()) }
@@ -137,10 +179,26 @@ fun LedgerEntryDialog(
                     onAmountChange = { amount = it },
                     onCurrencyChange = { value ->
                         currency = value
-                        val suggested = settings.rateFor(value)
-                        rate = if (value == Currency.TRY) "1" else suggested.takeIf { it > 0 }?.asNumber() ?: ""
+                        if (value == Currency.TRY) {
+                            rate = "1"
+                        } else {
+                            val suggested = settings.rateFor(value)
+                            rate = suggested.takeIf { it > 0 }?.asNumber() ?: ""
+                            onEnsureRate?.invoke(value) { fetched ->
+                                if (fetched != null && fetched > 0) rate = fetched.asNumber()
+                            }
+                        }
                     },
                     onRateChange = { rate = it },
+                    rateLoading = rateLoading,
+                    rateHint = rateHintOf(settings),
+                    onRefreshRate = onEnsureRate?.let { ensure ->
+                        {
+                            ensure(currency) { fetched ->
+                                if (fetched != null && fetched > 0) rate = fetched.asNumber()
+                            }
+                        }
+                    },
                 )
                 DateField("Tarih", date, { value -> value?.let { date = it } })
                 AppTextField(description, { description = it }, "Açıklama", singleLine = false, minLines = 2)
@@ -207,6 +265,8 @@ fun ExpenseDialog(
     onSave: (Expense) -> Unit,
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
+    rateLoading: Boolean = false,
+    onEnsureRate: ((Currency, (Double?) -> Unit) -> Unit)? = null,
 ) {
     var category by remember { mutableStateOf(initial.category) }
     var amount by remember { mutableStateOf(if (initial.amount == 0.0) "" else initial.amount.asNumber()) }
@@ -245,10 +305,26 @@ fun ExpenseDialog(
                     onAmountChange = { amount = it },
                     onCurrencyChange = { value ->
                         currency = value
-                        val suggested = settings.rateFor(value)
-                        rate = if (value == Currency.TRY) "1" else suggested.takeIf { it > 0 }?.asNumber() ?: ""
+                        if (value == Currency.TRY) {
+                            rate = "1"
+                        } else {
+                            val suggested = settings.rateFor(value)
+                            rate = suggested.takeIf { it > 0 }?.asNumber() ?: ""
+                            onEnsureRate?.invoke(value) { fetched ->
+                                if (fetched != null && fetched > 0) rate = fetched.asNumber()
+                            }
+                        }
                     },
                     onRateChange = { rate = it },
+                    rateLoading = rateLoading,
+                    rateHint = rateHintOf(settings),
+                    onRefreshRate = onEnsureRate?.let { ensure ->
+                        {
+                            ensure(currency) { fetched ->
+                                if (fetched != null && fetched > 0) rate = fetched.asNumber()
+                            }
+                        }
+                    },
                 )
                 if (category == ExpenseCategory.YAKIT) {
                     AppTextField(
@@ -335,6 +411,12 @@ fun ExpenseDialog(
         },
     )
 }
+
+/** "TCMB döviz satış • 18.09.2026" biçiminde kur kaynağı bilgisi. */
+fun rateHintOf(settings: AppSettings): String =
+    listOf(settings.rateSource, settings.rateDateLabel)
+        .filter { it.isNotBlank() }
+        .joinToString(" • ")
 
 /** Tutarı, işaretine göre renklendirerek gösterir. */
 @Composable

@@ -25,8 +25,11 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -50,6 +53,8 @@ import com.technoral.servis.ui.components.AppTopBar
 import com.technoral.servis.ui.components.ChoiceChipRow
 import com.technoral.servis.ui.components.SectionCard
 import com.technoral.servis.util.asDate
+import com.technoral.servis.util.asDateTime
+import com.technoral.servis.util.money
 import com.technoral.servis.util.asNumber
 import com.technoral.servis.util.shareUri
 import kotlinx.coroutines.launch
@@ -58,6 +63,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
     val settings by vm.settings.collectAsState()
     val reports by vm.reports.collectAsState()
+    val ratesLoading by vm.ratesLoading.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -138,8 +144,39 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
             item {
                 SectionCard(
                     title = "Kur ve Cari",
-                    subtitle = "Yeni kayıtlarda önerilen kurlar — her hareket kendi kurunu saklar",
+                    subtitle = "Kurlar otomatik güncellenir; her hareket kendi kurunu saklar",
+                    trailing = {
+                        if (ratesLoading) {
+                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(onClick = { vm.refreshRates(force = true) }) {
+                                Icon(Icons.Default.Refresh, "Kurları güncelle")
+                            }
+                        }
+                    },
                 ) {
+                    val rateInfo = listOf(settings.rateSource, settings.rateDateLabel)
+                        .filter { it.isNotBlank() }.joinToString(" • ")
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                if (settings.usdRate > 0 && settings.eurRate > 0)
+                                    "1 USD = ${money(settings.usdRate)}   •   1 EUR = ${money(settings.eurRate)}"
+                                else "Kur henüz alınmadı — sağdaki yenile düğmesine basın",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (rateInfo.isNotBlank()) {
+                                Text(
+                                    "Kaynak: $rateInfo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
                     AppTextField(
                         if (settings.usdRate == 0.0) "" else settings.usdRate.asNumber(),
                         { value ->
@@ -165,7 +202,7 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
                         },
                         "1 EUR kaç ₺",
                         keyboardType = KeyboardType.Decimal,
-                        supportingText = settings.ratesUpdatedAt?.let { "Son güncelleme: ${it.asDate()}" },
+                        supportingText = settings.ratesUpdatedAt?.let { "Son güncelleme: ${it.asDateTime()}" },
                     )
                     AppTextField(
                         settings.overdueGraceDays.toString(),

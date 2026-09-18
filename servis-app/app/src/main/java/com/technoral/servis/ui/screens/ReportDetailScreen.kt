@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.technoral.servis.data.Currency
 import com.technoral.servis.data.LedgerType
 import com.technoral.servis.data.ServiceReport
 import com.technoral.servis.ui.AppViewModel
@@ -347,10 +348,25 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
                     ) {
                         if (charge != null) {
                             InfoRow("Servis bedeli", money(charge.amount, charge.currency.symbol))
-                            if (charge.currency.code != "TRY") {
+                            if (charge.currency != Currency.TRY) {
                                 InfoRow("TL karşılığı", money(charge.tryAmount))
+                                InfoRow("Kur", "1 ${charge.currency.code} = ${money(charge.rate)}")
                             }
                             charge.dueDate?.let { InfoRow("Vade", it.asDate()) }
+                            if (charge.rateMissing) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    shape = RoundedCornerShape(10.dp),
+                                ) {
+                                    Text(
+                                        "Bu kayıtta döviz kuru girilmemiş; TL karşılığı ve servis kârı " +
+                                            "yanlış. Raporu düzenleyip kuru girin.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(12.dp),
+                                    )
+                                }
+                            }
                         }
                         if (reportExpenses.isNotEmpty()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))

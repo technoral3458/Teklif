@@ -44,10 +44,37 @@ export default function ServiceFinance() {
 
   useEffect(() => { load(); }, [load]);
 
-  const suggestedRate = (currency) => {
-    if (currency === "TRY") return "1";
-    if (!rates) return "";
-    return String(currency === "USD" ? rates.usd_rate : rates.eur_rate);
+  const [rateBusy, setRateBusy] = useState(false);
+
+  /** Ayarlardaki kuru döndürür; yoksa internetten çekmeyi dener. */
+  const ensureRate = async (currency, apply) => {
+    if (currency === "TRY") { apply("1"); return; }
+    const known = rates && Number(currency === "USD" ? rates.usd_rate : rates.eur_rate);
+    if (known > 0) { apply(String(known)); return; }
+    setRateBusy(true);
+    try {
+      const res = await api.post("/service/finance-settings/refresh-rates/");
+      setRates(res.data);
+      apply(String(currency === "USD" ? res.data.usd_rate : res.data.eur_rate));
+    } catch (err) {
+      setError(err.response?.data?.error || "Kur alınamadı, elle girin.");
+      apply("");
+    } finally {
+      setRateBusy(false);
+    }
+  };
+
+  const refreshRates = async () => {
+    setRateBusy(true); setError("");
+    try {
+      const res = await api.post("/service/finance-settings/refresh-rates/");
+      setRates(res.data);
+      setSettingsForm((prev) => (prev ? { ...prev, ...res.data } : prev));
+    } catch (err) {
+      setError(err.response?.data?.error || "Kur alınamadı.");
+    } finally {
+      setRateBusy(false);
+    }
   };
 
   const saveEntry = async () => {
@@ -346,6 +373,15 @@ export default function ServiceFinance() {
           <DialogTitle>Kur ve Cari Ayarları</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={2} mt={1}>
+              <Alert severity="info" action={
+                <Button size="small" onClick={refreshRates} disabled={rateBusy}>
+                  {rateBusy ? "Alınıyor…" : "Güncelle"}
+                </Button>
+              }>
+                {rates?.rate_source
+                  ? `Kaynak: ${rates.rate_source}${rates.rate_date_label ? ` • ${rates.rate_date_label}` : ""}`
+                  : "Kur henüz otomatik alınmadı. TCMB günlük bülteninden çekilir."}
+              </Alert>
               <TextField label="1 USD kaç ₺" value={settingsForm.usd_rate ?? ""}
                 onChange={(e) => setSettingsForm({ ...settingsForm, usd_rate: e.target.value })}
                 helperText="Yeni kayıtlarda önerilir; her hareket kendi kurunu saklar" fullWidth />
@@ -395,15 +431,17 @@ export default function ServiceFinance() {
               </Grid>
               <Grid item xs={6} md={4}>
                 <TextField select label="Para birimi" value={entryForm.currency} fullWidth
-                  onChange={(e) => setEntryForm({
-                    ...entryForm, currency: e.target.value, rate: suggestedRate(e.target.value),
-                  })}>
+                  onChange={(e) => {
+                    const currency = e.target.value;
+                    setEntryForm((prev) => ({ ...prev, currency, rate: currency === "TRY" ? "1" : "" }));
+                    ensureRate(currency, (rate) => setEntryForm((prev) => (prev ? { ...prev, rate } : prev)));
+                  }}>
                   {CURRENCIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
                 </TextField>
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField label="Kur (TL)" value={entryForm.rate} fullWidth
-                  disabled={entryForm.currency === "TRY"}
+                  disabled={entryForm.currency === "TRY" || rateBusy}
                   helperText={entryForm.currency !== "TRY" && entryForm.amount && entryForm.rate
                     ? `TL karşılığı: ${money(Number(entryForm.amount) * Number(entryForm.rate))}` : " "}
                   onChange={(e) => setEntryForm({ ...entryForm, rate: e.target.value })} />
@@ -444,7 +482,10 @@ export default function ServiceFinance() {
           <DialogActions>
             <Button onClick={() => setEntryForm(null)}>Vazgeç</Button>
             <Button variant="contained" onClick={saveEntry}
-              disabled={!entryForm.customer || !entryForm.amount}>Kaydet</Button>
+              disabled={!entryForm.customer || !entryForm.amount || rateBusy ||
+                (entryForm.currency !== "TRY" && !(Number(entryForm.rate) > 0))}>
+              Kaydet
+            </Button>
           </DialogActions>
         </Dialog>
       )}
@@ -470,15 +511,17 @@ export default function ServiceFinance() {
               </Grid>
               <Grid item xs={6} md={4}>
                 <TextField select label="Para birimi" value={expenseForm.currency} fullWidth
-                  onChange={(e) => setExpenseForm({
-                    ...expenseForm, currency: e.target.value, rate: suggestedRate(e.target.value),
-                  })}>
+                  onChange={(e) => {
+                    const currency = e.target.value;
+                    setExpenseForm((prev) => ({ ...prev, currency, rate: currency === "TRY" ? "1" : "" }));
+                    ensureRate(currency, (rate) => setExpenseForm((prev) => (prev ? { ...prev, rate } : prev)));
+                  }}>
                   {CURRENCIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
                 </TextField>
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField label="Kur (TL)" value={expenseForm.rate} fullWidth
-                  disabled={expenseForm.currency === "TRY"}
+                  disabled={expenseForm.currency === "TRY" || rateBusy}
                   onChange={(e) => setExpenseForm({ ...expenseForm, rate: e.target.value })} />
               </Grid>
               {expenseForm.category === "YAKIT" && (
@@ -510,7 +553,11 @@ export default function ServiceFinance() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setExpenseForm(null)}>Vazgeç</Button>
-            <Button variant="contained" onClick={saveExpense} disabled={!expenseForm.amount}>Kaydet</Button>
+            <Button variant="contained" onClick={saveExpense}
+              disabled={!expenseForm.amount || rateBusy ||
+                (expenseForm.currency !== "TRY" && !(Number(expenseForm.rate) > 0))}>
+              Kaydet
+            </Button>
           </DialogActions>
         </Dialog>
       )}

@@ -41,7 +41,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TextButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -67,6 +69,7 @@ import com.technoral.servis.ui.AppViewModel
 import com.technoral.servis.ui.Navigator
 import com.technoral.servis.ui.Screen
 import com.technoral.servis.ui.components.AppTopBar
+import com.technoral.servis.ui.components.ConfirmDialog
 import com.technoral.servis.ui.components.EmptyState
 import com.technoral.servis.ui.components.ExpenseDialog
 import com.technoral.servis.ui.components.LedgerEntryDialog
@@ -99,6 +102,7 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
     val expenses by vm.expenses.collectAsState()
     val reports by vm.reports.collectAsState()
     val settings by vm.settings.collectAsState()
+    val ratesLoading by vm.ratesLoading.collectAsState()
 
     var tab by remember { mutableStateOf(0) }
     var newEntryFor by remember { mutableStateOf<String?>(null) }
@@ -106,15 +110,33 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
     var pickCustomer by remember { mutableStateOf(false) }
     var newExpense by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<Expense?>(null) }
+    var confirmRateFix by remember { mutableStateOf(false) }
 
     val (year, month) = currentYearMonth()
     val summary = remember(ledger, expenses, reports) { vm.monthlySummary(year, month) }
     val accounts = remember(customers, ledger, settings) { Finance.accounts(customers, ledger, settings.overdueGraceDays) }
     val overdue = remember(customers, ledger, settings) { Finance.overdueDebts(customers, ledger, settings.overdueGraceDays) }
     val receivable = accounts.sumOf { it.balanceTry.coerceAtLeast(0.0) }
+    val (badEntries, badExpenses) = remember(ledger, expenses) { vm.recordsMissingRate() }
+    val badCount = badEntries.size + badExpenses.size
     val overdueTotal = overdue.sumOf { it.second.openTry }
 
     // ------------------------------------------------------------- pencereler
+
+    if (confirmRateFix) {
+        ConfirmDialog(
+            title = "Kurlar düzeltilsin mi?",
+            message = "Kuru girilmemiş $badCount kayda bugünkü kur uygulanacak " +
+                "(1 USD = ${money(settings.usdRate)}, 1 EUR = ${money(settings.eurRate)}). " +
+                "İşlem günündeki kuru kullanmak isterseniz kayıtları tek tek de düzenleyebilirsiniz.",
+            confirmLabel = "Düzelt",
+            onConfirm = {
+                val fixed = vm.fixMissingRates()
+                vm.notify(if (fixed > 0) "$fixed kaydın kuru güncellendi." else "Önce kuru güncelleyin.")
+            },
+            onDismiss = { confirmRateFix = false },
+        )
+    }
 
     if (pickCustomer) {
         SelectDialog(
@@ -137,6 +159,8 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
             customerName = vm.customer(customerId)?.name.orEmpty(),
             onSave = { vm.saveLedgerEntry(it); newEntryFor = null },
             onDismiss = { newEntryFor = null },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -148,6 +172,8 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
             onSave = { vm.saveLedgerEntry(it); editingEntry = null },
             onDismiss = { editingEntry = null },
             onDelete = { vm.deleteLedgerEntry(entry.id); editingEntry = null },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -158,6 +184,8 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
             onPickReceipt = null,
             onSave = { vm.saveExpense(it); newExpense = false },
             onDismiss = { newExpense = false },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -169,6 +197,8 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
             onSave = { vm.saveExpense(it); editingExpense = null },
             onDismiss = { editingExpense = null },
             onDelete = { vm.deleteExpense(expense.id); editingExpense = null },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -231,6 +261,39 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
                             Modifier.weight(1f), "Bu ay masraf",
                             moneyShort(summary.expenseTry), StatusColors.warning,
                         )
+                    }
+                }
+
+                if (badCount > 0) {
+                    item {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = StatusColors.warningBg,
+                                contentColor = StatusColors.warning,
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Warning, null, Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "$badCount kayıtta döviz kuru eksik",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                                Text(
+                                    "Bu kayıtların TL karşılığı ve servis kârı yanlış hesaplanıyor.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                TextButton(onClick = { confirmRateFix = true }) {
+                                    Text("Bugünkü kurla düzelt", color = StatusColors.warning)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -478,11 +541,15 @@ fun LedgerRow(entry: LedgerEntry, customerName: String, onClick: () -> Unit) {
                     color = if (isDebit) StatusColors.warning else StatusColors.success,
                 )
                 if (entry.currency != Currency.TRY) {
-                    Text(
-                        money(entry.tryAmount),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (entry.rateMissing) {
+                        StatusBadge("kur eksik", StatusColors.warning, StatusColors.warningBg)
+                    } else {
+                        Text(
+                            money(entry.tryAmount),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -529,7 +596,9 @@ fun ExpenseRow(expense: Expense, customerName: String, onClick: () -> Unit) {
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )
-                if (expense.billable) {
+                if (expense.rateMissing) {
+                    StatusBadge("kur eksik", StatusColors.warning, StatusColors.warningBg)
+                } else if (expense.billable) {
                     StatusBadge("Yansıtılacak", StatusColors.info, StatusColors.infoBg)
                 }
             }

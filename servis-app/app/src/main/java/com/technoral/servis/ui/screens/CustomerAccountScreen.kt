@@ -58,6 +58,7 @@ fun CustomerAccountScreen(vm: AppViewModel, nav: Navigator, customerId: String) 
     val customers by vm.customers.collectAsState()
     val ledger by vm.ledger.collectAsState()
     val settings by vm.settings.collectAsState()
+    val ratesLoading by vm.ratesLoading.collectAsState()
     val customer = customers.firstOrNull { it.id == customerId }
 
     var newEntryType by remember { mutableStateOf<LedgerType?>(null) }
@@ -89,6 +90,8 @@ fun CustomerAccountScreen(vm: AppViewModel, nav: Navigator, customerId: String) 
             customerName = customer.name,
             onSave = { vm.saveLedgerEntry(it); newEntryType = null },
             onDismiss = { newEntryType = null },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -100,6 +103,8 @@ fun CustomerAccountScreen(vm: AppViewModel, nav: Navigator, customerId: String) 
             onSave = { vm.saveLedgerEntry(it); editingEntry = null },
             onDismiss = { editingEntry = null },
             onDelete = { vm.deleteLedgerEntry(entry.id); editingEntry = null },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 

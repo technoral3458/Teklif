@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, parser_classes, permission_class
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from . import finance
+from . import finance, rates
 from .mailer import send_finance_mail, send_report_mail, send_test_mail
 from .models import (
     Customer,
@@ -638,6 +638,28 @@ def monthly_report_mail(request):
     if not ok:
         return Response({"error": message}, status=400)
     return Response({"detail": message})
+
+
+@api_view(["POST"])
+@permission_classes([CanManageService])
+def refresh_rates_view(request):
+    """Güncel kuru TCMB'den (ulaşılamazsa ECB'den) alıp ayarlara yazar."""
+    quote, error = rates.fetch_rates()
+    if quote is None:
+        return Response({"error": error}, status=502)
+
+    settings_obj = FinanceSettings.load()
+    settings_obj.usd_rate = quote["usd"]
+    settings_obj.eur_rate = quote["eur"]
+    settings_obj.rate_source = quote["source"]
+    settings_obj.rate_date_label = quote["date"]
+    settings_obj.rates_updated_at = timezone.now()
+    settings_obj.save()
+
+    return Response({
+        "detail": f"Kur güncellendi ({quote['source']} • {quote['date']}).",
+        **FinanceSettingsSerializer(settings_obj).data,
+    })
 
 
 @api_view(["GET", "PUT", "PATCH"])

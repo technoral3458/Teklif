@@ -192,10 +192,18 @@ class ServiceReportWriteSerializer(serializers.ModelSerializer):
             return
 
         currency = charge.get("charge_currency") or "TRY"
-        rate = Decimal("1") if currency == "TRY" else (charge.get("charge_rate") or Decimal("0"))
-        if rate <= 0:
+        if currency == "TRY":
+            rate = Decimal("1")
+        else:
+            # Kur gönderilmediyse ayarlardaki güncel kur kullanılır; o da yoksa
+            # 1,0'a düşmek yerine hata verilir (aksi halde 500 € = 500 ₺ olurdu).
+            rate = charge.get("charge_rate") or FinanceSettings.load().rate_for(currency)
+        if not rate or rate <= 0:
             raise serializers.ValidationError(
-                {"charge_rate": "Döviz cinsinden servis bedeli için kur girilmelidir."}
+                {"charge_rate": (
+                    "Döviz cinsinden servis bedeli için kur gerekli. "
+                    "Cari ayarlarından kuru güncelleyin ya da elle girin."
+                )}
             )
 
         values = {
@@ -256,6 +264,9 @@ class MailSettingsSerializer(serializers.ModelSerializer):
 
 class LedgerEntrySerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="customer.name", read_only=True)
+    rate = serializers.DecimalField(
+        max_digits=10, decimal_places=4, required=False, allow_null=True
+    )
     type_label = serializers.CharField(source="get_type_display", read_only=True)
     method_label = serializers.CharField(source="get_payment_method_display", read_only=True)
     try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
@@ -272,19 +283,38 @@ class LedgerEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
     def validate(self, attrs):
-        rate = attrs.get("rate", getattr(self.instance, "rate", 1))
-        currency = attrs.get("currency", getattr(self.instance, "currency", "TRY"))
+        """Kuru doğrular; gönderilmediyse cari ayarlarındaki güncel kurla tamamlar.
+
+        Model varsayılanı 1 olduğu için kurun "hiç gönderilmemesi" ile
+        "1 gönderilmesi" ayırt edilebilsin diye alan serileştiricide
+        `required=False` olarak tanımlıdır.
+        """
+        currency = attrs.get("currency") or getattr(self.instance, "currency", "TRY")
         if currency == "TRY":
-            attrs["rate"] = 1
-        elif not rate or rate <= 0:
+            attrs["rate"] = Decimal("1")
+            return attrs
+
+        rate = attrs.get("rate")
+        if rate is None:
+            rate = getattr(self.instance, "rate", None)
+        if not rate or rate <= 0:
+            rate = FinanceSettings.load().rate_for(currency)
+        if not rate or rate <= 0:
             raise serializers.ValidationError(
-                {"rate": "Döviz işlemleri için geçerli bir kur girilmelidir."}
+                {"rate": (
+                    "Döviz işlemleri için kur gerekli. Cari ayarlarından kuru "
+                    "güncelleyin ya da elle girin."
+                )}
             )
+        attrs["rate"] = rate
         return attrs
 
 
 class ExpenseSerializer(serializers.ModelSerializer):
     category_label = serializers.CharField(source="get_category_display", read_only=True)
+    rate = serializers.DecimalField(
+        max_digits=10, decimal_places=4, required=False, allow_null=True
+    )
     customer_name = serializers.CharField(source="customer.name", read_only=True, default="")
     report_no = serializers.CharField(source="report.report_no", read_only=True, default="")
     try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
@@ -299,14 +329,30 @@ class ExpenseSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
     def validate(self, attrs):
-        rate = attrs.get("rate", getattr(self.instance, "rate", 1))
-        currency = attrs.get("currency", getattr(self.instance, "currency", "TRY"))
+        """Kuru doğrular; gönderilmediyse cari ayarlarındaki güncel kurla tamamlar.
+
+        Model varsayılanı 1 olduğu için kurun "hiç gönderilmemesi" ile
+        "1 gönderilmesi" ayırt edilebilsin diye alan serileştiricide
+        `required=False` olarak tanımlıdır.
+        """
+        currency = attrs.get("currency") or getattr(self.instance, "currency", "TRY")
         if currency == "TRY":
-            attrs["rate"] = 1
-        elif not rate or rate <= 0:
+            attrs["rate"] = Decimal("1")
+            return attrs
+
+        rate = attrs.get("rate")
+        if rate is None:
+            rate = getattr(self.instance, "rate", None)
+        if not rate or rate <= 0:
+            rate = FinanceSettings.load().rate_for(currency)
+        if not rate or rate <= 0:
             raise serializers.ValidationError(
-                {"rate": "Döviz işlemleri için geçerli bir kur girilmelidir."}
+                {"rate": (
+                    "Döviz işlemleri için kur gerekli. Cari ayarlarından kuru "
+                    "güncelleyin ya da elle girin."
+                )}
             )
+        attrs["rate"] = rate
         return attrs
 
 
@@ -314,7 +360,7 @@ class FinanceSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = FinanceSettings
         fields = [
-            "id", "usd_rate", "eur_rate", "rates_updated_at",
-            "show_charge_on_pdf", "overdue_grace_days",
+            "id", "usd_rate", "eur_rate", "rates_updated_at", "rate_source",
+            "rate_date_label", "show_charge_on_pdf", "overdue_grace_days",
         ]
-        read_only_fields = ["rates_updated_at"]
+        read_only_fields = ["rates_updated_at", "rate_source", "rate_date_label"]

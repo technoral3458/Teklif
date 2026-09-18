@@ -85,6 +85,7 @@ import com.technoral.servis.ui.components.FlowRowCompat
 import com.technoral.servis.ui.components.MachineEditorDialog
 import com.technoral.servis.ui.components.MoneyInput
 import com.technoral.servis.ui.components.PickerField
+import com.technoral.servis.ui.components.rateHintOf
 import com.technoral.servis.ui.components.SectionCard
 import com.technoral.servis.ui.components.SelectDialog
 import com.technoral.servis.ui.components.SignaturePad
@@ -124,6 +125,7 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
     var editingExpense by remember { mutableStateOf<Expense?>(null) }
 
     val settings by vm.settings.collectAsState()
+    val ratesLoading by vm.ratesLoading.collectAsState()
     val allExpenses by vm.expenses.collectAsState()
     val reportExpenses = allExpenses.filter { it.reportId == report.id }
 
@@ -141,6 +143,13 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
         )
     }
     var chargeDueDate by remember { mutableStateOf(existingCharge?.dueDate) }
+
+    val chargeAmountValue = chargeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0
+    val chargeRateValue =
+        if (chargeCurrency == Currency.TRY) 1.0
+        else chargeRate.replace(',', '.').toDoubleOrNull() ?: 0.0
+    // Döviz bedeli kursuz kaydedilirse TL karşılığı ve servis kârı yanlış çıkar
+    val chargeValid = chargeAmountValue <= 0.0 || chargeRateValue > 0.0
 
     val selectedCustomer = customers.firstOrNull { it.id == report.customerId }
     val selectedMachine = machines.firstOrNull { it.id == report.machineId }
@@ -294,6 +303,8 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
             onPickReceipt = { done -> receiptPicker(done) },
             onSave = { vm.saveExpense(it); newExpense = false },
             onDismiss = { newExpense = false },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -305,6 +316,8 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
             onSave = { vm.saveExpense(it); editingExpense = null },
             onDismiss = { editingExpense = null },
             onDelete = { vm.deleteExpense(expense.id); editingExpense = null },
+            rateLoading = ratesLoading,
+            onEnsureRate = vm::ensureRate,
         )
     }
 
@@ -364,17 +377,16 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                     Button(
                         onClick = {
                             val id = vm.commitDraftWithCharge(
-                                amount = chargeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                                amount = chargeAmountValue,
                                 currency = chargeCurrency,
-                                rate = if (chargeCurrency == Currency.TRY) 1.0
-                                else chargeRate.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                                rate = chargeRateValue,
                                 dueDate = chargeDueDate,
                             )
                             if (id != null) nav.replace(Screen.ReportDetail(id))
                         },
                         modifier = Modifier.weight(1.4f).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        enabled = report.customerId.isNotBlank(),
+                        enabled = report.customerId.isNotBlank() && chargeValid,
                     ) {
                         Icon(Icons.Default.Check, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
@@ -661,13 +673,34 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                         onAmountChange = { chargeAmount = it },
                         onCurrencyChange = { value ->
                             chargeCurrency = value
-                            chargeRate = if (value == Currency.TRY) "1"
-                            else settings.rateFor(value).takeIf { it > 0 }?.asNumber() ?: ""
+                            if (value == Currency.TRY) {
+                                chargeRate = "1"
+                            } else {
+                                chargeRate = settings.rateFor(value).takeIf { it > 0 }?.asNumber() ?: ""
+                                vm.ensureRate(value) { fetched ->
+                                    if (fetched != null && fetched > 0) chargeRate = fetched.asNumber()
+                                }
+                            }
                         },
                         onRateChange = { chargeRate = it },
                         label = "Servis bedeli",
+                        rateLoading = ratesLoading,
+                        rateHint = rateHintOf(settings),
+                        onRefreshRate = {
+                            vm.ensureRate(chargeCurrency) { fetched ->
+                                if (fetched != null && fetched > 0) chargeRate = fetched.asNumber()
+                            }
+                        },
                     )
                     DateField("Vade tarihi", chargeDueDate, { chargeDueDate = it }, clearable = true)
+                    if (chargeAmountValue > 0 && chargeCurrency != Currency.TRY && chargeRateValue > 0) {
+                        Text(
+                            "Cariye işlenecek: ${money(chargeAmountValue * chargeRateValue)} " +
+                                "(${money(chargeAmountValue, chargeCurrency.symbol)})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     if (report.customerId.isBlank() && chargeAmount.isNotBlank()) {
                         Text(
                             "Bedelin cariye işlenmesi için müşteri seçilmelidir.",

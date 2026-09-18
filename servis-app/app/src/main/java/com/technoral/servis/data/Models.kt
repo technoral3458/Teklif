@@ -202,6 +202,9 @@ data class AppSettings(
     val usdRate: Double = 0.0,
     val eurRate: Double = 0.0,
     val ratesUpdatedAt: Long? = null,
+    /** Kurun nereden alındığı (ör. "TCMB döviz satış") ve bülten tarihi. */
+    val rateSource: String = "",
+    val rateDateLabel: String = "",
     /** Servis bedeli PDF raporda gösterilsin mi (müşteriye giden kopya). */
     val showChargeOnPdf: Boolean = false,
     /** Vadesi geçen alacaklar için kaç gün sonra uyarılsın. */
@@ -282,6 +285,13 @@ data class LedgerEntry(
     /** Bakiyeye etkisi: borç artırır, tahsilat ve iade azaltır. */
     val signedTry: Double
         get() = if (type == LedgerType.BORC) tryAmount else -tryAmount
+
+    /**
+     * Döviz tutarı 1,0 kurla kaydedilmişse TL karşılığı yanlış demektir —
+     * eski sürümde kur boş bırakıldığında böyle kayıtlar oluşabiliyordu.
+     */
+    val rateMissing: Boolean
+        get() = currency != Currency.TRY && rate <= 1.0
 }
 
 data class Expense(
@@ -301,4 +311,7 @@ data class Expense(
     val createdAt: Long = System.currentTimeMillis(),
 ) {
     val tryAmount: Double get() = amount * rate
+
+    val rateMissing: Boolean
+        get() = currency != Currency.TRY && rate <= 1.0
 }

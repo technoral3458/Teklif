@@ -63,6 +63,7 @@ export default function ServiceReportForm() {
   const [expenses, setExpenses] = useState([]);
   const [expenseForm, setExpenseForm] = useState(null);
   const [rates, setRates] = useState(null);
+  const [rateBusy, setRateBusy] = useState(false);
 
   const loadMachines = (customerId) => {
     if (!customerId) { setMachines([]); return; }
@@ -78,10 +79,22 @@ export default function ServiceReportForm() {
     api.get(`/service/expenses/?report=${reportId}`).then((r) => setExpenses(r.data));
   };
 
-  const suggestedRate = (currency) => {
-    if (currency === "TRY") return "1";
-    if (!rates) return "";
-    return String(currency === "USD" ? rates.usd_rate : rates.eur_rate);
+  /** Ayarlardaki kuru döndürür; yoksa internetten çekmeyi dener. */
+  const ensureRate = async (currency, apply) => {
+    if (currency === "TRY") { apply("1"); return; }
+    const known = rates && Number(currency === "USD" ? rates.usd_rate : rates.eur_rate);
+    if (known > 0) { apply(String(known)); return; }
+    setRateBusy(true);
+    try {
+      const res = await api.post("/service/finance-settings/refresh-rates/");
+      setRates(res.data);
+      apply(String(currency === "USD" ? res.data.usd_rate : res.data.eur_rate));
+    } catch {
+      setError("Kur alınamadı. Kuru elle girin, yoksa TL karşılığı yanlış hesaplanır.");
+      apply("");
+    } finally {
+      setRateBusy(false);
+    }
   };
 
   // Makine listesinden "servis aç" ile gelindiyse makine ve müşterisi hazır seçilir
@@ -384,17 +397,24 @@ export default function ServiceReportForm() {
           </Grid>
           <Grid item xs={6} md={3}>
             <TextField select label="Para birimi" value={charge.currency} fullWidth
-              onChange={(e) => setCharge({
-                ...charge, currency: e.target.value, rate: suggestedRate(e.target.value),
-              })}>
+              onChange={(e) => {
+                const currency = e.target.value;
+                setCharge((prev) => ({ ...prev, currency, rate: currency === "TRY" ? "1" : "" }));
+                ensureRate(currency, (rate) => setCharge((prev) => ({ ...prev, rate })));
+              }}>
               {CURRENCIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
             </TextField>
           </Grid>
           <Grid item xs={6} md={3}>
             <TextField label="Kur (TL)" value={charge.rate} fullWidth
-              disabled={charge.currency === "TRY"}
-              helperText={charge.currency !== "TRY" && charge.amount && charge.rate
-                ? money(Number(charge.amount) * Number(charge.rate)) : " "}
+              disabled={charge.currency === "TRY" || rateBusy}
+              error={charge.currency !== "TRY" && !!charge.amount && !(Number(charge.rate) > 0)}
+              helperText={
+                rateBusy ? "Güncel kur alınıyor…"
+                  : charge.currency !== "TRY" && !(Number(charge.rate) > 0) ? "Kur zorunlu"
+                    : charge.currency !== "TRY" && charge.amount && charge.rate
+                      ? `Cariye işlenecek: ${money(Number(charge.amount) * Number(charge.rate))}` : " "
+              }
               onChange={(e) => setCharge({ ...charge, rate: e.target.value })} />
           </Grid>
           <Grid item xs={6} md={3}>
@@ -517,9 +537,11 @@ export default function ServiceReportForm() {
               </Grid>
               <Grid item xs={6} md={4}>
                 <TextField select label="Para birimi" value={expenseForm.currency} fullWidth
-                  onChange={(e) => setExpenseForm({
-                    ...expenseForm, currency: e.target.value, rate: suggestedRate(e.target.value),
-                  })}>
+                  onChange={(e) => {
+                    const currency = e.target.value;
+                    setExpenseForm((prev) => ({ ...prev, currency, rate: currency === "TRY" ? "1" : "" }));
+                    ensureRate(currency, (rate) => setExpenseForm((prev) => (prev ? { ...prev, rate } : prev)));
+                  }}>
                   {CURRENCIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
                 </TextField>
               </Grid>
@@ -549,7 +571,11 @@ export default function ServiceReportForm() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setExpenseForm(null)}>Vazgeç</Button>
-            <Button variant="contained" onClick={saveExpense} disabled={!expenseForm.amount}>Kaydet</Button>
+            <Button variant="contained" onClick={saveExpense}
+              disabled={!expenseForm.amount || rateBusy ||
+                (expenseForm.currency !== "TRY" && !(Number(expenseForm.rate) > 0))}>
+              Kaydet
+            </Button>
           </DialogActions>
         </Dialog>
       )}
@@ -558,7 +584,8 @@ export default function ServiceReportForm() {
       <Stack direction="row" spacing={2} justifyContent="flex-end">
         <Button onClick={() => navigate("/service/reports")}>Vazgeç</Button>
         <Button variant="contained" startIcon={<SaveIcon />} onClick={save}
-          disabled={saving || !form.customer}>
+          disabled={saving || !form.customer || rateBusy ||
+            (!!charge.amount && charge.currency !== "TRY" && !(Number(charge.rate) > 0))}>
           Raporu Kaydet
         </Button>
       </Stack>

@@ -6,7 +6,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from .models import Customer, FinanceSettings, LedgerEntry, Machine
+from . import rates
+from .models import Customer, Expense, FinanceSettings, LedgerEntry, Machine
 
 
 class FinanceApiTest(TestCase):
@@ -127,10 +128,20 @@ class FinanceApiTest(TestCase):
         assert res.status_code == 200, res.content
         assert FinanceSettings.load().usd_rate == Decimal("41.5000")
 
-        # Döviz işleminde kur zorunlu
+        # Kur gönderilmezse ayarlardaki güncel kur uygulanır (45,2)
         res = self.api("post", "/api/service/ledger/", {
             "customer": c2.id, "type": "BORC", "date": str(self.today),
-            "amount": "100.00", "currency": "EUR", "rate": "0",
+            "amount": "100.00", "currency": "EUR",
+        })
+        assert res.status_code == 201, res.data
+        assert Decimal(res.data["try_amount"]) == Decimal("4520"), res.data["try_amount"]
+        print("  kursuz EUR girişi ayardaki kurla tamamlandı:", res.data["try_amount"], "TL")
+
+        # Ayarlarda da kur yoksa kayıt reddedilir (500 EUR = 500 TL olmasın)
+        FinanceSettings.objects.all().update(usd_rate=0, eur_rate=0)
+        res = self.api("post", "/api/service/ledger/", {
+            "customer": c2.id, "type": "BORC", "date": str(self.today),
+            "amount": "100.00", "currency": "EUR",
         })
         assert res.status_code == 400, res.data
         print("  kursuz döviz girişi reddedildi ✔")
@@ -170,3 +181,123 @@ class GracePeriodTest(TestCase):
         settings_obj.save()
         res = self.client_api.get("/api/service/overdue/")
         self.assertEqual(res.data["count"], 1, "tolerans aşılınca yeniden uyarılmalı")
+
+
+class CurrencyRateTest(TestCase):
+    """Döviz bedelinin TL'ye doğru çevrilmesi ve kursuz kaydın engellenmesi."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("kur", password="x", role="admin")
+        self.client_api = APIClient()
+        self.client_api.force_authenticate(self.user)
+        self.today = datetime.date.today()
+        self.customer = Customer.objects.create(name="Avrupa Makine")
+
+    def _report(self, **charge):
+        payload = {
+            "customer": self.customer.id, "type": "ARIZA", "status": "COZULDU",
+            "service_date": str(self.today), "work_done": "Devreye alma",
+        }
+        payload.update(charge)
+        return self.client_api.post("/api/service/reports/", payload, format="json")
+
+    def test_euro_charge_without_rate_is_rejected(self):
+        """Kur yoksa 500 EUR sessizce 500 TL olarak kaydedilmemeli."""
+        FinanceSettings.objects.all().delete()
+        res = self._report(charge_amount="500.00", charge_currency="EUR")
+        self.assertEqual(res.status_code, 400, res.data)
+        self.assertIn("charge_rate", res.data)
+        self.assertEqual(LedgerEntry.objects.count(), 0)
+
+    def test_euro_charge_uses_settings_rate_when_omitted(self):
+        """Kur gönderilmezse cari ayarlarındaki güncel kur kullanılır."""
+        settings_obj = FinanceSettings.load()
+        settings_obj.eur_rate = Decimal("48.4321")
+        settings_obj.save()
+
+        res = self._report(charge_amount="500.00", charge_currency="EUR")
+        self.assertEqual(res.status_code, 201, res.data)
+        entry = LedgerEntry.objects.get()
+        self.assertEqual(entry.rate, Decimal("48.4321"))
+        self.assertEqual(entry.try_amount, Decimal("24216.0500"))
+
+    def test_profit_with_euro_income_and_lira_expenses(self):
+        """EUR hakediş + TL masraf: kâr TL karşılığı üzerinden hesaplanmalı."""
+        settings_obj = FinanceSettings.load()
+        settings_obj.eur_rate = Decimal("48.00")
+        settings_obj.save()
+
+        res = self._report(charge_amount="500.00", charge_currency="EUR")
+        report_id = res.data["id"]
+
+        for amount in ("1500.00", "2200.00"):
+            self.client_api.post("/api/service/expenses/", {
+                "report": report_id, "category": "YAKIT", "date": str(self.today),
+                "amount": amount, "currency": "TRY",
+            }, format="json")
+
+        detail = self.client_api.get(f"/api/service/reports/{report_id}/").data
+        self.assertEqual(detail["charge"]["try_amount"], Decimal("24000.0000"))
+        self.assertEqual(detail["expense_total"], Decimal("3700.00"))
+        profit = detail["charge"]["try_amount"] - detail["expense_total"]
+        self.assertEqual(profit, Decimal("20300.0000"))
+
+        summary = self.client_api.get(
+            f"/api/service/monthly-report/?year={self.today.year}&month={self.today.month}"
+        ).data
+        self.assertEqual(summary["income_try"], Decimal("24000.0000"))
+        self.assertEqual(summary["expense_try"], Decimal("3700.00"))
+        self.assertEqual(summary["net_try"], Decimal("20300.0000"))
+
+    def test_ledger_entry_without_rate_falls_back_to_settings(self):
+        settings_obj = FinanceSettings.load()
+        settings_obj.usd_rate = Decimal("41.20")
+        settings_obj.save()
+        res = self.client_api.post("/api/service/ledger/", {
+            "customer": self.customer.id, "type": "BORC", "date": str(self.today),
+            "amount": "100.00", "currency": "USD",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(LedgerEntry.objects.get().rate, Decimal("41.2000"))
+
+    def test_expense_in_foreign_currency_converts(self):
+        settings_obj = FinanceSettings.load()
+        settings_obj.eur_rate = Decimal("48.00")
+        settings_obj.save()
+        res = self.client_api.post("/api/service/expenses/", {
+            "category": "KONAKLAMA", "date": str(self.today),
+            "amount": "120.00", "currency": "EUR",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(Expense.objects.get().try_amount, Decimal("5760.0000"))
+
+
+class TcmbParserTest(TestCase):
+    """TCMB bülteninin ayrıştırılması."""
+
+    SAMPLE = """<?xml version="1.0" encoding="ISO-8859-9"?>
+<Tarih_Date Tarih="18.09.2026" Date="09/18/2026" Bulten_No="2026/180">
+	<Currency CrossOrder="0" Kod="USD" CurrencyCode="USD">
+		<Unit>1</Unit><Isim>ABD DOLARI</Isim>
+		<ForexBuying>41.1234</ForexBuying><ForexSelling>41.2000</ForexSelling>
+	</Currency>
+	<Currency CrossOrder="9" Kod="EUR" CurrencyCode="EUR">
+		<Unit>1</Unit><Isim>EURO</Isim>
+		<ForexBuying>48.3456</ForexBuying><ForexSelling>48.4321</ForexSelling>
+	</Currency>
+	<Currency CrossOrder="10" Kod="JPY" CurrencyCode="JPY">
+		<Unit>100</Unit><Isim>JAPON YENI</Isim>
+		<ForexBuying>27.8900</ForexBuying><ForexSelling>28.0500</ForexSelling>
+	</Currency>
+</Tarih_Date>"""
+
+    def test_parses_selling_rate(self):
+        self.assertEqual(rates.parse_tcmb_rate(self.SAMPLE, "USD"), Decimal("41.2000"))
+        self.assertEqual(rates.parse_tcmb_rate(self.SAMPLE, "EUR"), Decimal("48.4321"))
+
+    def test_normalises_by_unit(self):
+        """JPY 100 birim üzerinden yayımlanır."""
+        self.assertEqual(rates.parse_tcmb_rate(self.SAMPLE, "JPY"), Decimal("0.2805"))
+
+    def test_unknown_currency(self):
+        self.assertIsNone(rates.parse_tcmb_rate(self.SAMPLE, "XYZ"))
