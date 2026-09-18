@@ -1,4 +1,4 @@
-name: Android APK
+name: Parametrik Kesim APK
 
 on:
   push:
@@ -11,10 +11,16 @@ on:
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    name: Debug APK derle
+    name: APK derle ve yayımla
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
 
     steps:
       - name: Kaynağı al
@@ -25,30 +31,45 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
-      - name: Android SDK kur
-        uses: android-actions/setup-android@v3
-
-      - name: Gradle hazırla
-        uses: gradle/actions/setup-gradle@v4
+      - name: Android SDK paketleri
+        run: |
+          set -e
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Birim testleri
-        working-directory: android
-        run: ./gradlew --no-daemon :app:testDebugUnitTest
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
 
-      - name: Debug APK
-        working-directory: android
-        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: APK derle
+        env:
+          PK_VERSION_CODE: ${{ github.run_number }}
+          PK_VERSION_NAME: 1.${{ github.run_number }}
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
 
-      - name: APK'yı yükle
+      - name: APK'yı adlandır
+        id: apk
+        run: |
+          set -e
+          SRC=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          DEST="ParametrikKesim-1.${{ github.run_number }}.apk"
+          cp "$SRC" "$DEST"
+          echo "path=android/$DEST" >> "$GITHUB_OUTPUT"
+          echo "name=$DEST" >> "$GITHUB_OUTPUT"
+          ls -la "$DEST"
+
+      - name: APK'yı iş akışı çıktısı olarak yükle
         uses: actions/upload-artifact@v4
         with:
-          name: parametrik-kesim-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 30
+          name: ParametrikKesim-apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 90
 
-      - name: Test raporlarını yükle
+      - name: Test raporları
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -56,3 +77,23 @@ jobs:
           path: android/app/build/reports/tests/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: GitHub sürümü yayımla
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG="parametrik-apk-v1.${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.apk.outputs.name }}" \
+            --title "Parametrik Kesim 1.${{ github.run_number }}" \
+            --notes "Parametrik Kesim mobil istemcisi (hata ayıklama derlemesi).
+
+          **Kurulum:** Telefonunuzdan bu sayfayı açın, APK dosyasına dokunun ve kuruluma izin verin.
+          (Ayarlar > Güvenlik > Bilinmeyen kaynaklardan kuruluma izin verilmesi gerekir.)
+
+          **İlk açılış:** Ayarlar ekranına sunucu adresinizi girin (ör. https://panel.firma.com),
+          bağlantıyı test edip kaydedin, ardından e-posta ve şifrenizle giriş yapın.
+
+          Not: iş listesi için sunucuda /parametric/api/jobs ve /parametric/api/jobs/{id}
+          JSON uç noktaları gerekiyor (ayrıntı: android/README.md)." \
+            --target "${{ github.sha }}"

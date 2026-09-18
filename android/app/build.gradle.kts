@@ -15,8 +15,8 @@ android {
         applicationId = "com.teknoral.parametrik"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (System.getenv("PK_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("PK_VERSION_NAME") ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf("tr")
     }
@@ -27,7 +27,8 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
-            applicationIdSuffix = ".debug"
+            // Dağıtılan APK hata ayıklama derlemesi olduğu için uygulama kimliği sabit tutuluyor.
+            isMinifyEnabled = false
         }
     }
 
