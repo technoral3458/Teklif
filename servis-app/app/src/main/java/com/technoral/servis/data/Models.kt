@@ -207,6 +207,8 @@ data class AppSettings(
     val rateDateLabel: String = "",
     /** Servis bedeli PDF raporda gösterilsin mi (müşteriye giden kopya). */
     val showChargeOnPdf: Boolean = false,
+    /** Yeni masraflar varsayılan olarak müşteriye yansıtılsın mı. */
+    val expensesBillableByDefault: Boolean = true,
     /** Vadesi geçen alacaklar için kaç gün sonra uyarılsın. */
     val overdueGraceDays: Int = 0,
 ) {
@@ -235,6 +237,13 @@ enum class LedgerType(val label: String) {
     BORC("Borç / Hakediş"),
     TAHSILAT("Tahsilat"),
     IADE("İade / İskonto"),
+}
+
+/** Hareketin niteliği — rapora bağlı kalemleri birbirinden ayırır. */
+enum class LedgerKind(val label: String) {
+    SERVIS("Servis bedeli"),
+    MASRAF("Yansıtılan masraf"),
+    DIGER("Diğer"),
 }
 
 enum class PaymentMethod(val label: String) {
@@ -268,6 +277,7 @@ data class LedgerEntry(
     val customerId: String = "",
     val reportId: String? = null,
     val type: LedgerType = LedgerType.BORC,
+    val kind: LedgerKind = LedgerKind.DIGER,
     val date: Long = System.currentTimeMillis(),
     val amount: Double = 0.0,
     val currency: Currency = Currency.TRY,
@@ -306,7 +316,7 @@ data class Expense(
     val description: String = "",
     /** Yakıt için litre, konaklama için gece sayısı gibi isteğe bağlı miktar. */
     val quantity: Double = 0.0,
-    val billable: Boolean = false,
+    val billable: Boolean = true,
     val receiptPath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
 ) {

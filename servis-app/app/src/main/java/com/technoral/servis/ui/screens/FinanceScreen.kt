@@ -62,6 +62,7 @@ import com.technoral.servis.data.Expense
 import com.technoral.servis.data.ExpenseCategory
 import com.technoral.servis.data.Finance
 import com.technoral.servis.data.LedgerEntry
+import com.technoral.servis.data.LedgerKind
 import com.technoral.servis.data.LedgerType
 import com.technoral.servis.data.currentYearMonth
 import com.technoral.servis.ui.AppViewModel
@@ -522,6 +523,7 @@ fun LedgerRow(entry: LedgerEntry, customerName: String, onClick: () -> Unit) {
                 Text(
                     listOf(
                         entry.date.asDate(),
+                        entry.kind.takeIf { it != LedgerKind.DIGER }?.label,
                         entry.description.takeIf { it.isNotBlank() },
                         entry.documentNo.takeIf { it.isNotBlank() },
                     ).filterNotNull().joinToString(" • "),

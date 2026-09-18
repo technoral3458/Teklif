@@ -11,6 +11,7 @@ import com.technoral.servis.data.Customer
 import com.technoral.servis.data.Expense
 import com.technoral.servis.data.Finance
 import com.technoral.servis.data.LedgerEntry
+import com.technoral.servis.data.LedgerKind
 import com.technoral.servis.data.LedgerType
 import com.technoral.servis.data.MonthlySummary
 import com.technoral.servis.data.RateService
@@ -22,6 +23,7 @@ import com.technoral.servis.data.ServiceStatus
 import com.technoral.servis.mail.MailResult
 import com.technoral.servis.mail.MailSender
 import com.technoral.servis.mail.MailTemplates
+import com.technoral.servis.pdf.ExpensePdf
 import com.technoral.servis.pdf.FinancePdf
 import com.technoral.servis.pdf.ReportPdf
 import com.technoral.servis.util.compressInPlace
@@ -222,6 +224,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             customerId = report.customerId,
             reportId = report.id,
             type = LedgerType.BORC,
+            kind = LedgerKind.SERVIS,
             date = report.serviceDate,
             amount = amount,
             currency = currency,
@@ -233,10 +236,58 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
+    /** Rapora ait, müşteriye yansıtılacak masrafların TL toplamı. */
+    fun billableExpenseTotal(reportId: String): Double =
+        repo.expensesOfReport(reportId).filter { it.billable }.sumOf { it.tryAmount }
+
+    /** Servis bedeli + yansıtılan masraf: müşterinin bu servis için toplam borcu. */
+    fun customerTotalOfReport(reportId: String): Double =
+        (repo.chargeOfReport(reportId)?.tryAmount ?: 0.0) + billableExpenseTotal(reportId)
+
+    /**
+     * Yansıtılacak masrafları müşterinin carisine tek bir borç kalemi olarak işler.
+     * Masraf eklendikçe/silindikçe tutar yeniden hesaplanır; yansıtılacak masraf
+     * kalmazsa kalem silinir.
+     */
+    fun syncExpenseReflection(reportId: String) {
+        val report = repo.report(reportId) ?: _draft.value?.takeIf { it.id == reportId } ?: return
+        val existing = repo.expenseChargeOfReport(reportId)
+        val total = billableExpenseTotal(reportId)
+
+        if (total <= 0.005 || report.customerId.isBlank()) {
+            existing?.let { repo.deleteLedgerEntry(it.id) }
+            return
+        }
+
+        val count = repo.expensesOfReport(reportId).count { it.billable }
+        val entry = (existing ?: LedgerEntry(reportId = reportId, type = LedgerType.BORC)).copy(
+            customerId = report.customerId,
+            reportId = reportId,
+            type = LedgerType.BORC,
+            kind = LedgerKind.MASRAF,
+            date = report.serviceDate,
+            amount = total,
+            currency = Currency.TRY,
+            rate = 1.0,
+            description = "Yansıtılan masraflar ($count kalem) — ${report.reportNo}",
+            dueDate = repo.chargeOfReport(reportId)?.dueDate,
+        )
+        repo.saveLedgerEntry(entry)
+    }
+
     // -------------------------------------------------------------- masraf
 
-    fun saveExpense(expense: Expense) = repo.saveExpense(expense)
-    fun deleteExpense(id: String) = repo.deleteExpense(id)
+    fun saveExpense(expense: Expense) {
+        repo.saveExpense(expense)
+        expense.reportId?.let { syncExpenseReflection(it) }
+    }
+
+    fun deleteExpense(id: String) {
+        val reportId = expenses.value.firstOrNull { it.id == id }?.reportId
+        repo.deleteExpense(id)
+        reportId?.let { syncExpenseReflection(it) }
+    }
+
     fun expensesOfReport(reportId: String) = repo.expensesOfReport(reportId)
 
     /** Masraf fişi fotoğrafını uygulama klasörüne kopyalar. */
@@ -278,6 +329,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // cari kayıtları da geride kalmasın.
         if (current != null && repo.report(current.id) == null) {
             repo.chargeOfReport(current.id)?.let { repo.deleteLedgerEntry(it.id) }
+            repo.expenseChargeOfReport(current.id)?.let { repo.deleteLedgerEntry(it.id) }
             repo.expensesOfReport(current.id).forEach { repo.deleteExpense(it.id) }
         }
     }
@@ -312,6 +364,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         repo.report(id)?.let { saved ->
             setReportCharge(saved, amount, currency, rate, dueDate, "Servis bedeli ${saved.reportNo}")
         } ?: setReportCharge(current, amount, currency, rate, dueDate, "Servis bedeli ${current.reportNo}")
+        syncExpenseReflection(id)
         return id
     }
 
@@ -414,6 +467,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         onResult(result)
     }
 
+    /** Masraf dökümü: kalem listesi + tüm fiş fotoğrafları tek PDF'te. */
+    suspend fun buildExpensePdf(report: ServiceReport): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val safeNo = report.reportNo.ifBlank { "rapor" }.replace(Regex("[^A-Za-z0-9-_]"), "_")
+            val target = File(repo.documentsDir, "${safeNo}_masraf.pdf")
+            ExpensePdf.build(
+                target = target,
+                report = report,
+                customer = repo.customer(report.customerId),
+                machine = repo.machine(report.machineId),
+                expenses = repo.expensesOfReport(report.id).sortedBy { it.date },
+                charge = repo.chargeOfReport(report.id),
+                settings = settings.value,
+            )
+        }.getOrNull()
+    }
+
     // --------------------------------------------------------------- mail
 
     fun defaultRecipients(report: ServiceReport): String {
@@ -428,6 +498,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         cc: String,
         extraNote: String,
         includePhotos: Boolean,
+        includeExpenses: Boolean = false,
         onResult: (MailResult) -> Unit,
     ) = viewModelScope.launch {
         _busy.value = "Mail gönderiliyor…"
@@ -436,8 +507,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val machine = repo.machine(report.machineId)
         val pdf = buildPdf(report)
 
+        val expensePdf = if (includeExpenses) buildExpensePdf(report) else null
+
         val attachments = buildList {
             pdf?.let { add(it) }
+            expensePdf?.let { add(it) }
             if (includePhotos) {
                 report.photos.map { File(it.path) }.filter { it.exists() }.take(12).forEach { add(it) }
             }

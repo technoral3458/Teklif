@@ -298,7 +298,11 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
 
     if (newExpense) {
         ExpenseDialog(
-            initial = Expense(reportId = report.id, customerId = report.customerId.ifBlank { null }),
+            initial = Expense(
+                reportId = report.id,
+                customerId = report.customerId.ifBlank { null },
+                billable = settings.expensesBillableByDefault,
+            ),
             settings = settings,
             onPickReceipt = { done -> receiptPicker(done) },
             onSave = { vm.saveExpense(it); newExpense = false },
@@ -693,10 +697,18 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                         },
                     )
                     DateField("Vade tarihi", chargeDueDate, { chargeDueDate = it }, clearable = true)
-                    if (chargeAmountValue > 0 && chargeCurrency != Currency.TRY && chargeRateValue > 0) {
+                    val billableTotal = reportExpenses.filter { it.billable }.sumOf { it.tryAmount }
+                    val feeTry = chargeAmountValue * chargeRateValue
+                    if (feeTry > 0 || billableTotal > 0) {
                         Text(
-                            "Cariye işlenecek: ${money(chargeAmountValue * chargeRateValue)} " +
-                                "(${money(chargeAmountValue, chargeCurrency.symbol)})",
+                            buildString {
+                                append("Cariye işlenecek: ${money(feeTry + billableTotal)}")
+                                if (billableTotal > 0) {
+                                    append("  (servis ${money(feeTry)} + masraf ${money(billableTotal)})")
+                                } else if (chargeCurrency != Currency.TRY) {
+                                    append("  (${money(chargeAmountValue, chargeCurrency.symbol)})")
+                                }
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -714,8 +726,13 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
             item {
                 SectionCard(
                     title = "Servis Masrafları",
-                    subtitle = if (reportExpenses.isEmpty()) "Yakıt, otel, yemek, otoyol…"
-                    else "Toplam ${money(reportExpenses.sumOf { it.tryAmount })}",
+                    subtitle = if (reportExpenses.isEmpty())
+                        "Yakıt, otel, yemek, otoyol… — müşteriye yansıtılır"
+                    else {
+                        val billable = reportExpenses.filter { it.billable }.sumOf { it.tryAmount }
+                        "Toplam ${money(reportExpenses.sumOf { it.tryAmount })} • " +
+                            "yansıtılan ${money(billable)}"
+                    },
                     trailing = {
                         IconButton(onClick = { newExpense = true }) {
                             Icon(Icons.Default.AddCircleOutline, "Masraf ekle")
@@ -724,7 +741,8 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                 ) {
                     if (reportExpenses.isEmpty()) {
                         Text(
-                            "Bu servise ait harcamaları ekleyin; aylık raporda kategori kategori dökülür.",
+                            "Bu servise ait harcamaları ekleyin. \"Müşteriye yansıtılacak\" işaretli " +
+                                "kalemler servis bedeline eklenir ve müşterinin carisine borç yazılır.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

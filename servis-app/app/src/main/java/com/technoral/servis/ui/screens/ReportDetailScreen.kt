@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -118,6 +119,23 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Servis raporunu paylaş"))
+        }
+    }
+
+    fun shareExpensePdf() {
+        scope.launch {
+            val pdf = vm.buildExpensePdf(report)
+            if (pdf == null) {
+                vm.notify("Masraf dökümü oluşturulamadı.")
+                return@launch
+            }
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, shareUri(context, pdf))
+                putExtra(Intent.EXTRA_SUBJECT, "Masraf dökümü ${report.reportNo}")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Masraf dökümünü paylaş"))
         }
     }
 
@@ -342,9 +360,21 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
 
             if (charge != null || reportExpenses.isNotEmpty()) {
                 item {
+                    val billableTotal = reportExpenses.filter { it.billable }.sumOf { it.tryAmount }
+                    val expenseTotal = reportExpenses.sumOf { it.tryAmount }
+                    val serviceFee = charge?.tryAmount ?: 0.0
+                    val customerTotal = serviceFee + billableTotal
+
                     SectionCard(
-                        title = "Ücret ve Masraf",
-                        subtitle = charge?.let { "Cari hesaba işlendi" },
+                        title = "Ücretlendirme",
+                        subtitle = "Servis bedeli ve müşteriye yansıtılan masraflar",
+                        trailing = {
+                            if (reportExpenses.isNotEmpty()) {
+                                IconButton(onClick = { shareExpensePdf() }) {
+                                    Icon(Icons.Default.ReceiptLong, "Masraf dökümü")
+                                }
+                            }
+                        },
                     ) {
                         if (charge != null) {
                             InfoRow("Servis bedeli", money(charge.amount, charge.currency.symbol))
@@ -368,19 +398,51 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
                                 }
                             }
                         }
+
+                        if (billableTotal > 0) {
+                            InfoRow("Yansıtılan masraf", money(billableTotal))
+                        }
+
+                        if (customerTotal > 0) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 14.dp, vertical = 12.dp).fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        "Müşteriye toplam",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text(
+                                        money(customerTotal),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
+
                         if (reportExpenses.isNotEmpty()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                             reportExpenses.forEach { expense ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(expense.category.label, style = MaterialTheme.typography.bodyMedium)
-                                        if (expense.description.isNotBlank()) {
-                                            Text(
-                                                expense.description,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
+                                        Text(
+                                            listOfNotNull(
+                                                expense.description.takeIf { it.isNotBlank() },
+                                                if (expense.billable) "yansıtıldı" else "yansıtılmadı",
+                                                if (expense.receiptPath != null) "fiş ekli" else null,
+                                            ).joinToString(" • "),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                     Text(
                                         money(expense.amount, expense.currency.symbol),
@@ -389,12 +451,17 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
                                     )
                                 }
                             }
-                            InfoRow("Masraf toplamı", money(reportExpenses.sumOf { it.tryAmount }))
-                            if (charge != null) {
-                                InfoRow(
-                                    "Servis kârı",
-                                    money(charge.tryAmount - reportExpenses.sumOf { it.tryAmount }),
-                                )
+                            InfoRow("Masraf toplamı", money(expenseTotal))
+                            InfoRow("Servis kârı", money(customerTotal - expenseTotal))
+
+                            OutlinedButton(
+                                onClick = { shareExpensePdf() },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Icon(Icons.Default.ReceiptLong, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Masraf Dökümü ve Fişler (PDF)")
                             }
                         }
                     }
@@ -473,6 +540,8 @@ private fun MailDialog(vm: AppViewModel, report: ServiceReport, onDismiss: () ->
     var cc by remember { mutableStateOf(settings.mail.defaultCc) }
     var note by remember { mutableStateOf("") }
     var includePhotos by remember { mutableStateOf(settings.mail.attachPhotos) }
+    val expenseCount = vm.expensesOfReport(report.id).size
+    var includeExpenses by remember { mutableStateOf(expenseCount > 0) }
     var result by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -508,6 +577,25 @@ private fun MailDialog(vm: AppViewModel, report: ServiceReport, onDismiss: () ->
                     Checkbox(checked = includePhotos, onCheckedChange = { includePhotos = it })
                     Text("Fotoğrafları da ekle (${report.photos.size})", style = MaterialTheme.typography.bodyMedium)
                 }
+                if (expenseCount > 0) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { includeExpenses = !includeExpenses },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = includeExpenses, onCheckedChange = { includeExpenses = it })
+                        Column {
+                            Text(
+                                "Masraf dökümünü ekle ($expenseCount kalem)",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                "Fiş fotoğrafları da aynı PDF'e konur",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
                 result?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
@@ -517,7 +605,14 @@ private fun MailDialog(vm: AppViewModel, report: ServiceReport, onDismiss: () ->
             TextButton(
                 enabled = to.isNotBlank() && settings.mail.isConfigured,
                 onClick = {
-                    vm.sendReportMail(report, to.trim(), cc.trim(), note.trim(), includePhotos) { r ->
+                    vm.sendReportMail(
+                        report = report,
+                        to = to.trim(),
+                        cc = cc.trim(),
+                        extraNote = note.trim(),
+                        includePhotos = includePhotos,
+                        includeExpenses = includeExpenses,
+                    ) { r ->
                         if (r.success) {
                             vm.notify(r.message)
                             onDismiss()

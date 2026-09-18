@@ -241,7 +241,15 @@ class Repository private constructor(private val appContext: Context) {
 
     /** Servis raporunun ücreti: rapora bağlı tek bir borç hareketi olarak tutulur. */
     fun chargeOfReport(reportId: String): LedgerEntry? =
-        _ledger.value.firstOrNull { it.reportId == reportId && it.type == LedgerType.BORC }
+        _ledger.value.firstOrNull {
+            it.reportId == reportId && it.type == LedgerType.BORC && it.kind == LedgerKind.SERVIS
+        }
+
+    /** Rapora ait masrafların müşteriye yansıtıldığı borç kalemi. */
+    fun expenseChargeOfReport(reportId: String): LedgerEntry? =
+        _ledger.value.firstOrNull {
+            it.reportId == reportId && it.type == LedgerType.BORC && it.kind == LedgerKind.MASRAF
+        }
 
     // ------------------------------------------------------------ Masraf
 

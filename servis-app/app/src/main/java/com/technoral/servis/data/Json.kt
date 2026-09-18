@@ -232,6 +232,7 @@ fun AppSettings.toJson(): JSONObject = JSONObject().apply {
     put("rateSource", rateSource)
     put("rateDateLabel", rateDateLabel)
     put("showChargeOnPdf", showChargeOnPdf)
+    put("expensesBillableByDefault", expensesBillableByDefault)
     put("overdueGraceDays", overdueGraceDays)
 }
 
@@ -273,6 +274,7 @@ fun appSettingsFromJson(o: JSONObject): AppSettings {
         rateSource = o.str("rateSource"),
         rateDateLabel = o.str("rateDateLabel"),
         showChargeOnPdf = o.optBoolean("showChargeOnPdf", false),
+        expensesBillableByDefault = o.optBoolean("expensesBillableByDefault", true),
         overdueGraceDays = o.optInt("overdueGraceDays", 0),
     )
 }
@@ -284,6 +286,7 @@ fun LedgerEntry.toJson(): JSONObject = JSONObject().apply {
     put("customerId", customerId)
     put("reportId", reportId ?: JSONObject.NULL)
     put("type", type.name)
+    put("kind", kind.name)
     put("date", date)
     put("amount", amount)
     put("currency", currency.code)
@@ -297,11 +300,31 @@ fun LedgerEntry.toJson(): JSONObject = JSONObject().apply {
     put("updatedAt", updatedAt)
 }
 
-fun ledgerEntryFromJson(o: JSONObject) = LedgerEntry(
+fun ledgerEntryFromJson(o: JSONObject): LedgerEntry {
+    val reportId = o.optStringOrNull("reportId")
+    val type = o.enum("type", LedgerType.BORC)
+    // Eski kayıtlarda "kind" yoktu: rapora bağlı borçlar servis bedelidir.
+    val kind = if (o.has("kind") && !o.isNull("kind")) {
+        o.enum("kind", LedgerKind.DIGER)
+    } else if (reportId != null && type == LedgerType.BORC) {
+        LedgerKind.SERVIS
+    } else {
+        LedgerKind.DIGER
+    }
+    return ledgerEntry(o, reportId, type, kind)
+}
+
+private fun ledgerEntry(
+    o: JSONObject,
+    reportId: String?,
+    type: LedgerType,
+    kind: LedgerKind,
+) = LedgerEntry(
     id = o.str("id", newId()),
     customerId = o.str("customerId"),
-    reportId = o.optStringOrNull("reportId"),
-    type = o.enum("type", LedgerType.BORC),
+    reportId = reportId,
+    type = type,
+    kind = kind,
     date = o.optLongOrNull("date") ?: System.currentTimeMillis(),
     amount = o.optDouble("amount", 0.0),
     currency = Currency.of(o.optStringOrNull("currency")),
@@ -342,7 +365,7 @@ fun expenseFromJson(o: JSONObject) = Expense(
     rate = o.optDouble("rate", 1.0).takeIf { it > 0 } ?: 1.0,
     description = o.str("description"),
     quantity = o.optDouble("quantity", 0.0),
-    billable = o.optBoolean("billable", false),
+    billable = o.optBoolean("billable", true),
     receiptPath = o.optStringOrNull("receiptPath"),
     createdAt = o.optLongOrNull("createdAt") ?: System.currentTimeMillis(),
 )

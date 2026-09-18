@@ -217,6 +217,34 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
                     )
                     Row(
                         Modifier.fillMaxWidth().clickable {
+                            vm.saveSettings(
+                                settings.copy(
+                                    expensesBillableByDefault = !settings.expensesBillableByDefault
+                                )
+                            )
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = settings.expensesBillableByDefault,
+                            onCheckedChange = {
+                                vm.saveSettings(settings.copy(expensesBillableByDefault = it))
+                            },
+                        )
+                        Column {
+                            Text(
+                                "Masraflar müşteriye yansıtılsın",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                "Yeni masraflar varsayılan olarak servis bedeline eklenir",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
                             vm.saveSettings(settings.copy(showChargeOnPdf = !settings.showChargeOnPdf))
                         },
                         verticalAlignment = Alignment.CenterVertically,
