@@ -1,0 +1,58 @@
+name: Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "claude/**"
+    paths:
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Debug APK derle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK kur
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle hazırla
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Birim testleri
+        working-directory: android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+      - name: APK'yı yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: parametrik-kesim-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Test raporlarını yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-raporlari
+          path: android/app/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 7
