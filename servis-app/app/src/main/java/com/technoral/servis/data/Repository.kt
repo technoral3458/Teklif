@@ -32,11 +32,14 @@ class Repository private constructor(private val appContext: Context) {
     private val machinesFile get() = File(dir, "makineler.json")
     private val reportsFile get() = File(dir, "raporlar.json")
     private val settingsFile get() = File(dir, "ayarlar.json")
+    private val ledgerFile get() = File(dir, "cari.json")
+    private val expensesFile get() = File(dir, "masraflar.json")
 
     val photosDir: File get() = File(dir, "fotograflar").apply { mkdirs() }
     val signaturesDir: File get() = File(dir, "imzalar").apply { mkdirs() }
     val documentsDir: File get() = File(dir, "belgeler").apply { mkdirs() }
     val backupDir: File get() = File(dir, "yedek").apply { mkdirs() }
+    val receiptsDir: File get() = File(dir, "fisler").apply { mkdirs() }
 
     private val _customers = MutableStateFlow<List<Customer>>(emptyList())
     val customers: StateFlow<List<Customer>> = _customers.asStateFlow()
@@ -46,6 +49,12 @@ class Repository private constructor(private val appContext: Context) {
 
     private val _reports = MutableStateFlow<List<ServiceReport>>(emptyList())
     val reports: StateFlow<List<ServiceReport>> = _reports.asStateFlow()
+
+    private val _ledger = MutableStateFlow<List<LedgerEntry>>(emptyList())
+    val ledger: StateFlow<List<LedgerEntry>> = _ledger.asStateFlow()
+
+    private val _expenses = MutableStateFlow<List<Expense>>(emptyList())
+    val expenses: StateFlow<List<Expense>> = _expenses.asStateFlow()
 
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
@@ -65,6 +74,10 @@ class Repository private constructor(private val appContext: Context) {
         _customers.value = readArray(customersFile)?.mapObjects { customerFromJson(it) } ?: emptyList()
         _machines.value = readArray(machinesFile)?.mapObjects { machineFromJson(it) } ?: emptyList()
         _reports.value = readArray(reportsFile)?.mapObjects { serviceReportFromJson(it) } ?: emptyList()
+        _ledger.value = (readArray(ledgerFile)?.mapObjects { ledgerEntryFromJson(it) } ?: emptyList())
+            .sortedByDescending { it.date }
+        _expenses.value = (readArray(expensesFile)?.mapObjects { expenseFromJson(it) } ?: emptyList())
+            .sortedByDescending { it.date }
         _settings.value = runCatching {
             if (settingsFile.exists()) appSettingsFromJson(JSONObject(settingsFile.readText())) else AppSettings()
         }.getOrDefault(AppSettings())
@@ -97,6 +110,14 @@ class Repository private constructor(private val appContext: Context) {
 
     private fun persistReports() = scope.launch {
         writeAtomic(reportsFile, _reports.value.toJsonArray { it.toJson() }.toString())
+    }
+
+    private fun persistLedger() = scope.launch {
+        writeAtomic(ledgerFile, _ledger.value.toJsonArray { it.toJson() }.toString())
+    }
+
+    private fun persistExpenses() = scope.launch {
+        writeAtomic(expensesFile, _expenses.value.toJsonArray { it.toJson() }.toString())
     }
 
     private fun persistSettings() = scope.launch {
@@ -161,6 +182,17 @@ class Repository private constructor(private val appContext: Context) {
         report?.signaturePath?.let { runCatching { File(it).delete() } }
         _reports.value = _reports.value.filterNot { it.id == id }
         persistReports()
+
+        if (_ledger.value.any { it.reportId == id }) {
+            _ledger.value = _ledger.value.filterNot { it.reportId == id }
+            persistLedger()
+        }
+        val reportExpenses = _expenses.value.filter { it.reportId == id }
+        if (reportExpenses.isNotEmpty()) {
+            reportExpenses.forEach { e -> e.receiptPath?.let { runCatching { File(it).delete() } } }
+            _expenses.value = _expenses.value.filterNot { it.reportId == id }
+            persistExpenses()
+        }
     }
 
     fun report(id: String?): ServiceReport? = _reports.value.firstOrNull { it.id == id }
@@ -183,6 +215,53 @@ class Repository private constructor(private val appContext: Context) {
         return head + String.format(Locale.US, "%04d", last + 1)
     }
 
+    // -------------------------------------------------------------- Cari
+
+    fun saveLedgerEntry(entry: LedgerEntry) {
+        val stamped = entry.copy(updatedAt = System.currentTimeMillis())
+        val list = _ledger.value.toMutableList()
+        val idx = list.indexOfFirst { it.id == stamped.id }
+        if (idx >= 0) list[idx] = stamped else list.add(stamped)
+        _ledger.value = list.sortedByDescending { it.date }
+        persistLedger()
+    }
+
+    fun deleteLedgerEntry(id: String) {
+        _ledger.value = _ledger.value.filterNot { it.id == id }
+        persistLedger()
+    }
+
+    fun ledgerEntry(id: String?): LedgerEntry? = _ledger.value.firstOrNull { it.id == id }
+
+    fun ledgerOfCustomer(customerId: String): List<LedgerEntry> =
+        _ledger.value.filter { it.customerId == customerId }.sortedByDescending { it.date }
+
+    fun ledgerOfReport(reportId: String): List<LedgerEntry> =
+        _ledger.value.filter { it.reportId == reportId }
+
+    /** Servis raporunun ücreti: rapora bağlı tek bir borç hareketi olarak tutulur. */
+    fun chargeOfReport(reportId: String): LedgerEntry? =
+        _ledger.value.firstOrNull { it.reportId == reportId && it.type == LedgerType.BORC }
+
+    // ------------------------------------------------------------ Masraf
+
+    fun saveExpense(expense: Expense) {
+        val list = _expenses.value.toMutableList()
+        val idx = list.indexOfFirst { it.id == expense.id }
+        if (idx >= 0) list[idx] = expense else list.add(expense)
+        _expenses.value = list.sortedByDescending { it.date }
+        persistExpenses()
+    }
+
+    fun deleteExpense(id: String) {
+        _expenses.value.firstOrNull { it.id == id }?.receiptPath?.let { runCatching { File(it).delete() } }
+        _expenses.value = _expenses.value.filterNot { it.id == id }
+        persistExpenses()
+    }
+
+    fun expensesOfReport(reportId: String): List<Expense> =
+        _expenses.value.filter { it.reportId == reportId }
+
     // ------------------------------------------------------------ Ayarlar
 
     fun saveSettings(settings: AppSettings) {
@@ -201,6 +280,8 @@ class Repository private constructor(private val appContext: Context) {
         root.put("musteriler", _customers.value.toJsonArray { it.toJson() })
         root.put("makineler", _machines.value.toJsonArray { it.toJson() })
         root.put("raporlar", _reports.value.toJsonArray { it.toJson() })
+        root.put("cari", _ledger.value.toJsonArray { it.toJson() })
+        root.put("masraflar", _expenses.value.toJsonArray { it.toJson() })
         val s = if (includeSecrets) _settings.value else _settings.value.copy(
             mail = _settings.value.mail.copy(password = "")
         )
@@ -230,6 +311,18 @@ class Repository private constructor(private val appContext: Context) {
             imported.forEach { map[it.id] = it; r++ }
             _reports.value = map.values.sortedByDescending { it.serviceDate }
             persistReports()
+        }
+        root.optJSONArray("cari")?.mapObjects { ledgerEntryFromJson(it) }?.let { imported ->
+            val map = _ledger.value.associateBy { it.id }.toMutableMap()
+            imported.forEach { map[it.id] = it }
+            _ledger.value = map.values.sortedByDescending { it.date }
+            persistLedger()
+        }
+        root.optJSONArray("masraflar")?.mapObjects { expenseFromJson(it) }?.let { imported ->
+            val map = _expenses.value.associateBy { it.id }.toMutableMap()
+            imported.forEach { map[it.id] = it }
+            _expenses.value = map.values.sortedByDescending { it.date }
+            persistExpenses()
         }
         return Triple(c, m, r)
     }

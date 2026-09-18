@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.PrecisionManufacturing
 import androidx.compose.material.icons.filled.Settings
@@ -33,7 +33,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import com.technoral.servis.ui.screens.CustomerAccountScreen
 import com.technoral.servis.ui.screens.CustomerDetailScreen
+import com.technoral.servis.ui.screens.FinanceScreen
+import com.technoral.servis.ui.screens.MonthlyReportScreen
 import com.technoral.servis.ui.screens.CustomersScreen
 import com.technoral.servis.ui.screens.DashboardScreen
 import com.technoral.servis.ui.screens.MachineDetailScreen
@@ -46,13 +49,20 @@ import com.technoral.servis.ui.screens.ReportsScreen
 import com.technoral.servis.ui.screens.SettingsScreen
 import com.technoral.servis.ui.screens.SetupScreen
 
-private data class NavItem(val screen: Screen, val label: String, val icon: ImageVector)
+private data class NavItem(
+    val screen: Screen,
+    val label: String,
+    val icon: ImageVector,
+    val matches: (Screen) -> Boolean = { it == screen },
+)
 
 private val navItems = listOf(
     NavItem(Screen.Dashboard, "Özet", Icons.Default.Dashboard),
     NavItem(Screen.Reports, "Raporlar", Icons.AutoMirrored.Filled.Assignment),
-    NavItem(Screen.Machines, "Makineler", Icons.Default.PrecisionManufacturing),
-    NavItem(Screen.Customers, "Müşteriler", Icons.Default.Business),
+    NavItem(Screen.Finance, "Cari", Icons.Default.AccountBalanceWallet),
+    NavItem(Screen.Machines, "Kayıtlar", Icons.Default.PrecisionManufacturing) {
+        it == Screen.Machines || it == Screen.Customers
+    },
     NavItem(Screen.Settings, "Ayarlar", Icons.Default.Settings),
 )
 
@@ -102,7 +112,7 @@ fun AppRoot(vm: AppViewModel) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     navItems.forEach { item ->
                         NavigationBarItem(
-                            selected = nav.current == item.screen,
+                            selected = item.matches(nav.current),
                             onClick = { nav.switchRoot(item.screen) },
                             icon = { Icon(item.icon, item.label) },
                             label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
@@ -121,6 +131,9 @@ fun AppRoot(vm: AppViewModel) {
                 Screen.Machines -> MachinesScreen(vm, nav)
                 Screen.Customers -> CustomersScreen(vm, nav)
                 Screen.Settings -> SettingsScreen(vm, nav)
+                Screen.Finance -> FinanceScreen(vm, nav)
+                Screen.MonthlyReport -> MonthlyReportScreen(vm, nav)
+                is Screen.CustomerAccount -> CustomerAccountScreen(vm, nav, screen.customerId)
                 Screen.ReportEdit -> ReportEditScreen(vm, nav)
                 is Screen.ReportDetail -> ReportDetailScreen(vm, nav, screen.reportId)
                 is Screen.MachineDetail -> MachineDetailScreen(vm, nav, screen.machineId)

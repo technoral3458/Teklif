@@ -76,3 +76,16 @@ fun minuteOf(millis: Long): Int {
     val c = Calendar.getInstance(); c.timeInMillis = millis
     return c.get(Calendar.MINUTE)
 }
+
+/** 12.345,67 ₺ biçiminde para gösterimi. */
+fun money(amount: Double, symbol: String = "₺", decimals: Int = 2): String {
+    val text = String.format(TR, "%,.${decimals}f", amount)
+    return "$text $symbol"
+}
+
+/** Büyük tutarları özet kartlarında kısaltır: 1,2 mn ₺ */
+fun moneyShort(amount: Double, symbol: String = "₺"): String = when {
+    kotlin.math.abs(amount) >= 1_000_000 -> String.format(TR, "%.1f mn %s", amount / 1_000_000, symbol)
+    kotlin.math.abs(amount) >= 10_000 -> String.format(TR, "%.0f bin %s", amount / 1_000, symbol)
+    else -> money(amount, symbol, 0)
+}

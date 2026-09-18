@@ -226,6 +226,11 @@ fun AppSettings.toJson(): JSONObject = JSONObject().apply {
     put("reportPrefix", reportPrefix)
     put("serverUrl", serverUrl)
     put("setupDone", setupDone)
+    put("usdRate", usdRate)
+    put("eurRate", eurRate)
+    put("ratesUpdatedAt", ratesUpdatedAt ?: JSONObject.NULL)
+    put("showChargeOnPdf", showChargeOnPdf)
+    put("overdueGraceDays", overdueGraceDays)
 }
 
 fun appSettingsFromJson(o: JSONObject): AppSettings {
@@ -260,5 +265,80 @@ fun appSettingsFromJson(o: JSONObject): AppSettings {
         reportPrefix = o.str("reportPrefix", "SRV"),
         serverUrl = o.str("serverUrl"),
         setupDone = o.optBoolean("setupDone", false),
+        usdRate = o.optDouble("usdRate", 0.0),
+        eurRate = o.optDouble("eurRate", 0.0),
+        ratesUpdatedAt = o.optLongOrNull("ratesUpdatedAt"),
+        showChargeOnPdf = o.optBoolean("showChargeOnPdf", false),
+        overdueGraceDays = o.optInt("overdueGraceDays", 0),
     )
 }
+
+// ------------------------------------------------------------ Cari / Masraf
+
+fun LedgerEntry.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("customerId", customerId)
+    put("reportId", reportId ?: JSONObject.NULL)
+    put("type", type.name)
+    put("date", date)
+    put("amount", amount)
+    put("currency", currency.code)
+    put("rate", rate)
+    put("description", description)
+    put("documentNo", documentNo)
+    put("dueDate", dueDate ?: JSONObject.NULL)
+    put("promisedDate", promisedDate ?: JSONObject.NULL)
+    put("paymentMethod", paymentMethod.name)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+}
+
+fun ledgerEntryFromJson(o: JSONObject) = LedgerEntry(
+    id = o.str("id", newId()),
+    customerId = o.str("customerId"),
+    reportId = o.optStringOrNull("reportId"),
+    type = o.enum("type", LedgerType.BORC),
+    date = o.optLongOrNull("date") ?: System.currentTimeMillis(),
+    amount = o.optDouble("amount", 0.0),
+    currency = Currency.of(o.optStringOrNull("currency")),
+    rate = o.optDouble("rate", 1.0).takeIf { it > 0 } ?: 1.0,
+    description = o.str("description"),
+    documentNo = o.str("documentNo"),
+    dueDate = o.optLongOrNull("dueDate"),
+    promisedDate = o.optLongOrNull("promisedDate"),
+    paymentMethod = o.enum("paymentMethod", PaymentMethod.NAKIT),
+    createdAt = o.optLongOrNull("createdAt") ?: System.currentTimeMillis(),
+    updatedAt = o.optLongOrNull("updatedAt") ?: System.currentTimeMillis(),
+)
+
+fun Expense.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("reportId", reportId ?: JSONObject.NULL)
+    put("customerId", customerId ?: JSONObject.NULL)
+    put("category", category.name)
+    put("date", date)
+    put("amount", amount)
+    put("currency", currency.code)
+    put("rate", rate)
+    put("description", description)
+    put("quantity", quantity)
+    put("billable", billable)
+    put("receiptPath", receiptPath ?: JSONObject.NULL)
+    put("createdAt", createdAt)
+}
+
+fun expenseFromJson(o: JSONObject) = Expense(
+    id = o.str("id", newId()),
+    reportId = o.optStringOrNull("reportId"),
+    customerId = o.optStringOrNull("customerId"),
+    category = o.enum("category", ExpenseCategory.DIGER),
+    date = o.optLongOrNull("date") ?: System.currentTimeMillis(),
+    amount = o.optDouble("amount", 0.0),
+    currency = Currency.of(o.optStringOrNull("currency")),
+    rate = o.optDouble("rate", 1.0).takeIf { it > 0 } ?: 1.0,
+    description = o.str("description"),
+    quantity = o.optDouble("quantity", 0.0),
+    billable = o.optBoolean("billable", false),
+    receiptPath = o.optStringOrNull("receiptPath"),
+    createdAt = o.optLongOrNull("createdAt") ?: System.currentTimeMillis(),
+)

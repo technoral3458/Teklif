@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,8 @@ import com.technoral.servis.ui.components.AppTextField
 import com.technoral.servis.ui.components.AppTopBar
 import com.technoral.servis.ui.components.ChoiceChipRow
 import com.technoral.servis.ui.components.SectionCard
+import com.technoral.servis.util.asDate
+import com.technoral.servis.util.asNumber
 import com.technoral.servis.util.shareUri
 import kotlinx.coroutines.launch
 
@@ -129,6 +132,60 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
                         },
                         onSelect = { vm.saveSettings(settings.copy(darkTheme = it)) },
                     )
+                }
+            }
+
+            item {
+                SectionCard(
+                    title = "Kur ve Cari",
+                    subtitle = "Yeni kayıtlarda önerilen kurlar — her hareket kendi kurunu saklar",
+                ) {
+                    AppTextField(
+                        if (settings.usdRate == 0.0) "" else settings.usdRate.asNumber(),
+                        { value ->
+                            vm.saveSettings(
+                                settings.copy(
+                                    usdRate = value.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                                    ratesUpdatedAt = System.currentTimeMillis(),
+                                )
+                            )
+                        },
+                        "1 USD kaç ₺",
+                        keyboardType = KeyboardType.Decimal,
+                    )
+                    AppTextField(
+                        if (settings.eurRate == 0.0) "" else settings.eurRate.asNumber(),
+                        { value ->
+                            vm.saveSettings(
+                                settings.copy(
+                                    eurRate = value.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                                    ratesUpdatedAt = System.currentTimeMillis(),
+                                )
+                            )
+                        },
+                        "1 EUR kaç ₺",
+                        keyboardType = KeyboardType.Decimal,
+                        supportingText = settings.ratesUpdatedAt?.let { "Son güncelleme: ${it.asDate()}" },
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            vm.saveSettings(settings.copy(showChargeOnPdf = !settings.showChargeOnPdf))
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = settings.showChargeOnPdf,
+                            onCheckedChange = { vm.saveSettings(settings.copy(showChargeOnPdf = it)) },
+                        )
+                        Column {
+                            Text("Servis bedeli PDF raporda görünsün", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Müşteriye giden rapora ücret satırı eklenir",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
 

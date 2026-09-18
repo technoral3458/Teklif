@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.technoral.servis.data.LedgerType
 import com.technoral.servis.data.ServiceReport
 import com.technoral.servis.ui.AppViewModel
 import com.technoral.servis.ui.Navigator
@@ -68,6 +69,7 @@ import com.technoral.servis.ui.components.StatusBadge
 import com.technoral.servis.ui.components.statusPalette
 import com.technoral.servis.util.asDate
 import com.technoral.servis.util.asNumber
+import com.technoral.servis.util.money
 import com.technoral.servis.util.asTime
 import com.technoral.servis.util.minutesAsDuration
 import com.technoral.servis.util.shareUri
@@ -92,6 +94,10 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
         return
     }
 
+    val ledger by vm.ledger.collectAsState()
+    val allExpenses by vm.expenses.collectAsState()
+    val charge = ledger.firstOrNull { it.reportId == report.id && it.type == LedgerType.BORC }
+    val reportExpenses = allExpenses.filter { it.reportId == report.id }
     val customer = vm.customer(report.customerId)
     val machine = vm.machine(report.machineId)
     val (statusColor, statusBg) = statusPalette(report.status)
@@ -327,6 +333,52 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (charge != null || reportExpenses.isNotEmpty()) {
+                item {
+                    SectionCard(
+                        title = "Ücret ve Masraf",
+                        subtitle = charge?.let { "Cari hesaba işlendi" },
+                    ) {
+                        if (charge != null) {
+                            InfoRow("Servis bedeli", money(charge.amount, charge.currency.symbol))
+                            if (charge.currency.code != "TRY") {
+                                InfoRow("TL karşılığı", money(charge.tryAmount))
+                            }
+                            charge.dueDate?.let { InfoRow("Vade", it.asDate()) }
+                        }
+                        if (reportExpenses.isNotEmpty()) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            reportExpenses.forEach { expense ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(expense.category.label, style = MaterialTheme.typography.bodyMedium)
+                                        if (expense.description.isNotBlank()) {
+                                            Text(
+                                                expense.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        money(expense.amount, expense.currency.symbol),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                            InfoRow("Masraf toplamı", money(reportExpenses.sumOf { it.tryAmount }))
+                            if (charge != null) {
+                                InfoRow(
+                                    "Servis kârı",
+                                    money(charge.tryAmount - reportExpenses.sumOf { it.tryAmount }),
+                                )
                             }
                         }
                     }

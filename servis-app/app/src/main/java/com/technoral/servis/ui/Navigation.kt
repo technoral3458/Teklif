@@ -10,19 +10,24 @@ sealed interface Screen {
     data object Machines : Screen
     data object Customers : Screen
     data object Settings : Screen
+    data object Finance : Screen
 
     data class ReportDetail(val reportId: String) : Screen
     data object ReportEdit : Screen
     data class MachineDetail(val machineId: String) : Screen
     data class CustomerDetail(val customerId: String) : Screen
+    data class CustomerAccount(val customerId: String) : Screen
+    data object MonthlyReport : Screen
     data object MailSettings : Screen
     data object CompanySettings : Screen
     data object Setup : Screen
 }
 
+/** Alt menünün göründüğü ekranlar. Makineler ve Müşteriler tek sekme altında. */
 val rootScreens = listOf(
     Screen.Dashboard,
     Screen.Reports,
+    Screen.Finance,
     Screen.Machines,
     Screen.Customers,
     Screen.Settings,

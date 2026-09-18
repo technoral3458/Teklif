@@ -42,6 +42,7 @@ object ReportPdf {
         customer: Customer?,
         machine: Machine?,
         settings: AppSettings,
+        chargeText: String? = null,
     ): File {
         val b = PdfBuilder()
         val company = settings.company
@@ -70,7 +71,7 @@ object ReportPdf {
         drawHeader(b, report, company)
         drawSummaryStrip(b, report, machine)
         drawParties(b, customer, machine)
-        drawServiceInfo(b, report, settings)
+        drawServiceInfo(b, report, settings, chargeText)
         drawDepartments(b, report)
         drawNarrative(b, report)
         drawParts(b, report)
@@ -198,7 +199,12 @@ object ReportPdf {
 
     // ----------------------------------------------------------- servis bilgisi
 
-    private fun drawServiceInfo(b: PdfBuilder, report: ServiceReport, settings: AppSettings) {
+    private fun drawServiceInfo(
+        b: PdfBuilder,
+        report: ServiceReport,
+        settings: AppSettings,
+        chargeText: String?,
+    ) {
         sectionTitle(b, "SERVİS BİLGİLERİ")
         val items = listOf(
             "Servis Tarihi" to report.serviceDate.asDate(),
@@ -209,7 +215,7 @@ object ReportPdf {
             "Teknisyen" to report.technician.ifBlank { settings.technicianName.ifBlank { "-" } },
             "Sonraki Bakım" to report.nextMaintenance.asDate(),
             "Durum" to report.status.label,
-        )
+        ) + listOfNotNull(chargeText?.let { "Servis Bedeli" to it })
         val cols = 4
         val cellW = b.contentWidth / cols
         val rows = (items.size + cols - 1) / cols

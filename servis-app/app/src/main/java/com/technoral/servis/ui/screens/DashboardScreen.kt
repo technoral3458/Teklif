@@ -1,5 +1,6 @@
 package com.technoral.servis.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
@@ -20,9 +21,11 @@ import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.PrecisionManufacturing
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -35,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,7 +46,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.technoral.servis.data.Finance
 import com.technoral.servis.data.PartStatus
+import com.technoral.servis.data.currentYearMonth
 import com.technoral.servis.data.ServiceStatus
 import com.technoral.servis.ui.AppViewModel
 import com.technoral.servis.ui.Navigator
@@ -54,12 +60,17 @@ import com.technoral.servis.ui.components.SectionCard
 import com.technoral.servis.ui.theme.StatusColors
 import com.technoral.servis.util.asDate
 import com.technoral.servis.util.daysBetween
+import com.technoral.servis.util.money
+import com.technoral.servis.util.moneyShort
 import com.technoral.servis.util.startOfMonth
 
 @Composable
 fun DashboardScreen(vm: AppViewModel, nav: Navigator) {
     val reports by vm.reports.collectAsState()
     val machines by vm.machines.collectAsState()
+    val customers by vm.customers.collectAsState()
+    val ledger by vm.ledger.collectAsState()
+    val expenses by vm.expenses.collectAsState()
     val settings by vm.settings.collectAsState()
 
     val now = System.currentTimeMillis()
@@ -71,6 +82,12 @@ fun DashboardScreen(vm: AppViewModel, nav: Navigator) {
         r.status == ServiceStatus.PARCA_BEKLIYOR || r.parts.any { it.status != PartStatus.TAKILDI }
     }
     val followUps = reports.filter { it.needsFollowUp }.take(4)
+
+    val (finYear, finMonth) = currentYearMonth()
+    val finance = remember(ledger, expenses, reports) { vm.monthlySummary(finYear, finMonth) }
+    val accounts = remember(customers, ledger) { Finance.accounts(customers, ledger) }
+    val overdue = remember(customers, ledger) { Finance.overdueDebts(customers, ledger) }
+    val receivable = accounts.sumOf { it.balanceTry.coerceAtLeast(0.0) }
 
     val upcoming = reports
         .mapNotNull { r -> r.nextMaintenance?.let { date -> r to date } }
@@ -141,6 +158,65 @@ fun DashboardScreen(vm: AppViewModel, nav: Navigator) {
                         Icons.Default.PrecisionManufacturing,
                         StatusColors.info,
                     )
+                }
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(
+                        Modifier.weight(1f),
+                        "Alacak",
+                        moneyShort(receivable),
+                        "tahsil edilecek",
+                        Icons.Default.AccountBalanceWallet,
+                        StatusColors.warning,
+                    )
+                    StatCard(
+                        Modifier.weight(1f),
+                        "Bu ay net",
+                        moneyShort(finance.netTry),
+                        "hakediş - masraf",
+                        Icons.AutoMirrored.Filled.Assignment,
+                        if (finance.netTry >= 0) StatusColors.success else StatusColors.danger,
+                    )
+                }
+            }
+
+            if (overdue.isNotEmpty()) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = StatusColors.dangerBg,
+                            contentColor = StatusColors.danger,
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().clickable { nav.switchRoot(Screen.Finance) }.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Ödemesi geciken ${overdue.size} alacak",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            Text(
+                                "Toplam ${money(overdue.sumOf { it.second.openTry })} • " +
+                                    "en uzun gecikme ${overdue.first().second.daysLate} gün",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                "Ayrıntı için dokunun",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
                 }
             }
 

@@ -198,4 +198,107 @@ data class AppSettings(
     val reportPrefix: String = "SRV",
     val serverUrl: String = "",
     val setupDone: Boolean = false,
-)
+    /** Yeni kayıtlarda önerilen kurlar; her hareket kendi kurunu saklar. */
+    val usdRate: Double = 0.0,
+    val eurRate: Double = 0.0,
+    val ratesUpdatedAt: Long? = null,
+    /** Servis bedeli PDF raporda gösterilsin mi (müşteriye giden kopya). */
+    val showChargeOnPdf: Boolean = false,
+    /** Vadesi geçen alacaklar için kaç gün sonra uyarılsın. */
+    val overdueGraceDays: Int = 0,
+) {
+    fun rateFor(currency: Currency): Double = when (currency) {
+        Currency.TRY -> 1.0
+        Currency.USD -> usdRate
+        Currency.EUR -> eurRate
+    }
+}
+
+// ---------------------------------------------------------------- Cari / Finans
+
+enum class Currency(val code: String, val symbol: String, val label: String) {
+    TRY("TRY", "₺", "Türk Lirası"),
+    USD("USD", "$", "Dolar"),
+    EUR("EUR", "€", "Euro");
+
+    companion object {
+        fun of(code: String?): Currency =
+            entries.firstOrNull { it.code.equals(code, ignoreCase = true) } ?: TRY
+    }
+}
+
+/** Cari hareket tipi. Borç = bizim alacağımız, Tahsilat = müşteriden alınan. */
+enum class LedgerType(val label: String) {
+    BORC("Borç / Hakediş"),
+    TAHSILAT("Tahsilat"),
+    IADE("İade / İskonto"),
+}
+
+enum class PaymentMethod(val label: String) {
+    NAKIT("Nakit"),
+    HAVALE("Havale / EFT"),
+    KREDI_KARTI("Kredi Kartı"),
+    CEK("Çek"),
+    SENET("Senet"),
+    DIGER("Diğer"),
+}
+
+enum class ExpenseCategory(val label: String, val icon: String) {
+    YAKIT("Yakıt", "fuel"),
+    KONAKLAMA("Konaklama / Otel", "hotel"),
+    YEMEK("Yemek", "food"),
+    YOL("Otoyol / Köprü", "road"),
+    OTOPARK("Otopark", "parking"),
+    ULASIM("Ulaşım (uçak, otobüs)", "transport"),
+    MALZEME("Malzeme / Sarf", "material"),
+    KARGO("Kargo", "cargo"),
+    ARAC("Araç Bakım / Lastik", "car"),
+    DIGER("Diğer", "other"),
+}
+
+/**
+ * Cari hareket. Tutar kendi para biriminde saklanır; `rate` hareketin yapıldığı
+ * andaki TL karşılığıdır, böylece kur sonradan değişse de geçmiş rakamlar oynamaz.
+ */
+data class LedgerEntry(
+    val id: String = newId(),
+    val customerId: String = "",
+    val reportId: String? = null,
+    val type: LedgerType = LedgerType.BORC,
+    val date: Long = System.currentTimeMillis(),
+    val amount: Double = 0.0,
+    val currency: Currency = Currency.TRY,
+    val rate: Double = 1.0,
+    val description: String = "",
+    val documentNo: String = "",
+    val dueDate: Long? = null,
+    val promisedDate: Long? = null,
+    val paymentMethod: PaymentMethod = PaymentMethod.NAKIT,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+) {
+    val tryAmount: Double get() = amount * rate
+
+    /** Bakiyeye etkisi: borç artırır, tahsilat ve iade azaltır. */
+    val signedTry: Double
+        get() = if (type == LedgerType.BORC) tryAmount else -tryAmount
+}
+
+data class Expense(
+    val id: String = newId(),
+    val reportId: String? = null,
+    val customerId: String? = null,
+    val category: ExpenseCategory = ExpenseCategory.YAKIT,
+    val date: Long = System.currentTimeMillis(),
+    val amount: Double = 0.0,
+    val currency: Currency = Currency.TRY,
+    val rate: Double = 1.0,
+    val description: String = "",
+    /** Yakıt için litre, konaklama için gece sayısı gibi isteğe bağlı miktar. */
+    val quantity: Double = 0.0,
+    val billable: Boolean = false,
+    val receiptPath: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+) {
+    val tryAmount: Double get() = amount * rate
+}

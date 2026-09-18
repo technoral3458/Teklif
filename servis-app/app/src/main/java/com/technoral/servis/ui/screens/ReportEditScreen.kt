@@ -59,9 +59,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
+import com.technoral.servis.data.Currency
 import com.technoral.servis.data.Customer
 import com.technoral.servis.data.Department
 import com.technoral.servis.data.DepartmentWork
+import com.technoral.servis.data.Expense
 import com.technoral.servis.data.Machine
 import com.technoral.servis.data.PhotoTag
 import com.technoral.servis.data.Priority
@@ -78,15 +80,19 @@ import com.technoral.servis.ui.components.ChoiceChipRow
 import com.technoral.servis.ui.components.ConfirmDialog
 import com.technoral.servis.ui.components.CustomerEditorDialog
 import com.technoral.servis.ui.components.DateField
+import com.technoral.servis.ui.components.ExpenseDialog
 import com.technoral.servis.ui.components.FlowRowCompat
 import com.technoral.servis.ui.components.MachineEditorDialog
+import com.technoral.servis.ui.components.MoneyInput
 import com.technoral.servis.ui.components.PickerField
 import com.technoral.servis.ui.components.SectionCard
 import com.technoral.servis.ui.components.SelectDialog
 import com.technoral.servis.ui.components.SignaturePad
 import com.technoral.servis.ui.components.SparePartDialog
 import com.technoral.servis.ui.components.TimeField
+import com.technoral.servis.util.asDate
 import com.technoral.servis.util.asNumber
+import com.technoral.servis.util.money
 import com.technoral.servis.util.createCameraTarget
 import com.technoral.servis.util.minutesAsDuration
 import java.io.File
@@ -114,6 +120,27 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
     var showSignature by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     var cameraFile by remember { mutableStateOf<File?>(null) }
+    var newExpense by remember { mutableStateOf(false) }
+    var editingExpense by remember { mutableStateOf<Expense?>(null) }
+
+    val settings by vm.settings.collectAsState()
+    val allExpenses by vm.expenses.collectAsState()
+    val reportExpenses = allExpenses.filter { it.reportId == report.id }
+
+    // Servis bedeli rapora bağlı tek bir cari borç hareketi olarak tutulur
+    val existingCharge = remember(report.id) { vm.chargeOfReport(report.id) }
+    var chargeAmount by remember {
+        mutableStateOf(existingCharge?.amount?.takeIf { it > 0 }?.asNumber() ?: "")
+    }
+    var chargeCurrency by remember { mutableStateOf(existingCharge?.currency ?: Currency.TRY) }
+    var chargeRate by remember {
+        mutableStateOf(
+            existingCharge?.rate?.takeIf { it != 1.0 }?.asNumber()
+                ?: settings.rateFor(existingCharge?.currency ?: Currency.TRY).takeIf { it > 0 }?.asNumber()
+                ?: "1"
+        )
+    }
+    var chargeDueDate by remember { mutableStateOf(existingCharge?.dueDate) }
 
     val selectedCustomer = customers.firstOrNull { it.id == report.customerId }
     val selectedMachine = machines.firstOrNull { it.id == report.machineId }
@@ -136,6 +163,19 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         uris.forEach { vm.addPhotoFromGallery(it) }
+    }
+
+    // Masraf fişi seçimi: sonucu, pencereyi açan çağrıya geri iletir
+    var receiptCallback by remember { mutableStateOf<((String?) -> Unit)?>(null) }
+    val receiptLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val callback = receiptCallback
+        receiptCallback = null
+        if (uri == null) callback?.invoke(null) else vm.importReceipt(uri) { path -> callback?.invoke(path) }
+    }
+
+    fun receiptPicker(done: (String?) -> Unit) {
+        receiptCallback = done
+        receiptLauncher.launch("image/*")
     }
 
     // ---------------------------------------------------------------- pencereler
@@ -247,6 +287,27 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
         )
     }
 
+    if (newExpense) {
+        ExpenseDialog(
+            initial = Expense(reportId = report.id, customerId = report.customerId.ifBlank { null }),
+            settings = settings,
+            onPickReceipt = { done -> receiptPicker(done) },
+            onSave = { vm.saveExpense(it); newExpense = false },
+            onDismiss = { newExpense = false },
+        )
+    }
+
+    editingExpense?.let { expense ->
+        ExpenseDialog(
+            initial = expense,
+            settings = settings,
+            onPickReceipt = { done -> receiptPicker(done) },
+            onSave = { vm.saveExpense(it); editingExpense = null },
+            onDismiss = { editingExpense = null },
+            onDelete = { vm.deleteExpense(expense.id); editingExpense = null },
+        )
+    }
+
     if (showSignature) {
         AlertDialog(
             onDismissRequest = { showSignature = false },
@@ -302,7 +363,13 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                     ) { Text("Vazgeç") }
                     Button(
                         onClick = {
-                            val id = vm.commitDraft()
+                            val id = vm.commitDraftWithCharge(
+                                amount = chargeAmount.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                                currency = chargeCurrency,
+                                rate = if (chargeCurrency == Currency.TRY) 1.0
+                                else chargeRate.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                                dueDate = chargeDueDate,
+                            )
                             if (id != null) nav.replace(Screen.ReportDetail(id))
                         },
                         modifier = Modifier.weight(1.4f).height(48.dp),
@@ -574,6 +641,84 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                                     )
                                 }
                                 IconButton(onClick = { editingPart = part }) {
+                                    Icon(Icons.Default.Edit, "Düzenle", Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                SectionCard(
+                    title = "Servis Bedeli",
+                    subtitle = "Girilen tutar müşterinin carisine borç olarak işlenir",
+                ) {
+                    MoneyInput(
+                        amount = chargeAmount,
+                        currency = chargeCurrency,
+                        rate = chargeRate,
+                        onAmountChange = { chargeAmount = it },
+                        onCurrencyChange = { value ->
+                            chargeCurrency = value
+                            chargeRate = if (value == Currency.TRY) "1"
+                            else settings.rateFor(value).takeIf { it > 0 }?.asNumber() ?: ""
+                        },
+                        onRateChange = { chargeRate = it },
+                        label = "Servis bedeli",
+                    )
+                    DateField("Vade tarihi", chargeDueDate, { chargeDueDate = it }, clearable = true)
+                    if (report.customerId.isBlank() && chargeAmount.isNotBlank()) {
+                        Text(
+                            "Bedelin cariye işlenmesi için müşteri seçilmelidir.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+
+            item {
+                SectionCard(
+                    title = "Servis Masrafları",
+                    subtitle = if (reportExpenses.isEmpty()) "Yakıt, otel, yemek, otoyol…"
+                    else "Toplam ${money(reportExpenses.sumOf { it.tryAmount })}",
+                    trailing = {
+                        IconButton(onClick = { newExpense = true }) {
+                            Icon(Icons.Default.AddCircleOutline, "Masraf ekle")
+                        }
+                    },
+                ) {
+                    if (reportExpenses.isEmpty()) {
+                        Text(
+                            "Bu servise ait harcamaları ekleyin; aylık raporda kategori kategori dökülür.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        reportExpenses.forEachIndexed { index, expense ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(expense.category.label, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        listOfNotNull(
+                                            expense.date.asDate(),
+                                            expense.description.takeIf { it.isNotBlank() },
+                                            if (expense.billable) "yansıtılacak" else null,
+                                        ).joinToString(" • "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Text(
+                                    money(expense.amount, expense.currency.symbol),
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                IconButton(onClick = { editingExpense = expense }) {
                                     Icon(Icons.Default.Edit, "Düzenle", Modifier.size(18.dp))
                                 }
                             }

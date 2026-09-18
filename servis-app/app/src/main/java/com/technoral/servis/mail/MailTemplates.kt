@@ -3,12 +3,14 @@ package com.technoral.servis.mail
 import com.technoral.servis.data.AppSettings
 import com.technoral.servis.data.Customer
 import com.technoral.servis.data.Machine
+import com.technoral.servis.data.MonthlySummary
 import com.technoral.servis.data.PartStatus
 import com.technoral.servis.data.ServiceReport
 import com.technoral.servis.util.asDate
 import com.technoral.servis.util.asNumber
 import com.technoral.servis.util.asTime
 import com.technoral.servis.util.minutesAsDuration
+import com.technoral.servis.util.money
 
 /** Mail gövdesi ve konusu — rapor özetini PDF'i açmadan da okunur kılar. */
 object MailTemplates {
@@ -108,6 +110,46 @@ object MailTemplates {
   <b>Gönderen:</b> ${esc(settings.mail.fromAddress)}</p>
 </body></html>
     """.trimIndent()
+
+    /** Aylık finans raporu maili. */
+    fun financeBody(settings: AppSettings, summary: MonthlySummary, note: String): String {
+        val company = settings.company
+        val rows = buildString {
+            row("Dönem", summary.label)
+            row("Hakediş", money(summary.incomeTry))
+            row("Tahsilat", money(summary.collectedTry))
+            row("Masraf", money(summary.expenseTry))
+            row("Net kâr (hakediş - masraf)", money(summary.netTry))
+            row("Kasa akışı (tahsilat - masraf)", money(summary.cashFlowTry))
+            row("Servis sayısı", summary.serviceCount.toString())
+            if (summary.fuelLiters > 0) row("Yakıt", "${summary.fuelLiters.asNumber()} litre")
+        }
+        val expenses = summary.expenseByCategory.joinToString("") { (category, amount) ->
+            "<li>${esc(category.label)}: <b>${esc(money(amount))}</b></li>"
+        }
+        val noteHtml = if (note.isBlank()) "" else
+            "<div style=\"margin:0 0 16px;padding:12px 14px;background:#f1f5f9;border-left:3px solid #0f4c75;" +
+                "font-size:14px;line-height:1.6;color:#334155\">${esc(note).replace("\n", "<br>")}</div>"
+
+        return """
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:24px;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#0f4c75;padding:20px 24px;color:#ffffff">
+      <div style="font-size:18px;font-weight:700">${esc(company.name.ifBlank { "Finans Raporu" })}</div>
+      <div style="font-size:13px;opacity:.85;margin-top:4px">${esc(summary.label)} • Aylık Finans Raporu</div>
+    </div>
+    <div style="padding:24px">
+      $noteHtml
+      <table style="width:100%;border-collapse:collapse;margin:0 0 18px;font-size:14px">$rows</table>
+      ${if (expenses.isBlank()) "" else "<h3 style=\"$H3\">Masraf Dağılımı</h3><ul style=\"$UL\">$expenses</ul>"}
+      <p style="$P">Ayrıntılı döküm ve açık alacak listesi ekteki PDF dosyasındadır.</p>
+    </div>
+  </div>
+</body></html>
+        """.trimIndent()
+    }
 
     private const val P = "margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155"
     private const val H3 = "margin:20px 0 8px;font-size:14px;color:#0f4c75;text-transform:uppercase;letter-spacing:.4px"

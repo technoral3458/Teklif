@@ -49,6 +49,7 @@ import com.technoral.servis.ui.components.ConfirmDialog
 import com.technoral.servis.ui.components.CustomerEditorDialog
 import com.technoral.servis.ui.components.EmptyState
 import com.technoral.servis.ui.components.InfoRow
+import com.technoral.servis.ui.components.RecordsTabs
 import com.technoral.servis.ui.components.ReportListItem
 import com.technoral.servis.ui.components.SectionCard
 import com.technoral.servis.ui.components.StatusBadge
@@ -90,6 +91,11 @@ fun CustomersScreen(vm: AppViewModel, nav: Navigator) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            RecordsTabs(
+                selectedIndex = 1,
+                onMachines = { nav.switchRoot(Screen.Machines) },
+                onCustomers = {},
+            )
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },

@@ -6,7 +6,13 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.technoral.servis.data.AppSettings
+import com.technoral.servis.data.Currency
 import com.technoral.servis.data.Customer
+import com.technoral.servis.data.Expense
+import com.technoral.servis.data.Finance
+import com.technoral.servis.data.LedgerEntry
+import com.technoral.servis.data.LedgerType
+import com.technoral.servis.data.MonthlySummary
 import com.technoral.servis.data.Machine
 import com.technoral.servis.data.Repository
 import com.technoral.servis.data.ServicePhoto
@@ -15,10 +21,12 @@ import com.technoral.servis.data.ServiceStatus
 import com.technoral.servis.mail.MailResult
 import com.technoral.servis.mail.MailSender
 import com.technoral.servis.mail.MailTemplates
+import com.technoral.servis.pdf.FinancePdf
 import com.technoral.servis.pdf.ReportPdf
 import com.technoral.servis.util.compressInPlace
 import com.technoral.servis.util.fileStamp
 import com.technoral.servis.util.importImage
+import com.technoral.servis.util.money
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +43,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val customers: StateFlow<List<Customer>> = repo.customers
     val machines: StateFlow<List<Machine>> = repo.machines
     val reports: StateFlow<List<ServiceReport>> = repo.reports
+    val ledger: StateFlow<List<LedgerEntry>> = repo.ledger
+    val expenses: StateFlow<List<Expense>> = repo.expenses
     val settings: StateFlow<AppSettings> = repo.settings
     val ready: StateFlow<Boolean> = repo.ready
 
@@ -73,6 +83,66 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveSettings(settings: AppSettings) = repo.saveSettings(settings)
 
+    // ---------------------------------------------------------------- cari
+
+    fun saveLedgerEntry(entry: LedgerEntry) = repo.saveLedgerEntry(entry)
+    fun deleteLedgerEntry(id: String) = repo.deleteLedgerEntry(id)
+    fun ledgerOfCustomer(customerId: String) = repo.ledgerOfCustomer(customerId)
+    fun chargeOfReport(reportId: String) = repo.chargeOfReport(reportId)
+
+    fun accountOf(customerId: String) = Finance.accountOf(customerId, ledger.value)
+    fun overdueDebts() = Finance.overdueDebts(customers.value, ledger.value)
+    fun totalReceivable() = Finance.totalReceivableTry(customers.value, ledger.value)
+
+    fun monthlySummary(year: Int, month: Int): MonthlySummary =
+        Finance.summary(year, month, ledger.value, expenses.value, reports.value)
+
+    fun lastMonths(count: Int) = Finance.lastMonths(count, ledger.value, expenses.value, reports.value)
+
+    /** Rapor formundaki servis bedeli: rapora bağlı borç hareketini oluşturur/günceller. */
+    fun setReportCharge(
+        report: ServiceReport,
+        amount: Double,
+        currency: Currency,
+        rate: Double,
+        dueDate: Long?,
+        description: String,
+    ) {
+        val existing = repo.chargeOfReport(report.id)
+        if (amount <= 0.0) {
+            existing?.let { repo.deleteLedgerEntry(it.id) }
+            return
+        }
+        val entry = (existing ?: LedgerEntry(reportId = report.id, type = LedgerType.BORC)).copy(
+            customerId = report.customerId,
+            reportId = report.id,
+            type = LedgerType.BORC,
+            date = report.serviceDate,
+            amount = amount,
+            currency = currency,
+            rate = if (rate > 0) rate else 1.0,
+            description = description.ifBlank { "Servis bedeli ${report.reportNo}" },
+            dueDate = dueDate,
+        )
+        repo.saveLedgerEntry(entry)
+    }
+
+    // -------------------------------------------------------------- masraf
+
+    fun saveExpense(expense: Expense) = repo.saveExpense(expense)
+    fun deleteExpense(id: String) = repo.deleteExpense(id)
+    fun expensesOfReport(reportId: String) = repo.expensesOfReport(reportId)
+
+    /** Masraf fişi fotoğrafını uygulama klasörüne kopyalar. */
+    fun importReceipt(uri: Uri, onDone: (String?) -> Unit) = viewModelScope.launch {
+        val file = withContext(Dispatchers.IO) {
+            importImage(getApplication<Application>(), uri, repo.receiptsDir)
+        }
+        onDone(file?.absolutePath)
+    }
+
+    fun receiptsDir(): File = repo.receiptsDir
+
     // -------------------------------------------------------------- taslak
 
     fun startNewReport(machineId: String? = null, customerId: String? = null) {
@@ -96,7 +166,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun discardDraft() {
+        val current = _draft.value
         _draft.value = null
+        // Hiç kaydedilmemiş bir rapordan çıkılıyorsa ona bağlı masraf ve
+        // cari kayıtları da geride kalmasın.
+        if (current != null && repo.report(current.id) == null) {
+            repo.chargeOfReport(current.id)?.let { repo.deleteLedgerEntry(it.id) }
+            repo.expensesOfReport(current.id).forEach { repo.deleteExpense(it.id) }
+        }
     }
 
     /** Taslağı kalıcı hale getirir ve rapor kimliğini döndürür. */
@@ -109,6 +186,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         repo.saveReport(finished)
         _draft.value = null
         return finished.id
+    }
+
+    /** Raporu kaydeder ve servis bedelini cari hareket olarak işler. */
+    fun commitDraftWithCharge(
+        amount: Double,
+        currency: Currency,
+        rate: Double,
+        dueDate: Long?,
+        status: ServiceStatus? = null,
+    ): String? {
+        val current = _draft.value ?: return null
+        val id = commitDraft(status) ?: return null
+        repo.report(id)?.let { saved ->
+            setReportCharge(saved, amount, currency, rate, dueDate, "Servis bedeli ${saved.reportNo}")
+        } ?: setReportCharge(current, amount, currency, rate, dueDate, "Servis bedeli ${current.reportNo}")
+        return id
     }
 
     fun saveDraftSilently() {
@@ -162,14 +255,52 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val safeNo = report.reportNo.ifBlank { "rapor" }.replace(Regex("[^A-Za-z0-9-_]"), "_")
             val target = File(repo.documentsDir, "$safeNo.pdf")
+            val charge = repo.chargeOfReport(report.id)
             ReportPdf.build(
                 target = target,
                 report = report,
                 customer = repo.customer(report.customerId),
                 machine = repo.machine(report.machineId),
                 settings = settings.value,
+                chargeText = if (settings.value.showChargeOnPdf && charge != null)
+                    money(charge.amount, charge.currency.symbol) else null,
             )
         }.getOrNull()
+    }
+
+    /** Aylık finans raporunu PDF'e döker. */
+    suspend fun buildFinancePdf(summary: MonthlySummary): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val target = File(repo.documentsDir, "finans_${summary.year}_${summary.month + 1}.pdf")
+            FinancePdf.build(
+                target = target,
+                summary = summary,
+                settings = settings.value,
+                customerName = { id -> repo.customer(id)?.name ?: "-" },
+                overdue = Finance.overdueDebts(customers.value, ledger.value),
+                openBalances = customers.value.map { it to Finance.accountOf(it.id, ledger.value).balanceTry },
+            )
+        }.getOrNull()
+    }
+
+    fun sendFinanceMail(
+        summary: MonthlySummary,
+        to: String,
+        note: String,
+        onResult: (MailResult) -> Unit,
+    ) = viewModelScope.launch {
+        _busy.value = "Rapor gönderiliyor…"
+        val s = settings.value
+        val pdf = buildFinancePdf(summary)
+        val result = MailSender.send(
+            settings = s.mail,
+            to = to,
+            subject = "${s.company.name.ifBlank { "Servis" }} • ${summary.label} Finans Raporu",
+            bodyHtml = MailTemplates.financeBody(s, summary, note),
+            attachments = listOfNotNull(pdf),
+        )
+        _busy.value = null
+        onResult(result)
     }
 
     // --------------------------------------------------------------- mail
