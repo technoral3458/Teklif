@@ -10,6 +10,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import api from "../../api/client";
 import { CURRENCIES, EXPENSE_CATEGORIES, fmtDate, money, todayISO } from "./financeUtils";
 
@@ -139,6 +140,11 @@ export default function ServiceReportForm() {
   }, [id]);
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const billableTotal = expenses
+    .filter((e) => e.billable)
+    .reduce((sum, e) => sum + Number(e.try_amount), 0);
+  const feeTry = Number(charge.amount || 0) * Number(charge.rate || 0);
 
   // Müşteri değişince makine listesi yenilenir, seçili makine sıfırlanır
   const selectCustomer = (event) => {
@@ -431,7 +437,8 @@ export default function ServiceReportForm() {
             Servis Masrafları
             {expenses.length > 0 && (
               <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                toplam {money(expenses.reduce((sum, e) => sum + Number(e.try_amount), 0))}
+                toplam {money(expenses.reduce((sum, e) => sum + Number(e.try_amount), 0))} •
+                yansıtılan {money(billableTotal)}
               </Typography>
             )}
           </Typography>
@@ -447,7 +454,8 @@ export default function ServiceReportForm() {
           <Alert severity="info">Masraf eklemek için önce raporu kaydedin.</Alert>
         ) : expenses.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            Yakıt, otel, yemek, otoyol gibi harcamaları ekleyin; aylık raporda kategori kategori dökülür.
+            Yakıt, otel, yemek, otoyol gibi harcamaları ekleyin. &quot;Müşteriye yansıtılacak&quot;
+            işaretli kalemler servis bedeline eklenir ve müşterinin carisine borç yazılır.
           </Typography>
         ) : (
           <Table size="small">
@@ -456,7 +464,13 @@ export default function ServiceReportForm() {
                 <TableRow key={expense.id}>
                   <TableCell>{expense.category_label}</TableCell>
                   <TableCell>{fmtDate(expense.date)}</TableCell>
-                  <TableCell>{expense.description || "-"}</TableCell>
+                  <TableCell>
+                    {expense.description || "-"}
+                    <Chip size="small" sx={{ ml: 1 }}
+                      color={expense.billable ? "success" : "default"}
+                      label={expense.billable ? "yansıtıldı" : "yansıtılmadı"} />
+                    {expense.receipt && <Chip size="small" sx={{ ml: 0.5 }} label="fiş" variant="outlined" />}
+                  </TableCell>
                   <TableCell align="right">{money(expense.try_amount)}</TableCell>
                   <TableCell align="right" sx={{ width: 90 }}>
                     <IconButton size="small" onClick={() => setExpenseForm({ ...expense })}>
@@ -472,6 +486,30 @@ export default function ServiceReportForm() {
           </Table>
         )}
       </CardContent></Card>
+
+      {(Number(charge.amount) > 0 || expenses.length > 0) && (
+        <Card sx={{ mb: 2 }}><CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="body2" color="text.secondary">Müşteriye toplam</Typography>
+              <Typography variant="h5" fontWeight={700} color="primary.main">
+                {money(feeTry + billableTotal)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                servis {money(feeTry)} + yansıtılan masraf {money(billableTotal)}
+              </Typography>
+            </Box>
+            {id && expenses.length > 0 && (
+              <Button variant="outlined" startIcon={<ReceiptLongIcon />}
+                onClick={() => window.open(
+                  `${api.defaults.baseURL}/service/reports/${id}/expense-pdf/`, "_blank"
+                )}>
+                Masraf Dökümü ve Fişler (PDF)
+              </Button>
+            )}
+          </Stack>
+        </CardContent></Card>
+      )}
 
       <Card sx={{ mb: 2 }}><CardContent>
         <Typography variant="subtitle1" fontWeight={600} gutterBottom>Teslim</Typography>
@@ -564,7 +602,7 @@ export default function ServiceReportForm() {
                 <FormControlLabel
                   control={<Checkbox checked={!!expenseForm.billable}
                     onChange={(e) => setExpenseForm({ ...expenseForm, billable: e.target.checked })} />}
-                  label="Müşteriye yansıtılacak"
+                  label="Müşteriye yansıtılacak (servis bedeline eklenir)"
                 />
               </Grid>
             </Grid>

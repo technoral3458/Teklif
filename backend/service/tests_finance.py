@@ -66,27 +66,33 @@ class FinanceApiTest(TestCase):
         res = self.api("get", "/api/service/accounts/")
         assert res.status_code == 200, res.content
         balances = {a["customer"]: a["balance_try"] for a in res.data["accounts"]}
-        assert balances["Öz Kardeşler Plastik"] == Decimal("20000.0000"), balances
+        # 500 USD × 40 = 20.000 servis bedeli + 4.470 yansıtılan masraf
+        assert balances["Öz Kardeşler Plastik"] == Decimal("24470.0000"), balances
         assert balances["Demir Metal"] == Decimal("6000.0000"), balances
         print("  bakiyeler:", {k: float(v) for k, v in balances.items()})
         print("  toplam alacak:", float(res.data["total_receivable"]),
               "| gecikmiş:", float(res.data["total_overdue"]))
 
-        # Vadesi geçen: ilk müşterinin vadesi 10 gün önce doldu
+        # Vadesi geçen: servis bedeli ve yansıtılan masraf kalemi, 10 gün önce doldu
         res = self.api("get", "/api/service/overdue/")
-        assert res.data["count"] == 1, res.data
-        assert res.data["items"][0]["customer"] == "Öz Kardeşler Plastik"
+        assert res.data["count"] == 2, res.data
+        assert Decimal(str(res.data["total"])) == Decimal("24470"), res.data["total"]
+        assert all(i["customer"] == "Öz Kardeşler Plastik" for i in res.data["items"])
         assert res.data["items"][0]["days_late"] == 10, res.data["items"][0]
-        print("  gecikmiş:", res.data["items"][0]["customer"], res.data["items"][0]["days_late"], "gün")
+        print("  gecikmiş:", res.data["count"], "kalem,", float(res.data["total"]), "TL")
 
         # Söz verilen tarih geçince ayrıca işaretlenmeli
-        entry = LedgerEntry.objects.get(report_id=report_id)
+        entry = LedgerEntry.objects.get(report_id=report_id, kind="SERVIS")
         entry.promised_date = self.today - datetime.timedelta(days=3)
         entry.save()
         res = self.api("get", "/api/service/overdue/")
-        assert res.data["items"][0]["broken_promise"] is True, res.data["items"][0]
-        assert res.data["items"][0]["days_late"] == 3
-        print("  söz verilen tarih geçti:", res.data["items"][0]["days_late"], "gün")
+        # Liste en gecikmişten başlar; servis bedeli kalemini açıklamasından bul
+        service_item = next(
+            i for i in res.data["items"] if i["description"].startswith("Servis bedeli")
+        )
+        assert service_item["broken_promise"] is True, service_item
+        assert service_item["days_late"] == 3, service_item
+        print("  söz verilen tarih geçti:", service_item["days_late"], "gün")
 
         # Kısmi tahsilat sonrası açık borç
         self.api("post", "/api/service/ledger/", {
@@ -94,10 +100,13 @@ class FinanceApiTest(TestCase):
             "amount": "12000.00", "currency": "TRY",
         })
         res = self.api("get", f"/api/service/accounts/{c1.id}/")
-        assert res.data["balance_try"] == Decimal("8000.0000"), res.data["balance_try"]
-        assert len(res.data["open_debts"]) == 1
+        # 24.470 borç - 12.000 tahsilat: servis bedelinden 8.000 + masraf 4.470 açık
+        assert res.data["balance_try"] == Decimal("12470.0000"), res.data["balance_try"]
+        assert len(res.data["open_debts"]) == 2, res.data["open_debts"]
         assert res.data["open_debts"][0]["open_try"] == Decimal("8000.0000")
-        print("  kısmi tahsilat sonrası açık borç:", float(res.data["open_debts"][0]["open_try"]))
+        assert res.data["open_debts"][1]["open_try"] == Decimal("4470.0000")
+        print("  kısmi tahsilat sonrası açık:",
+              [float(d["open_try"]) for d in res.data["open_debts"]])
 
         # Aylık rapor (bu ay: tahsilatlar + masraflar)
         res = self.api("get", f"/api/service/monthly-report/?year={self.today.year}&month={self.today.month}")
@@ -106,6 +115,9 @@ class FinanceApiTest(TestCase):
         assert summary["expense_try"] == Decimal("4470.00"), summary["expense_try"]
         assert summary["fuel_liters"] == Decimal("45.00"), summary["fuel_liters"]
         assert summary["collected_try"] == Decimal("16000.0000"), summary["collected_try"]
+        # Bu ayki hakediş yalnızca ikinci müşterinin bakım bedeli; ilk raporun
+        # servis bedeli ve yansıtılan masrafı 40 gün önceye (geçen aya) tarihli.
+        assert summary["income_try"] == Decimal("10000.0000"), summary["income_try"]
         print("  aylık:", summary["label"],
               "| tahsilat:", float(summary["collected_try"]),
               "| masraf:", float(summary["expense_try"]),
@@ -115,8 +127,10 @@ class FinanceApiTest(TestCase):
         # Rapor detayında ücret ve masraf toplamı
         res = self.api("get", f"/api/service/reports/{report_id}/")
         assert res.data["expense_total"] == Decimal("4470.00"), res.data["expense_total"]
-        print("  rapor masraf toplamı:", float(res.data["expense_total"]),
-              "| servis kârı:", float(res.data["charge"]["try_amount"] - res.data["expense_total"]))
+        assert Decimal(res.data["customer_total"]) == Decimal("24470.00"), res.data["customer_total"]
+        print("  müşteriye toplam:", float(Decimal(res.data["customer_total"])),
+              "| masraf:", float(res.data["expense_total"]),
+              "| servis kârı:", float(Decimal(res.data["customer_total"]) - res.data["expense_total"]))
 
         # PDF
         res = self.api("get", f"/api/service/monthly-report/pdf/?year={self.today.year}&month={self.today.month}")
@@ -222,7 +236,7 @@ class CurrencyRateTest(TestCase):
         self.assertEqual(entry.try_amount, Decimal("24216.0500"))
 
     def test_profit_with_euro_income_and_lira_expenses(self):
-        """EUR hakediş + TL masraf: kâr TL karşılığı üzerinden hesaplanmalı."""
+        """EUR hakediş + TL masraf: masraflar müşteriye yansıtılınca kâr servis bedeli kadar."""
         settings_obj = FinanceSettings.load()
         settings_obj.eur_rate = Decimal("48.00")
         settings_obj.save()
@@ -239,15 +253,17 @@ class CurrencyRateTest(TestCase):
         detail = self.client_api.get(f"/api/service/reports/{report_id}/").data
         self.assertEqual(detail["charge"]["try_amount"], Decimal("24000.0000"))
         self.assertEqual(detail["expense_total"], Decimal("3700.00"))
-        profit = detail["charge"]["try_amount"] - detail["expense_total"]
-        self.assertEqual(profit, Decimal("20300.0000"))
+        # Masraflar müşteriye yansıtıldığı için toplam borç bedelin üstüne eklenir
+        self.assertEqual(Decimal(detail["customer_total"]), Decimal("27700.00"))
+        profit = Decimal(detail["customer_total"]) - detail["expense_total"]
+        self.assertEqual(profit, Decimal("24000.00"), "yansıtılan masraf kârı düşürmemeli")
 
         summary = self.client_api.get(
             f"/api/service/monthly-report/?year={self.today.year}&month={self.today.month}"
         ).data
-        self.assertEqual(summary["income_try"], Decimal("24000.0000"))
+        self.assertEqual(summary["income_try"], Decimal("27700.0000"))
         self.assertEqual(summary["expense_try"], Decimal("3700.00"))
-        self.assertEqual(summary["net_try"], Decimal("20300.0000"))
+        self.assertEqual(summary["net_try"], Decimal("24000.0000"))
 
     def test_ledger_entry_without_rate_falls_back_to_settings(self):
         settings_obj = FinanceSettings.load()
@@ -301,3 +317,121 @@ class TcmbParserTest(TestCase):
 
     def test_unknown_currency(self):
         self.assertIsNone(rates.parse_tcmb_rate(self.SAMPLE, "XYZ"))
+
+
+class ExpenseReflectionTest(TestCase):
+    """Masrafların müşteri carisine yansıtılması."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("yansit", password="x", role="admin")
+        self.client_api = APIClient()
+        self.client_api.force_authenticate(self.user)
+        self.today = datetime.date.today()
+        self.customer = Customer.objects.create(name="Kadir Patron Makine")
+        settings_obj = FinanceSettings.load()
+        settings_obj.eur_rate = Decimal("48.00")
+        settings_obj.save()
+
+        res = self.client_api.post("/api/service/reports/", {
+            "customer": self.customer.id, "type": "ARIZA", "status": "COZULDU",
+            "service_date": str(self.today), "work_done": "Devreye alma",
+            "charge_amount": "500.00", "charge_currency": "EUR",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.data)
+        self.report_id = res.data["id"]
+
+    def _expense(self, category, amount, billable=True):
+        return self.client_api.post("/api/service/expenses/", {
+            "report": self.report_id, "category": category, "date": str(self.today),
+            "amount": amount, "currency": "TRY", "billable": billable,
+        }, format="json")
+
+    def test_billable_expenses_are_charged_to_customer(self):
+        self._expense("YAKIT", "1500.00")
+        self._expense("KONAKLAMA", "2200.00")
+
+        entries = LedgerEntry.objects.filter(report_id=self.report_id, type="BORC")
+        kinds = {e.kind: e for e in entries}
+        self.assertIn("SERVIS", kinds)
+        self.assertIn("MASRAF", kinds)
+        self.assertEqual(kinds["SERVIS"].try_amount, Decimal("24000.0000"))
+        self.assertEqual(kinds["MASRAF"].try_amount, Decimal("3700.0000"))
+
+        # Müşterinin toplam borcu servis bedeli + yansıtılan masraf
+        account = self.client_api.get(f"/api/service/accounts/{self.customer.id}/").data
+        self.assertEqual(account["balance_try"], Decimal("27700.0000"))
+
+        detail = self.client_api.get(f"/api/service/reports/{self.report_id}/").data
+        self.assertEqual(Decimal(detail["customer_total"]), Decimal("27700.00"))
+        self.assertEqual(Decimal(detail["billable_expense_total"]), Decimal("3700.00"))
+
+    def test_non_billable_expense_is_excluded(self):
+        self._expense("YAKIT", "1500.00")
+        self._expense("YEMEK", "450.00", billable=False)
+
+        reflection = LedgerEntry.objects.get(report_id=self.report_id, kind="MASRAF")
+        self.assertEqual(reflection.try_amount, Decimal("1500.0000"))
+
+        detail = self.client_api.get(f"/api/service/reports/{self.report_id}/").data
+        self.assertEqual(Decimal(detail["expense_total"]), Decimal("1950.00"))
+        # Kâr = (bedel + yansıtılan) - tüm masraf = 24000 + 1500 - 1950
+        profit = Decimal(detail["customer_total"]) - Decimal(detail["expense_total"])
+        self.assertEqual(profit, Decimal("23550.00"))
+
+    def test_reflection_updates_when_expense_changes(self):
+        res = self._expense("YAKIT", "1500.00")
+        expense_id = res.data["id"]
+        self.assertEqual(
+            LedgerEntry.objects.get(report_id=self.report_id, kind="MASRAF").amount,
+            Decimal("1500.00"),
+        )
+
+        self.client_api.patch(
+            f"/api/service/expenses/{expense_id}/", {"amount": "1800.00"}, format="json"
+        )
+        self.assertEqual(
+            LedgerEntry.objects.get(report_id=self.report_id, kind="MASRAF").amount,
+            Decimal("1800.00"),
+        )
+
+        self.client_api.delete(f"/api/service/expenses/{expense_id}/")
+        self.assertFalse(
+            LedgerEntry.objects.filter(report_id=self.report_id, kind="MASRAF").exists(),
+            "yansıtılacak masraf kalmayınca kalem silinmeli",
+        )
+
+    def test_foreign_currency_expense_is_reflected_in_lira(self):
+        self.client_api.post("/api/service/expenses/", {
+            "report": self.report_id, "category": "KONAKLAMA", "date": str(self.today),
+            "amount": "120.00", "currency": "EUR", "billable": True,
+        }, format="json")
+        reflection = LedgerEntry.objects.get(report_id=self.report_id, kind="MASRAF")
+        self.assertEqual(reflection.currency, "TRY")
+        self.assertEqual(reflection.try_amount, Decimal("5760.0000"))
+
+    def test_expense_pdf_contains_receipts(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+
+        def png():
+            buf = BytesIO()
+            Image.new("RGB", (400, 600), (240, 240, 240)).save(buf, "PNG")
+            return buf.getvalue()
+
+        self.client_api.post("/api/service/expenses/", {
+            "report": self.report_id, "category": "YAKIT", "date": str(self.today),
+            "amount": "1500.00", "currency": "TRY", "billable": True,
+            "receipt": SimpleUploadedFile("fis1.png", png(), "image/png"),
+        }, format="multipart")
+        self.client_api.post("/api/service/expenses/", {
+            "report": self.report_id, "category": "KONAKLAMA", "date": str(self.today),
+            "amount": "2200.00", "currency": "TRY", "billable": True,
+            "receipt": SimpleUploadedFile("fis2.png", png(), "image/png"),
+        }, format="multipart")
+
+        res = self.client_api.get(f"/api/service/reports/{self.report_id}/expense-pdf/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "application/pdf")
+        self.assertTrue(res.content.startswith(b"%PDF"))
+        self.assertGreater(len(res.content), 3000)

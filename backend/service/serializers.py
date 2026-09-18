@@ -72,6 +72,52 @@ class SparePartSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "code", "quantity", "unit", "status", "status_label", "note"]
 
 
+class ExpenseSerializer(serializers.ModelSerializer):
+    category_label = serializers.CharField(source="get_category_display", read_only=True)
+    rate = serializers.DecimalField(
+        max_digits=10, decimal_places=4, required=False, allow_null=True
+    )
+    customer_name = serializers.CharField(source="customer.name", read_only=True, default="")
+    report_no = serializers.CharField(source="report.report_no", read_only=True, default="")
+    try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Expense
+        fields = [
+            "id", "report", "report_no", "customer", "customer_name", "category", "category_label",
+            "date", "amount", "currency", "rate", "try_amount", "description", "quantity",
+            "billable", "receipt", "external_id", "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+    def validate(self, attrs):
+        """Kuru doğrular; gönderilmediyse cari ayarlarındaki güncel kurla tamamlar.
+
+        Model varsayılanı 1 olduğu için kurun "hiç gönderilmemesi" ile
+        "1 gönderilmesi" ayırt edilebilsin diye alan serileştiricide
+        `required=False` olarak tanımlıdır.
+        """
+        currency = attrs.get("currency") or getattr(self.instance, "currency", "TRY")
+        if currency == "TRY":
+            attrs["rate"] = Decimal("1")
+            return attrs
+
+        rate = attrs.get("rate")
+        if rate is None:
+            rate = getattr(self.instance, "rate", None)
+        if not rate or rate <= 0:
+            rate = FinanceSettings.load().rate_for(currency)
+        if not rate or rate <= 0:
+            raise serializers.ValidationError(
+                {"rate": (
+                    "Döviz işlemleri için kur gerekli. Cari ayarlarından kuru "
+                    "güncelleyin ya da elle girin."
+                )}
+            )
+        attrs["rate"] = rate
+        return attrs
+
+
 class ServiceReportSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     customer_email = serializers.CharField(source="customer.email", read_only=True)
@@ -86,6 +132,11 @@ class ServiceReportSerializer(serializers.ModelSerializer):
     parts = SparePartSerializer(many=True, read_only=True)
     charge = serializers.SerializerMethodField()
     expense_total = serializers.SerializerMethodField()
+    billable_expense_total = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True
+    )
+    customer_total = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    expenses = ExpenseSerializer(many=True, read_only=True)
 
     class Meta:
         model = ServiceReport
@@ -96,7 +147,8 @@ class ServiceReportSerializer(serializers.ModelSerializer):
             "duration_minutes", "travel_km", "fault_description", "fault_cause",
             "work_done", "recommendations", "technician", "technician_name",
             "customer_rep", "signature", "next_maintenance", "mailed_to", "mailed_at",
-            "departments", "photos", "parts", "charge", "expense_total",
+            "departments", "photos", "parts", "expenses", "charge", "expense_total",
+            "billable_expense_total", "customer_total",
             "external_id", "created_at", "updated_at",
         ]
         read_only_fields = ["report_no", "mailed_to", "mailed_at", "created_at", "updated_at"]
@@ -107,7 +159,7 @@ class ServiceReportSerializer(serializers.ModelSerializer):
         return " ".join(p for p in (obj.machine.brand, obj.machine.name) if p) or obj.machine.model
 
     def get_charge(self, obj):
-        entry = obj.ledger_entries.filter(type="BORC").first()
+        entry = obj.service_charge
         if entry is None:
             return None
         return {
@@ -184,7 +236,7 @@ class ServiceReportWriteSerializer(serializers.ModelSerializer):
         if charge is None:
             return
         amount = charge.get("charge_amount")
-        entry = report.ledger_entries.filter(type="BORC").first()
+        entry = report.ledger_entries.filter(type="BORC", kind="SERVIS").first()
 
         if not amount or amount <= 0:
             if entry:
@@ -209,6 +261,7 @@ class ServiceReportWriteSerializer(serializers.ModelSerializer):
         values = {
             "customer": report.customer,
             "type": "BORC",
+            "kind": "SERVIS",
             "date": report.service_date,
             "amount": amount,
             "currency": currency,
@@ -268,6 +321,7 @@ class LedgerEntrySerializer(serializers.ModelSerializer):
         max_digits=10, decimal_places=4, required=False, allow_null=True
     )
     type_label = serializers.CharField(source="get_type_display", read_only=True)
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
     method_label = serializers.CharField(source="get_payment_method_display", read_only=True)
     try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     report_no = serializers.CharField(source="report.report_no", read_only=True, default="")
@@ -276,55 +330,9 @@ class LedgerEntrySerializer(serializers.ModelSerializer):
         model = LedgerEntry
         fields = [
             "id", "customer", "customer_name", "report", "report_no", "type", "type_label",
-            "date", "amount", "currency", "rate", "try_amount", "description", "document_no",
-            "due_date", "promised_date", "payment_method", "method_label",
-            "external_id", "created_at",
-        ]
-        read_only_fields = ["created_at"]
-
-    def validate(self, attrs):
-        """Kuru doğrular; gönderilmediyse cari ayarlarındaki güncel kurla tamamlar.
-
-        Model varsayılanı 1 olduğu için kurun "hiç gönderilmemesi" ile
-        "1 gönderilmesi" ayırt edilebilsin diye alan serileştiricide
-        `required=False` olarak tanımlıdır.
-        """
-        currency = attrs.get("currency") or getattr(self.instance, "currency", "TRY")
-        if currency == "TRY":
-            attrs["rate"] = Decimal("1")
-            return attrs
-
-        rate = attrs.get("rate")
-        if rate is None:
-            rate = getattr(self.instance, "rate", None)
-        if not rate or rate <= 0:
-            rate = FinanceSettings.load().rate_for(currency)
-        if not rate or rate <= 0:
-            raise serializers.ValidationError(
-                {"rate": (
-                    "Döviz işlemleri için kur gerekli. Cari ayarlarından kuru "
-                    "güncelleyin ya da elle girin."
-                )}
-            )
-        attrs["rate"] = rate
-        return attrs
-
-
-class ExpenseSerializer(serializers.ModelSerializer):
-    category_label = serializers.CharField(source="get_category_display", read_only=True)
-    rate = serializers.DecimalField(
-        max_digits=10, decimal_places=4, required=False, allow_null=True
-    )
-    customer_name = serializers.CharField(source="customer.name", read_only=True, default="")
-    report_no = serializers.CharField(source="report.report_no", read_only=True, default="")
-    try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
-
-    class Meta:
-        model = Expense
-        fields = [
-            "id", "report", "report_no", "customer", "customer_name", "category", "category_label",
-            "date", "amount", "currency", "rate", "try_amount", "description", "quantity",
-            "billable", "receipt", "external_id", "created_at",
+            "kind", "kind_label", "date", "amount", "currency", "rate", "try_amount",
+            "description", "document_no", "due_date", "promised_date", "payment_method",
+            "method_label", "external_id", "created_at",
         ]
         read_only_fields = ["created_at"]
 
@@ -362,5 +370,6 @@ class FinanceSettingsSerializer(serializers.ModelSerializer):
         fields = [
             "id", "usd_rate", "eur_rate", "rates_updated_at", "rate_source",
             "rate_date_label", "show_charge_on_pdf", "overdue_grace_days",
+            "expenses_billable_by_default",
         ]
         read_only_fields = ["rates_updated_at", "rate_source", "rate_date_label"]

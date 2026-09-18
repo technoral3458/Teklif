@@ -21,7 +21,7 @@ from .models import (
     ServiceReport,
     SparePart,
 )
-from .pdf import build_finance_pdf, build_report_pdf
+from .pdf import build_expense_pdf, build_finance_pdf, build_report_pdf
 from .serializers import (
     CustomerSerializer,
     ExpenseSerializer,
@@ -233,13 +233,36 @@ def report_pdf(request, pk):
     return response
 
 
+@api_view(["GET"])
+@permission_classes([CanManageService])
+def expense_pdf(request, pk):
+    """Masraf dökümü: kalemler ve fiş fotoğrafları tek PDF'te."""
+    from django.http import HttpResponse
+
+    try:
+        report = (
+            ServiceReport.objects.select_related("customer", "machine")
+            .prefetch_related("expenses", "ledger_entries")
+            .get(pk=pk)
+        )
+    except ServiceReport.DoesNotExist:
+        return Response({"error": "Rapor bulunamadı"}, status=404)
+
+    pdf_bytes = build_expense_pdf(report, MailSettings.load())
+    if pdf_bytes is None:
+        return Response({"error": "PDF üretimi için reportlab kurulu değil."}, status=501)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{report.report_no}-masraf.pdf"'
+    return response
+
+
 @api_view(["POST"])
 @permission_classes([CanManageService])
 def send_mail_view(request, pk):
     try:
         report = (
             ServiceReport.objects.select_related("customer", "machine")
-            .prefetch_related("departments", "parts", "photos")
+            .prefetch_related("departments", "parts", "photos", "expenses", "ledger_entries")
             .get(pk=pk)
         )
     except ServiceReport.DoesNotExist:
@@ -255,6 +278,7 @@ def send_mail_view(request, pk):
         cc=request.data.get("cc", ""),
         note=request.data.get("note", ""),
         attach_photos=request.data.get("attach_photos"),
+        attach_expenses=request.data.get("attach_expenses"),
     )
     if not ok:
         return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)

@@ -148,6 +148,27 @@ class ServiceReport(models.Model):
         return f"{head}{seq:04d}"
 
     @property
+    def service_charge(self):
+        """Servis bedeli kalemi."""
+        return self.ledger_entries.filter(type="BORC", kind="SERVIS").first()
+
+    @property
+    def billable_expense_total(self):
+        """Müşteriye yansıtılacak masrafların TL toplamı."""
+        from decimal import Decimal
+
+        return sum((e.try_amount for e in self.expenses.all() if e.billable), Decimal("0"))
+
+    @property
+    def customer_total(self):
+        """Servis bedeli + yansıtılan masraf: müşterinin bu servis için borcu."""
+        from decimal import Decimal
+
+        charge = self.service_charge
+        fee = charge.try_amount if charge else Decimal("0")
+        return fee + self.billable_expense_total
+
+    @property
     def duration_minutes(self):
         if not self.start_time or not self.end_time:
             return None
@@ -305,6 +326,13 @@ class LedgerEntry(models.Model):
         ("IADE", "İade / İskonto"),
     ]
 
+    # Rapora bağlı kalemleri birbirinden ayırır
+    KIND_CHOICES = [
+        ("SERVIS", "Servis bedeli"),
+        ("MASRAF", "Yansıtılan masraf"),
+        ("DIGER", "Diğer"),
+    ]
+
     METHOD_CHOICES = [
         ("NAKIT", "Nakit"),
         ("HAVALE", "Havale / EFT"),
@@ -320,6 +348,7 @@ class LedgerEntry(models.Model):
     )
 
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default="BORC")
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default="DIGER")
     date = models.DateField(verbose_name="Tarih")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default="TRY")
@@ -390,7 +419,7 @@ class Expense(models.Model):
         max_digits=10, decimal_places=2, default=0,
         verbose_name="Miktar (yakıt için litre)",
     )
-    billable = models.BooleanField(default=False, verbose_name="Müşteriye yansıtılacak")
+    billable = models.BooleanField(default=True, verbose_name="Müşteriye yansıtılacak")
     receipt = models.ImageField(upload_to="servis/fisler/", null=True, blank=True)
 
     external_id = models.CharField(max_length=64, blank=True, db_index=True)
@@ -423,6 +452,9 @@ class FinanceSettings(models.Model):
     )
     show_charge_on_pdf = models.BooleanField(
         default=False, verbose_name="Servis bedeli PDF raporda görünsün"
+    )
+    expenses_billable_by_default = models.BooleanField(
+        default=True, verbose_name="Masraflar varsayılan olarak müşteriye yansıtılsın"
     )
     overdue_grace_days = models.PositiveIntegerField(
         default=0, verbose_name="Gecikme uyarısı için tolerans (gün)"

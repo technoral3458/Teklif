@@ -51,8 +51,15 @@ kayıtlarınız silinmez.
   uyarmasın diye)
 - **Masraf kaydı:** yakıt (litre takipli), konaklama, yemek, otoyol/köprü,
   otopark, ulaşım, malzeme, kargo, araç bakım ve diğer — fiş fotoğrafı
-  eklenebilir, "müşteriye yansıtılacak" işaretlenebilir
-- Rapor detayında o servisin kârı (bedel - masraf) görünür
+  eklenebilir
+- **Masraflar müşteriye yansıtılır:** işaretli kalemler servis bedeline eklenir
+  ve müşterinin carisine ayrı bir borç kalemi olarak yazılır. Rapor detayında
+  servis bedeli, yansıtılan masraf ve "müşteriye toplam" ayrı ayrı görünür;
+  servis kârı = (bedel + yansıtılan) − tüm masraf
+- Yansıtmayı kalem bazında kapatabilir, varsayılanı Ayarlar'dan değiştirebilirsiniz
+- **Masraf dökümü PDF'i:** tek tuşla kalem listesi, toplamlar ve eklenen bütün
+  fiş fotoğrafları tek dosyada birleşir — müşteriye şeffaf döküm vermek için.
+  Paylaşılabilir ya da servis raporu mailine ek olarak gönderilebilir
 
 **Aylık rapor**
 - Hakediş, tahsilat, masraf, net kâr ve kasa akışı

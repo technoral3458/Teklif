@@ -9,9 +9,11 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import MailIcon from "@mui/icons-material/Mail";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import api from "../../api/client";
+import { money } from "./financeUtils";
 
 const STATUS_COLOR = {
   TASLAK: "default", ACIK: "info", COZULDU: "success",
@@ -47,6 +49,10 @@ export default function ServiceReports() {
 
   const openPdf = (report) => {
     window.open(`${api.defaults.baseURL}/service/reports/${report.id}/pdf/`, "_blank");
+  };
+
+  const openExpensePdf = (report) => {
+    window.open(`${api.defaults.baseURL}/service/reports/${report.id}/expense-pdf/`, "_blank");
   };
 
   return (
@@ -139,6 +145,13 @@ export default function ServiceReports() {
                   <Tooltip title="PDF">
                     <IconButton size="small" onClick={() => openPdf(report)}><PictureAsPdfIcon fontSize="small" /></IconButton>
                   </Tooltip>
+                  {report.expenses?.length > 0 && (
+                    <Tooltip title="Masraf dökümü ve fişler">
+                      <IconButton size="small" onClick={() => openExpensePdf(report)}>
+                        <ReceiptLongIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   <Tooltip title={report.mailed_at ? `Gönderildi: ${fmtDate(report.mailed_at)}` : "Mail gönder"}>
                     <IconButton size="small" color={report.mailed_at ? "success" : "default"} onClick={() => setMailTarget(report)}>
                       <MailIcon fontSize="small" />
@@ -156,13 +169,14 @@ export default function ServiceReports() {
         </Table>
       </CardContent></Card>
 
-      <ReportDetailDialog report={selected} onClose={() => setSelected(null)} onPdf={openPdf} />
+      <ReportDetailDialog report={selected} onClose={() => setSelected(null)}
+        onPdf={openPdf} onExpensePdf={openExpensePdf} />
       <MailDialog key={mailTarget?.id} report={mailTarget} onClose={() => setMailTarget(null)} onSent={load} />
     </Box>
   );
 }
 
-function ReportDetailDialog({ report, onClose, onPdf }) {
+function ReportDetailDialog({ report, onClose, onPdf, onExpensePdf }) {
   if (!report) return null;
   const blocks = [
     ["Arıza / Talep Tanımı", report.fault_description],
@@ -207,6 +221,44 @@ function ReportDetailDialog({ report, onClose, onPdf }) {
             </Grid>
           ))}
         </Grid>
+
+        {(report.charge || report.expenses?.length > 0) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle2" color="primary" gutterBottom>ÜCRETLENDİRME</Typography>
+            <Grid container spacing={2}>
+              {[
+                ["Servis bedeli", report.charge ? money(report.charge.try_amount) : "-"],
+                ["Yansıtılan masraf", money(report.billable_expense_total)],
+                ["Müşteriye toplam", money(report.customer_total)],
+                ["Masraf toplamı", money(report.expense_total)],
+                ["Servis kârı", money(Number(report.customer_total) - Number(report.expense_total))],
+              ].map(([label, value]) => (
+                <Grid item xs={6} md={4} key={label}>
+                  <Typography variant="caption" color="text.secondary">{label}</Typography>
+                  <Typography fontWeight={600}>{value}</Typography>
+                </Grid>
+              ))}
+            </Grid>
+            {report.expenses?.length > 0 && (
+              <Table size="small" sx={{ mt: 1 }}>
+                <TableBody>
+                  {report.expenses.map((expense) => (
+                    <TableRow key={expense.id}>
+                      <TableCell>{expense.category_label}</TableCell>
+                      <TableCell>{expense.description || "-"}</TableCell>
+                      <TableCell>
+                        <Chip size="small" color={expense.billable ? "success" : "default"}
+                          label={expense.billable ? "yansıtıldı" : "yansıtılmadı"} />
+                      </TableCell>
+                      <TableCell align="right">{money(expense.try_amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </>
+        )}
 
         {report.departments?.length > 0 && (
           <>
@@ -277,7 +329,12 @@ function ReportDetailDialog({ report, onClose, onPdf }) {
         )}
       </DialogContent>
       <DialogActions>
-        <Button startIcon={<PictureAsPdfIcon />} onClick={() => onPdf(report)}>PDF</Button>
+        <Button startIcon={<PictureAsPdfIcon />} onClick={() => onPdf(report)}>Servis Raporu PDF</Button>
+        {report.expenses?.length > 0 && (
+          <Button startIcon={<ReceiptLongIcon />} onClick={() => onExpensePdf(report)}>
+            Masraf Dökümü
+          </Button>
+        )}
         <Button onClick={onClose}>Kapat</Button>
       </DialogActions>
     </Dialog>
@@ -289,6 +346,7 @@ function MailDialog({ report, onClose, onSent }) {
   const [cc, setCc] = useState("");
   const [note, setNote] = useState("");
   const [attachPhotos, setAttachPhotos] = useState(true);
+  const [attachExpenses, setAttachExpenses] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -298,7 +356,7 @@ function MailDialog({ report, onClose, onSent }) {
     setError(""); setBusy(true);
     try {
       await api.post(`/service/reports/${report.id}/send-mail/`, {
-        to, cc, note, attach_photos: attachPhotos,
+        to, cc, note, attach_photos: attachPhotos, attach_expenses: attachExpenses,
       });
       onSent();
       onClose();
@@ -324,6 +382,13 @@ function MailDialog({ report, onClose, onSent }) {
             control={<Checkbox checked={attachPhotos} onChange={(e) => setAttachPhotos(e.target.checked)} />}
             label={`Fotoğrafları da ekle (${report.photos?.length || 0})`}
           />
+          {report.expenses?.length > 0 && (
+            <FormControlLabel
+              control={<Checkbox checked={attachExpenses}
+                onChange={(e) => setAttachExpenses(e.target.checked)} />}
+              label={`Masraf dökümünü ve fişleri ekle (${report.expenses.length} kalem)`}
+            />
+          )}
           <Alert severity="info">Rapor PDF olarak da eklenir. Gönderen bilgileri Ayarlar &gt; Mail Ayarları'ndan alınır.</Alert>
         </Stack>
       </DialogContent>

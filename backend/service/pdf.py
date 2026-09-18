@@ -505,3 +505,177 @@ def build_finance_pdf(summary, company, overdue, accounts):
     L.c.showPage()
     L.c.save()
     return buffer.getvalue()
+
+
+def build_expense_pdf(report, company):
+    """Masraf dökümü: kalem listesi, toplamlar ve tüm fiş fotoğrafları tek PDF'te."""
+    if not REPORTLAB_AVAILABLE:
+        return None
+
+    from decimal import Decimal
+
+    buffer = io.BytesIO()
+    L = _Layout(buffer, company)
+    green = (0.11, 0.50, 0.29)
+
+    def fmt(value, symbol="TL"):
+        text = f"{float(value):,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
+        return f"{text} {symbol}"
+
+    expenses = list(report.expenses.all().order_by("date", "id"))
+    charge = report.service_charge
+    total = sum((e.try_amount for e in expenses), Decimal("0"))
+    billable = sum((e.try_amount for e in expenses if e.billable), Decimal("0"))
+    service_fee = charge.try_amount if charge else Decimal("0")
+
+    # --------------------------------------------------------------- başlık
+    top = L.y
+    L.at(company.company_name or "Masraf Dökümü", MARGIN, top - 13, 14, True, INK)
+    info = [p for p in (company.company_address, company.company_phone, company.company_email) if p]
+    for i, line in enumerate(info):
+        L.at(line, MARGIN, top - 26 - i * 10, 8, False, MUTED)
+
+    L.at("MASRAF DÖKÜMÜ", PAGE_W - MARGIN, top - 13, 14, True, ACCENT, "right")
+    L.at(report.report_no, PAGE_W - MARGIN, top - 27, 10, True, INK, "right")
+    L.at(report.service_date.strftime("%d.%m.%Y"), PAGE_W - MARGIN, top - 39, 9, False, MUTED, "right")
+
+    L.y = top - max(52, 26 + len(info) * 10) - 6
+    L.c.setStrokeColorRGB(*BORDER)
+    L.c.line(MARGIN, L.y, PAGE_W - MARGIN, L.y)
+    L.y -= 12
+
+    machine = report.machine
+    rows = [("Müşteri", report.customer.name)]
+    if machine:
+        rows.append(("Makine", " ".join(p for p in (machine.brand, machine.name) if p) or machine.model))
+        if machine.serial_no:
+            rows.append(("Seri No", machine.serial_no))
+    card_h = 12 + len(rows) * 12 + 8
+    L.ensure(card_h + 10)
+    card_top = L.y - card_h
+    L.box(MARGIN, card_top, PAGE_W - 2 * MARGIN, card_h, SOFT)
+    for i, (label, value) in enumerate(rows):
+        line_y = card_top + card_h - 20 - i * 12
+        L.at(f"{label}:", MARGIN + 10, line_y, 8, False, MUTED)
+        L.at(value, MARGIN + 78, line_y, 8, True, INK)
+    L.y = card_top - 12
+
+    # ---------------------------------------------------------- kalem tablosu
+    L.section(f"MASRAF KALEMLERİ ({len(expenses)})")
+    col_no = MARGIN + 6
+    col_category = MARGIN + 26
+    col_date = MARGIN + 0.42 * (PAGE_W - 2 * MARGIN)
+    col_state = MARGIN + 0.58 * (PAGE_W - 2 * MARGIN)
+
+    L.ensure(20)
+    header_top = L.y - 16
+    L.c.setFillColorRGB(*SOFT)
+    L.c.rect(MARGIN, header_top, PAGE_W - 2 * MARGIN, 16, stroke=0, fill=1)
+    L.at("#", col_no, header_top + 5, 7.5, True, MUTED)
+    L.at("KALEM", col_category, header_top + 5, 7.5, True, MUTED)
+    L.at("TARİH", col_date, header_top + 5, 7.5, True, MUTED)
+    L.at("DURUM", col_state, header_top + 5, 7.5, True, MUTED)
+    L.at("TUTAR", PAGE_W - MARGIN, header_top + 5, 7.5, True, MUTED, "right")
+    L.y = header_top
+
+    for index, expense in enumerate(expenses, start=1):
+        detail_parts = [expense.description] if expense.description else []
+        if expense.category == "YAKIT" and expense.quantity:
+            detail_parts.append(f"{float(expense.quantity):g} lt")
+        if expense.receipt:
+            detail_parts.append("fiş ekli")
+        detail = " • ".join(detail_parts)
+        row_h = 28 if detail else 18
+
+        L.ensure(row_h)
+        row_top = L.y - row_h
+        L.at(str(index), col_no, row_top + row_h - 12, 8.5, False, MUTED)
+        L.at(expense.get_category_display(), col_category, row_top + row_h - 12, 8.5, True, INK)
+        L.at(expense.date.strftime("%d.%m.%Y"), col_date, row_top + row_h - 12, 8.5, False, INK)
+        L.at(
+            "Yansıtıldı" if expense.billable else "Yansıtılmadı",
+            col_state, row_top + row_h - 12, 8, False, green if expense.billable else MUTED,
+        )
+        symbol = {"TRY": "TL", "USD": "$", "EUR": "€"}.get(expense.currency, expense.currency)
+        L.at(fmt(expense.amount, symbol), PAGE_W - MARGIN, row_top + row_h - 12, 8.5, True, INK, "right")
+        if detail:
+            L.at(detail, col_category, row_top + 4, 7.5, False, MUTED)
+        L.c.setStrokeColorRGB(*BORDER)
+        L.c.line(MARGIN, row_top, PAGE_W - MARGIN, row_top)
+        L.y = row_top
+
+    # ------------------------------------------------------------- toplamlar
+    L.y -= 8
+    summary = [("Toplam masraf", fmt(total), INK)]
+    if billable != total:
+        summary.append(("Müşteriye yansıtılan", fmt(billable), green))
+    if service_fee:
+        if charge and charge.currency != "TRY":
+            symbol = {"USD": "$", "EUR": "€"}.get(charge.currency, charge.currency)
+            summary.append(("Servis bedeli", f"{fmt(charge.amount, symbol)} = {fmt(service_fee)}", INK))
+        else:
+            summary.append(("Servis bedeli", fmt(service_fee), INK))
+
+    L.ensure(len(summary) * 16 + 36)
+    for label, value, color in summary:
+        row_top = L.y - 16
+        L.at(label, MARGIN + 6, row_top + 5, 9, False, MUTED)
+        L.at(value, PAGE_W - MARGIN, row_top + 5, 9, True, color, "right")
+        L.y = row_top
+
+    band_top = L.y - 28
+    L.c.setFillColorRGB(*ACCENT)
+    L.c.roundRect(MARGIN, band_top, PAGE_W - 2 * MARGIN, 26, 6, stroke=0, fill=1)
+    L.at("MÜŞTERİYE TOPLAM", MARGIN + 12, band_top + 9, 9, True, (1, 1, 1))
+    L.at(fmt(service_fee + billable), PAGE_W - MARGIN - 12, band_top + 8, 12, True, (1, 1, 1), "right")
+    L.y = band_top - 10
+
+    # ---------------------------------------------------------------- fişler
+    with_receipt = [e for e in expenses if e.receipt]
+    if not with_receipt:
+        L.y -= 6
+        L.at("Bu servise ait masraf fişi fotoğrafı eklenmemiştir.", MARGIN, L.y, 8, False, MUTED)
+    else:
+        L.c.showPage()
+        L._start_page()
+        L.section(f"MASRAF FİŞLERİ ({len(with_receipt)})")
+        image_h = 320
+        for expense in with_receipt:
+            index = expenses.index(expense) + 1
+            L.ensure(image_h + 34)
+            box_top = L.y - image_h
+            L.box(MARGIN, box_top, PAGE_W - 2 * MARGIN, image_h, SOFT)
+            try:
+                expense.receipt.open("rb")
+                reader = ImageReader(expense.receipt)
+                iw, ih = reader.getSize()
+                scale = min((PAGE_W - 2 * MARGIN) / iw, image_h / ih)
+                L.c.drawImage(
+                    reader,
+                    MARGIN + ((PAGE_W - 2 * MARGIN) - iw * scale) / 2,
+                    box_top + (image_h - ih * scale) / 2,
+                    iw * scale, ih * scale, mask="auto",
+                )
+                expense.receipt.close()
+            except Exception:
+                pass
+
+            caption_parts = [f"{index} — {expense.get_category_display()}", expense.date.strftime("%d.%m.%Y")]
+            if expense.description:
+                caption_parts.append(expense.description)
+            L.at("  •  ".join(caption_parts), MARGIN, box_top - 13, 8.5, True, INK)
+            symbol = {"TRY": "TL", "USD": "$", "EUR": "€"}.get(expense.currency, expense.currency)
+            label = fmt(expense.amount, symbol)
+            if expense.currency != "TRY":
+                label += f"  ({fmt(expense.try_amount)})"
+            L.at(label, PAGE_W - MARGIN, box_top - 13, 8.5, True, ACCENT, "right")
+            L.y = box_top - 24
+
+        missing = len(expenses) - len(with_receipt)
+        if missing:
+            L.y -= 6
+            L.at(f"{missing} kalem için fiş fotoğrafı eklenmemiştir.", MARGIN, L.y, 7.5, False, MUTED)
+
+    L.c.showPage()
+    L.c.save()
+    return buffer.getvalue()

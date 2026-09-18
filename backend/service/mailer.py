@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.html import escape
 
 from .models import MailSettings
-from .pdf import build_finance_pdf, build_report_pdf
+from .pdf import build_expense_pdf, build_finance_pdf, build_report_pdf
 
 
 def build_connection(settings_obj: MailSettings):
@@ -171,7 +171,7 @@ def build_body(settings_obj: MailSettings, report, note=""):
 </body></html>"""
 
 
-def send_report_mail(report, to, cc="", note="", attach_photos=None):
+def send_report_mail(report, to, cc="", note="", attach_photos=None, attach_expenses=None):
     """Raporu PDF eki ile gönderir. (başarılı, mesaj) döndürür."""
     settings_obj = MailSettings.load()
     if not settings_obj.is_configured:
@@ -183,6 +183,8 @@ def send_report_mail(report, to, cc="", note="", attach_photos=None):
 
     if attach_photos is None:
         attach_photos = settings_obj.attach_photos
+    if attach_expenses is None:
+        attach_expenses = report.expenses.exists()
 
     try:
         connection = build_connection(settings_obj)
@@ -200,6 +202,13 @@ def send_report_mail(report, to, cc="", note="", attach_photos=None):
         pdf_bytes = build_report_pdf(report, settings_obj)
         if pdf_bytes:
             message.attach(f"{report.report_no}.pdf", pdf_bytes, "application/pdf")
+
+        if attach_expenses and report.expenses.exists():
+            expense_pdf = build_expense_pdf(report, settings_obj)
+            if expense_pdf:
+                message.attach(
+                    f"{report.report_no}-masraf.pdf", expense_pdf, "application/pdf"
+                )
 
         if attach_photos:
             for photo in report.photos.all()[:12]:

@@ -139,6 +139,7 @@ object ExpensePdf {
                 expense.description.takeIf { it.isNotBlank() },
                 expense.quantity.takeIf { it > 0 && expense.category.name == "YAKIT" }
                     ?.let { "${it.asNumber()} lt" },
+                "fiş ekli".takeIf { expense.receiptPath != null },
             ).joinToString(" • ")
             val rowHeight = if (detail.isBlank()) 18f else 28f
 
@@ -158,9 +159,6 @@ object ExpensePdf {
             )
             if (detail.isNotBlank()) {
                 b.textAt(detail, colCategory, top + 23f, 7.5f, color = MUTED)
-            }
-            if (expense.receiptPath != null) {
-                b.textAt("fiş ekli", colNo, top + 23f, 6.5f, color = ACCENT)
             }
             b.moveTo(top + rowHeight)
             b.line(BORDER, 0.5f)
