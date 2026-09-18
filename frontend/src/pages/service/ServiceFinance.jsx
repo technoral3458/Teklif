@@ -11,6 +11,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import WarningIcon from "@mui/icons-material/Warning";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
+import SettingsIcon from "@mui/icons-material/Settings";
 import api from "../../api/client";
 
 import {
@@ -29,6 +30,7 @@ export default function ServiceFinance() {
   const [entryForm, setEntryForm] = useState(null);
   const [expenseForm, setExpenseForm] = useState(null);
   const [error, setError] = useState("");
+  const [settingsForm, setSettingsForm] = useState(null);
   const navigate = useNavigate();
 
   const load = useCallback(() => {
@@ -86,6 +88,18 @@ export default function ServiceFinance() {
     }
   };
 
+  const saveSettings = async () => {
+    setError("");
+    try {
+      const res = await api.put("/service/finance-settings/", settingsForm);
+      setRates(res.data);
+      setSettingsForm(null);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.error || "Ayarlar kaydedilemedi.");
+    }
+  };
+
   const removeEntry = async (id) => {
     if (!window.confirm("Cari hareket silinsin mi?")) return;
     await api.delete(`/service/ledger/${id}/`);
@@ -105,6 +119,10 @@ export default function ServiceFinance() {
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
         <Typography variant="h5" fontWeight={700}>Cari Takip</Typography>
         <Stack direction="row" spacing={1}>
+          <Button startIcon={<SettingsIcon />} onClick={() => setSettingsForm({ ...rates })}
+            disabled={!rates}>
+            Kur / Ayarlar
+          </Button>
           <Button startIcon={<InsertChartIcon />} onClick={() => navigate("/service/monthly-report")}>
             Aylık Rapor
           </Button>
@@ -322,6 +340,33 @@ export default function ServiceFinance() {
           </Table>
         )}
       </CardContent></Card>
+
+      {settingsForm && (
+        <Dialog open onClose={() => setSettingsForm(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>Kur ve Cari Ayarları</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} mt={1}>
+              <TextField label="1 USD kaç ₺" value={settingsForm.usd_rate ?? ""}
+                onChange={(e) => setSettingsForm({ ...settingsForm, usd_rate: e.target.value })}
+                helperText="Yeni kayıtlarda önerilir; her hareket kendi kurunu saklar" fullWidth />
+              <TextField label="1 EUR kaç ₺" value={settingsForm.eur_rate ?? ""}
+                onChange={(e) => setSettingsForm({ ...settingsForm, eur_rate: e.target.value })} fullWidth />
+              <TextField label="Gecikme uyarısı toleransı (gün)" value={settingsForm.overdue_grace_days ?? 0}
+                onChange={(e) => setSettingsForm({ ...settingsForm, overdue_grace_days: e.target.value })}
+                helperText="Vade geçtikten kaç gün sonra uyarı verilsin" fullWidth />
+              <FormControlLabel
+                control={<Checkbox checked={!!settingsForm.show_charge_on_pdf}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, show_charge_on_pdf: e.target.checked })} />}
+                label="Servis bedeli PDF raporda görünsün"
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSettingsForm(null)}>Vazgeç</Button>
+            <Button variant="contained" onClick={saveSettings}>Kaydet</Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       {entryForm && (
         <Dialog open onClose={() => setEntryForm(null)} maxWidth="sm" fullWidth>

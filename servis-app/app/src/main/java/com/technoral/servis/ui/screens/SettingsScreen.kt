@@ -167,6 +167,17 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
                         keyboardType = KeyboardType.Decimal,
                         supportingText = settings.ratesUpdatedAt?.let { "Son güncelleme: ${it.asDate()}" },
                     )
+                    AppTextField(
+                        settings.overdueGraceDays.toString(),
+                        { value ->
+                            vm.saveSettings(
+                                settings.copy(overdueGraceDays = value.filter { it.isDigit() }.toIntOrNull() ?: 0)
+                            )
+                        },
+                        "Gecikme uyarısı toleransı (gün)",
+                        keyboardType = KeyboardType.Number,
+                        supportingText = "Vade geçtikten kaç gün sonra uyarı verilsin",
+                    )
                     Row(
                         Modifier.fillMaxWidth().clickable {
                             vm.saveSettings(settings.copy(showChargeOnPdf = !settings.showChargeOnPdf))

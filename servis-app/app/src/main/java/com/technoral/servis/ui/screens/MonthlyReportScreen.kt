@@ -81,7 +81,10 @@ fun MonthlyReportScreen(vm: AppViewModel, nav: Navigator) {
     var mailOpen by remember { mutableStateOf(false) }
 
     val summary = remember(year, month, ledger, expenses, reports) { vm.monthlySummary(year, month) }
-    val overdue = remember(customers, ledger) { Finance.overdueDebts(customers, ledger) }
+    val settings by vm.settings.collectAsState()
+    val overdue = remember(customers, ledger, settings) {
+        Finance.overdueDebts(customers, ledger, settings.overdueGraceDays)
+    }
 
     fun shift(delta: Int) {
         var m = month + delta

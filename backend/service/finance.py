@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import Q
 
-from .models import Customer, Expense, LedgerEntry, ServiceReport
+from .models import Customer, Expense, FinanceSettings, LedgerEntry, ServiceReport
 
 ZERO = Decimal("0")
 MONTH_NAMES = [
@@ -25,11 +25,12 @@ def month_range(year, month):
     return first, last
 
 
-def customer_account(customer, entries=None, today=None):
+def customer_account(customer, entries=None, today=None, grace_days=0):
     """Bir müşterinin cari durumu.
 
     Tahsilat ve iadeler tarih sırasıyla en eski borçtan başlayarak düşülür;
-    kalan açık borçlar vade/söz kontrolüne girer.
+    kalan açık borçlar vade/söz kontrolüne girer. `grace_days`, vade gününde
+    hemen uyarı verilmemesi için beklenen tolerans süresidir.
     """
     today = today or datetime.date.today()
     if entries is None:
@@ -51,12 +52,13 @@ def customer_account(customer, entries=None, today=None):
         if open_amount > Decimal("0.005"):
             deadline = debt.promised_date or debt.due_date
             days_late = (today - deadline).days if deadline and deadline < today else 0
+            is_overdue = days_late > grace_days
             open_debts.append({
                 "entry": debt,
                 "open_try": open_amount,
                 "deadline": deadline,
-                "is_overdue": days_late > 0,
-                "broken_promise": bool(debt.promised_date and debt.promised_date < today),
+                "is_overdue": is_overdue,
+                "broken_promise": bool(is_overdue and debt.promised_date),
                 "days_late": days_late,
             })
 
@@ -74,19 +76,26 @@ def customer_account(customer, entries=None, today=None):
     }
 
 
-def all_accounts(today=None):
+def _grace_days(value=None):
+    if value is not None:
+        return value
+    return FinanceSettings.load().overdue_grace_days
+
+
+def all_accounts(today=None, grace_days=None):
+    grace_days = _grace_days(grace_days)
     customers = list(Customer.objects.all())
     entries = list(LedgerEntry.objects.select_related("customer"))
     grouped = {}
     for entry in entries:
         grouped.setdefault(entry.customer_id, []).append(entry)
-    return [customer_account(c, grouped.get(c.id, []), today) for c in customers]
+    return [customer_account(c, grouped.get(c.id, []), today, grace_days) for c in customers]
 
 
-def overdue_list(today=None):
+def overdue_list(today=None, grace_days=None):
     """Tüm müşterilerdeki vadesi/sözü geçmiş açık alacaklar, en gecikmişten başlayarak."""
     rows = []
-    for account in all_accounts(today):
+    for account in all_accounts(today, grace_days):
         for debt in account["open_debts"]:
             if debt["is_overdue"]:
                 rows.append({"customer": account["customer"], **debt})

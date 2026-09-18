@@ -85,8 +85,8 @@ fun DashboardScreen(vm: AppViewModel, nav: Navigator) {
 
     val (finYear, finMonth) = currentYearMonth()
     val finance = remember(ledger, expenses, reports) { vm.monthlySummary(finYear, finMonth) }
-    val accounts = remember(customers, ledger) { Finance.accounts(customers, ledger) }
-    val overdue = remember(customers, ledger) { Finance.overdueDebts(customers, ledger) }
+    val accounts = remember(customers, ledger, settings) { Finance.accounts(customers, ledger, settings.overdueGraceDays) }
+    val overdue = remember(customers, ledger, settings) { Finance.overdueDebts(customers, ledger, settings.overdueGraceDays) }
     val receivable = accounts.sumOf { it.balanceTry.coerceAtLeast(0.0) }
 
     val upcoming = reports

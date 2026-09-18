@@ -7,28 +7,34 @@ import java.util.Calendar
  * böylece hangi alacağın hâlâ açık olduğu ve vadesinin geçip geçmediği çıkarılabilir.
  */
 
-/** Açık kalan bir borç kalemi. */
+/**
+ * Açık kalan bir borç kalemi.
+ *
+ * [graceDays] ayarlardan gelen tolerans: vade gününde hemen uyarı vermemek için
+ * bu kadar gün beklenir.
+ */
 data class OpenDebt(
     val entry: LedgerEntry,
     val openTry: Double,
+    val graceDays: Int = 0,
 ) {
     /** Açık tutarın kendi para birimindeki karşılığı. */
     val openAmount: Double get() = if (entry.rate > 0) openTry / entry.rate else openTry
 
+    private val deadline: Long?
+        get() = entry.promisedDate ?: entry.dueDate
+
     val isOverdue: Boolean
-        get() {
-            val deadline = entry.promisedDate ?: entry.dueDate ?: return false
-            return deadline < todayStart()
-        }
+        get() = daysLate > graceDays
 
     /** Vade mi yoksa verilen söz mü geçti? */
     val brokenPromise: Boolean
-        get() = entry.promisedDate != null && entry.promisedDate < todayStart()
+        get() = isOverdue && entry.promisedDate != null
 
     val daysLate: Long
         get() {
-            val deadline = entry.promisedDate ?: entry.dueDate ?: return 0
-            return ((todayStart() - deadline) / 86_400_000L).coerceAtLeast(0)
+            val due = deadline ?: return 0
+            return ((todayStart() - due) / 86_400_000L).coerceAtLeast(0)
         }
 }
 
@@ -101,7 +107,11 @@ object Finance {
      * Bir müşterinin cari durumunu çıkarır. Tahsilat ve iadeler tarih sırasıyla
      * en eski borçtan başlayarak düşülür; kalan açık borçlar vade kontrolüne girer.
      */
-    fun accountOf(customerId: String, entries: List<LedgerEntry>): CustomerAccount {
+    fun accountOf(
+        customerId: String,
+        entries: List<LedgerEntry>,
+        graceDays: Int = 0,
+    ): CustomerAccount {
         val own = entries.filter { it.customerId == customerId }.sortedBy { it.date }
         val debits = own.filter { it.type == LedgerType.BORC }
         val credits = own.filter { it.type != LedgerType.BORC }
@@ -115,7 +125,7 @@ object Finance {
             val paid = minOf(remaining, debt.tryAmount)
             remaining -= paid
             val open = debt.tryAmount - paid
-            if (open > 0.005) openDebts.add(OpenDebt(debt, open))
+            if (open > 0.005) openDebts.add(OpenDebt(debt, open, graceDays))
         }
 
         return CustomerAccount(
@@ -127,19 +137,33 @@ object Finance {
         )
     }
 
-    fun accounts(customers: List<Customer>, entries: List<LedgerEntry>): List<CustomerAccount> =
-        customers.map { accountOf(it.id, entries) }
+    fun accounts(
+        customers: List<Customer>,
+        entries: List<LedgerEntry>,
+        graceDays: Int = 0,
+    ): List<CustomerAccount> = customers.map { accountOf(it.id, entries, graceDays) }
 
     /** Tüm müşterilerdeki vadesi geçmiş açık alacaklar, en gecikmişten başlayarak. */
-    fun overdueDebts(customers: List<Customer>, entries: List<LedgerEntry>): List<Pair<String, OpenDebt>> =
+    fun overdueDebts(
+        customers: List<Customer>,
+        entries: List<LedgerEntry>,
+        graceDays: Int = 0,
+    ): List<Pair<String, OpenDebt>> =
         customers.flatMap { customer ->
-            accountOf(customer.id, entries).openDebts
+            accountOf(customer.id, entries, graceDays).openDebts
                 .filter { it.isOverdue }
                 .map { customer.id to it }
         }.sortedByDescending { it.second.daysLate }
 
     fun totalReceivableTry(customers: List<Customer>, entries: List<LedgerEntry>): Double =
         customers.sumOf { accountOf(it.id, entries).balanceTry.coerceAtLeast(0.0) }
+
+    /** Yalnızca gecikmiş alacakların toplamı. */
+    fun overdueTotalTry(
+        customers: List<Customer>,
+        entries: List<LedgerEntry>,
+        graceDays: Int = 0,
+    ): Double = overdueDebts(customers, entries, graceDays).sumOf { it.second.openTry }
 
     fun summary(
         year: Int,

@@ -68,7 +68,9 @@ fun CustomerAccountScreen(vm: AppViewModel, nav: Navigator, customerId: String) 
         return
     }
 
-    val account = remember(ledger, customerId) { Finance.accountOf(customerId, ledger) }
+    val account = remember(ledger, customerId, settings) {
+        Finance.accountOf(customerId, ledger, settings.overdueGraceDays)
+    }
     val entries = remember(ledger, customerId) { vm.ledgerOfCustomer(customerId) }
 
     // Para birimi bazında net bakiye — dolarlı işlerin takibi için

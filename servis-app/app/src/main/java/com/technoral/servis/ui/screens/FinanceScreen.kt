@@ -109,8 +109,8 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
 
     val (year, month) = currentYearMonth()
     val summary = remember(ledger, expenses, reports) { vm.monthlySummary(year, month) }
-    val accounts = remember(customers, ledger) { Finance.accounts(customers, ledger) }
-    val overdue = remember(customers, ledger) { Finance.overdueDebts(customers, ledger) }
+    val accounts = remember(customers, ledger, settings) { Finance.accounts(customers, ledger, settings.overdueGraceDays) }
+    val overdue = remember(customers, ledger, settings) { Finance.overdueDebts(customers, ledger, settings.overdueGraceDays) }
     val receivable = accounts.sumOf { it.balanceTry.coerceAtLeast(0.0) }
     val overdueTotal = overdue.sumOf { it.second.openTry }
 
@@ -122,7 +122,7 @@ fun FinanceScreen(vm: AppViewModel, nav: Navigator) {
             items = customers,
             itemTitle = { it.name },
             itemSubtitle = {
-                val account = Finance.accountOf(it.id, ledger)
+                val account = Finance.accountOf(it.id, ledger, settings.overdueGraceDays)
                 if (account.balanceTry > 0) "Bakiye: ${money(account.balanceTry)}" else it.city
             },
             onPick = { newEntryFor = it.id; pickCustomer = false },

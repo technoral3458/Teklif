@@ -90,8 +90,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun ledgerOfCustomer(customerId: String) = repo.ledgerOfCustomer(customerId)
     fun chargeOfReport(reportId: String) = repo.chargeOfReport(reportId)
 
-    fun accountOf(customerId: String) = Finance.accountOf(customerId, ledger.value)
-    fun overdueDebts() = Finance.overdueDebts(customers.value, ledger.value)
+    /** Ayarlardaki gecikme toleransı (gün). */
+    val graceDays: Int get() = settings.value.overdueGraceDays
+
+    fun accountOf(customerId: String) = Finance.accountOf(customerId, ledger.value, graceDays)
+    fun accounts() = Finance.accounts(customers.value, ledger.value, graceDays)
+    fun overdueDebts() = Finance.overdueDebts(customers.value, ledger.value, graceDays)
     fun totalReceivable() = Finance.totalReceivableTry(customers.value, ledger.value)
 
     fun monthlySummary(year: Int, month: Int): MonthlySummary =
@@ -277,7 +281,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 summary = summary,
                 settings = settings.value,
                 customerName = { id -> repo.customer(id)?.name ?: "-" },
-                overdue = Finance.overdueDebts(customers.value, ledger.value),
+                overdue = overdueDebts(),
                 openBalances = customers.value.map { it to Finance.accountOf(it.id, ledger.value).balanceTry },
             )
         }.getOrNull()

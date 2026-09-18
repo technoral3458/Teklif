@@ -558,7 +558,9 @@ def customer_account_view(request, pk):
     except Customer.DoesNotExist:
         return Response({"error": "Müşteri bulunamadı"}, status=404)
 
-    account = finance.customer_account(customer)
+    account = finance.customer_account(
+        customer, grace_days=FinanceSettings.load().overdue_grace_days
+    )
     entries = customer.ledger_entries.select_related("report").all()
     return Response({
         **_account_payload(account),

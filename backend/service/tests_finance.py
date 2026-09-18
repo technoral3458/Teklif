@@ -135,3 +135,38 @@ class FinanceApiTest(TestCase):
         assert res.status_code == 400, res.data
         print("  kursuz döviz girişi reddedildi ✔")
         print("CARİ UÇLARI ÇALIŞIYOR")
+
+
+class GracePeriodTest(TestCase):
+    """Gecikme toleransı: vade geçtikten sonra kaç gün beklenmesi gerektiği."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("mali2", password="x", role="admin")
+        self.client_api = APIClient()
+        self.client_api.force_authenticate(self.user)
+        self.today = datetime.date.today()
+        self.customer = Customer.objects.create(name="Test Firma")
+        LedgerEntry.objects.create(
+            customer=self.customer, type="BORC",
+            date=self.today - datetime.timedelta(days=30),
+            amount="5000.00", currency="TRY", rate=1,
+            due_date=self.today - datetime.timedelta(days=3),
+        )
+
+    def test_grace_period_suppresses_warning(self):
+        settings_obj = FinanceSettings.load()
+        settings_obj.overdue_grace_days = 0
+        settings_obj.save()
+        res = self.client_api.get("/api/service/overdue/")
+        self.assertEqual(res.data["count"], 1)
+        self.assertEqual(res.data["items"][0]["days_late"], 3)
+
+        settings_obj.overdue_grace_days = 5
+        settings_obj.save()
+        res = self.client_api.get("/api/service/overdue/")
+        self.assertEqual(res.data["count"], 0, "5 günlük tolerans içinde uyarı verilmemeli")
+
+        settings_obj.overdue_grace_days = 2
+        settings_obj.save()
+        res = self.client_api.get("/api/service/overdue/")
+        self.assertEqual(res.data["count"], 1, "tolerans aşılınca yeniden uyarılmalı")
