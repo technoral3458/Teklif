@@ -283,3 +283,162 @@ class MailSettings(models.Model):
         if obj is None:
             obj = cls.objects.create()
         return obj
+
+
+CURRENCY_CHOICES = [
+    ("TRY", "Türk Lirası (₺)"),
+    ("USD", "Dolar ($)"),
+    ("EUR", "Euro (€)"),
+]
+
+
+class LedgerEntry(models.Model):
+    """Müşteri cari hareketi.
+
+    Tutar kendi para biriminde saklanır; `rate` hareketin yapıldığı günkü TL
+    karşılığıdır. Böylece kur sonradan değişse de geçmiş rakamlar oynamaz.
+    """
+
+    TYPE_CHOICES = [
+        ("BORC", "Borç / Hakediş"),
+        ("TAHSILAT", "Tahsilat"),
+        ("IADE", "İade / İskonto"),
+    ]
+
+    METHOD_CHOICES = [
+        ("NAKIT", "Nakit"),
+        ("HAVALE", "Havale / EFT"),
+        ("KREDI_KARTI", "Kredi Kartı"),
+        ("CEK", "Çek"),
+        ("SENET", "Senet"),
+        ("DIGER", "Diğer"),
+    ]
+
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="ledger_entries")
+    report = models.ForeignKey(
+        ServiceReport, on_delete=models.SET_NULL, null=True, blank=True, related_name="ledger_entries"
+    )
+
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default="BORC")
+    date = models.DateField(verbose_name="Tarih")
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default="TRY")
+    rate = models.DecimalField(
+        max_digits=10, decimal_places=4, default=1, verbose_name="TL kuru"
+    )
+
+    description = models.CharField(max_length=300, blank=True)
+    document_no = models.CharField(max_length=60, blank=True, verbose_name="Belge no")
+    due_date = models.DateField(null=True, blank=True, verbose_name="Vade")
+    promised_date = models.DateField(
+        null=True, blank=True, verbose_name="Söz verilen ödeme tarihi"
+    )
+    payment_method = models.CharField(max_length=20, choices=METHOD_CHOICES, default="NAKIT")
+
+    external_id = models.CharField(max_length=64, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Cari Hareket"
+        verbose_name_plural = "Cari Hareketler"
+        ordering = ["-date", "-id"]
+
+    def __str__(self):
+        return f"{self.customer.name} - {self.get_type_display()} {self.amount} {self.currency}"
+
+    @property
+    def try_amount(self):
+        return self.amount * self.rate
+
+    @property
+    def signed_try(self):
+        return self.try_amount if self.type == "BORC" else -self.try_amount
+
+
+class Expense(models.Model):
+    """Servis sırasında yapılan harcamalar (yakıt, otel, yemek, otoyol…)."""
+
+    CATEGORY_CHOICES = [
+        ("YAKIT", "Yakıt"),
+        ("KONAKLAMA", "Konaklama / Otel"),
+        ("YEMEK", "Yemek"),
+        ("YOL", "Otoyol / Köprü"),
+        ("OTOPARK", "Otopark"),
+        ("ULASIM", "Ulaşım (uçak, otobüs)"),
+        ("MALZEME", "Malzeme / Sarf"),
+        ("KARGO", "Kargo"),
+        ("ARAC", "Araç Bakım / Lastik"),
+        ("DIGER", "Diğer"),
+    ]
+
+    report = models.ForeignKey(
+        ServiceReport, on_delete=models.CASCADE, null=True, blank=True, related_name="expenses"
+    )
+    customer = models.ForeignKey(
+        Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name="expenses"
+    )
+
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="YAKIT")
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default="TRY")
+    rate = models.DecimalField(max_digits=10, decimal_places=4, default=1)
+
+    description = models.CharField(max_length=300, blank=True)
+    quantity = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        verbose_name="Miktar (yakıt için litre)",
+    )
+    billable = models.BooleanField(default=False, verbose_name="Müşteriye yansıtılacak")
+    receipt = models.ImageField(upload_to="servis/fisler/", null=True, blank=True)
+
+    external_id = models.CharField(max_length=64, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Masraf"
+        verbose_name_plural = "Masraflar"
+        ordering = ["-date", "-id"]
+
+    def __str__(self):
+        return f"{self.get_category_display()} - {self.amount} {self.currency}"
+
+    @property
+    def try_amount(self):
+        return self.amount * self.rate
+
+
+class FinanceSettings(models.Model):
+    """Kur önerileri ve cari tercihleri. Tek kayıt tutulur."""
+
+    usd_rate = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    eur_rate = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    rates_updated_at = models.DateTimeField(null=True, blank=True)
+    show_charge_on_pdf = models.BooleanField(
+        default=False, verbose_name="Servis bedeli PDF raporda görünsün"
+    )
+    overdue_grace_days = models.PositiveIntegerField(
+        default=0, verbose_name="Gecikme uyarısı için tolerans (gün)"
+    )
+
+    class Meta:
+        verbose_name = "Cari Ayarları"
+        verbose_name_plural = "Cari Ayarları"
+
+    def __str__(self):
+        return f"USD {self.usd_rate} / EUR {self.eur_rate}"
+
+    def rate_for(self, currency):
+        if currency == "USD":
+            return self.usd_rate
+        if currency == "EUR":
+            return self.eur_rate
+        return 1
+
+    @classmethod
+    def load(cls):
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj

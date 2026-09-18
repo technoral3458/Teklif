@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.html import escape
 
 from .models import MailSettings
-from .pdf import build_report_pdf
+from .pdf import build_finance_pdf, build_report_pdf
 
 
 def build_connection(settings_obj: MailSettings):
@@ -268,3 +268,94 @@ def readable_error(exc):
     else:
         hint = "Gönderim başarısız."
     return f"{hint} (Teknik ayrıntı: {raw})"
+
+
+def send_finance_mail(summary, to, note, overdue, accounts):
+    """Aylık finans raporunu PDF eki ile gönderir."""
+    settings_obj = MailSettings.load()
+    if not settings_obj.is_configured:
+        return False, "Mail ayarları eksik."
+
+    recipients = split_addresses(to) or split_addresses(settings_obj.default_to)
+    if not recipients:
+        return False, "Alıcı e-posta adresi girilmedi."
+
+    def fmt(value):
+        return f"{float(value):,.2f} TL".replace(",", "@").replace(".", ",").replace("@", ".")
+
+    rows = "".join(
+        f'<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;color:#64748b;width:55%">{escape(label)}</td>'
+        f'<td style="padding:7px 10px;border:1px solid #e2e8f0;font-weight:600">{escape(value)}</td></tr>'
+        for label, value in [
+            ("Dönem", summary["label"]),
+            ("Hakediş", fmt(summary["income_try"])),
+            ("Tahsilat", fmt(summary["collected_try"])),
+            ("Masraf", fmt(summary["expense_try"])),
+            ("Net kâr (hakediş - masraf)", fmt(summary["net_try"])),
+            ("Kasa akışı (tahsilat - masraf)", fmt(summary["cash_flow_try"])),
+            ("Servis sayısı", str(summary["service_count"])),
+        ]
+    )
+    expenses_html = "".join(
+        f'<li>{escape(row["label"])}: <b>{escape(fmt(row["amount"]))}</b></li>'
+        for row in summary["expense_by_category"]
+    )
+    overdue_html = ""
+    if overdue:
+        items = "".join(
+            f'<li>{escape(row["customer"].name)} — <b>{escape(fmt(row["open_try"]))}</b> '
+            f'({row["days_late"]} gün gecikme)</li>'
+            for row in overdue[:10]
+        )
+        overdue_html = (
+            '<h3 style="margin:20px 0 8px;font-size:14px;color:#b3261e;text-transform:uppercase;'
+            'letter-spacing:.4px">Ödemesi Geciken Alacaklar</h3>'
+            f'<ul style="margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.7;color:#334155">{items}</ul>'
+        )
+
+    note_html = ""
+    if note:
+        note_html = (
+            '<div style="margin:0 0 16px;padding:12px 14px;background:#f1f5f9;border-left:3px solid #0f4c75;'
+            f'font-size:14px;line-height:1.6;color:#334155">{escape(note).replace(chr(10), "<br>")}</div>'
+        )
+
+    html = f"""<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:24px;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#0f4c75;padding:20px 24px;color:#ffffff">
+      <div style="font-size:18px;font-weight:700">{escape(settings_obj.company_name or "Finans Raporu")}</div>
+      <div style="font-size:13px;opacity:.85;margin-top:4px">{escape(summary["label"])} • Aylık Finans Raporu</div>
+    </div>
+    <div style="padding:24px">
+      {note_html}
+      <table style="width:100%;border-collapse:collapse;margin:0 0 18px;font-size:14px">{rows}</table>
+      {'<h3 style="margin:20px 0 8px;font-size:14px;color:#0f4c75;text-transform:uppercase;letter-spacing:.4px">Masraf Dağılımı</h3><ul style="margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.7;color:#334155">' + expenses_html + '</ul>' if expenses_html else ''}
+      {overdue_html}
+      <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155">
+        Ayrıntılı döküm ekteki PDF dosyasındadır.
+      </p>
+    </div>
+  </div>
+</body></html>"""
+
+    try:
+        message = EmailMultiAlternatives(
+            subject=f"{settings_obj.company_name or 'Servis'} • {summary['label']} Finans Raporu",
+            body="Aylık finans raporu ektedir.",
+            from_email=format_sender(settings_obj),
+            to=recipients,
+            connection=build_connection(settings_obj),
+        )
+        message.attach_alternative(html, "text/html")
+        pdf_bytes = build_finance_pdf(summary, settings_obj, overdue, accounts)
+        if pdf_bytes:
+            message.attach(
+                f"finans-{summary['year']}-{summary['month']:02d}.pdf", pdf_bytes, "application/pdf"
+            )
+        message.send()
+    except Exception as exc:
+        return False, readable_error(exc)
+
+    return True, f"Rapor gönderildi: {', '.join(recipients)}"

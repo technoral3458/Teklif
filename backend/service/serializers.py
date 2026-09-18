@@ -1,8 +1,13 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import (
     Customer,
     DepartmentWork,
+    Expense,
+    FinanceSettings,
+    LedgerEntry,
     Machine,
     MailSettings,
     ServicePhoto,
@@ -79,6 +84,8 @@ class ServiceReportSerializer(serializers.ModelSerializer):
     departments = DepartmentWorkSerializer(many=True, read_only=True)
     photos = ServicePhotoSerializer(many=True, read_only=True)
     parts = SparePartSerializer(many=True, read_only=True)
+    charge = serializers.SerializerMethodField()
+    expense_total = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceReport
@@ -89,7 +96,8 @@ class ServiceReportSerializer(serializers.ModelSerializer):
             "duration_minutes", "travel_km", "fault_description", "fault_cause",
             "work_done", "recommendations", "technician", "technician_name",
             "customer_rep", "signature", "next_maintenance", "mailed_to", "mailed_at",
-            "departments", "photos", "parts", "external_id", "created_at", "updated_at",
+            "departments", "photos", "parts", "charge", "expense_total",
+            "external_id", "created_at", "updated_at",
         ]
         read_only_fields = ["report_no", "mailed_to", "mailed_at", "created_at", "updated_at"]
 
@@ -98,12 +106,38 @@ class ServiceReportSerializer(serializers.ModelSerializer):
             return ""
         return " ".join(p for p in (obj.machine.brand, obj.machine.name) if p) or obj.machine.model
 
+    def get_charge(self, obj):
+        entry = obj.ledger_entries.filter(type="BORC").first()
+        if entry is None:
+            return None
+        return {
+            "id": entry.id,
+            "amount": entry.amount,
+            "currency": entry.currency,
+            "rate": entry.rate,
+            "try_amount": entry.try_amount,
+            "due_date": entry.due_date,
+        }
+
+    def get_expense_total(self, obj):
+        return sum((e.try_amount for e in obj.expenses.all()), Decimal("0"))
+
 
 class ServiceReportWriteSerializer(serializers.ModelSerializer):
-    """Bölümler ve yedek parçalar rapor ile birlikte tek istekte kaydedilir."""
+    """Bölümler, yedek parçalar ve servis bedeli rapor ile birlikte kaydedilir."""
 
     departments = DepartmentWorkSerializer(many=True, required=False)
     parts = SparePartSerializer(many=True, required=False)
+
+    # Servis bedeli, müşterinin carisine borç hareketi olarak işlenir
+    charge_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, allow_null=True, write_only=True
+    )
+    charge_currency = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    charge_rate = serializers.DecimalField(
+        max_digits=10, decimal_places=4, required=False, allow_null=True, write_only=True
+    )
+    charge_due_date = serializers.DateField(required=False, allow_null=True, write_only=True)
 
     class Meta:
         model = ServiceReport
@@ -112,16 +146,20 @@ class ServiceReportWriteSerializer(serializers.ModelSerializer):
             "start_time", "end_time", "travel_km", "fault_description", "fault_cause",
             "work_done", "recommendations", "technician", "technician_name",
             "customer_rep", "next_maintenance", "departments", "parts", "external_id",
+            "charge_amount", "charge_currency", "charge_rate", "charge_due_date",
         ]
 
     def create(self, validated_data):
+        charge = self._pop_charge(validated_data)
         departments = validated_data.pop("departments", [])
         parts = validated_data.pop("parts", [])
         report = ServiceReport.objects.create(**validated_data)
         self._sync_children(report, departments, parts)
+        self._sync_charge(report, charge)
         return report
 
     def update(self, instance, validated_data):
+        charge = self._pop_charge(validated_data)
         departments = validated_data.pop("departments", None)
         parts = validated_data.pop("parts", None)
         for field, value in validated_data.items():
@@ -132,7 +170,50 @@ class ServiceReportWriteSerializer(serializers.ModelSerializer):
         if parts is not None:
             instance.parts.all().delete()
         self._sync_children(instance, departments or [], parts or [])
+        self._sync_charge(instance, charge)
         return instance
+
+    def _pop_charge(self, validated_data):
+        keys = ("charge_amount", "charge_currency", "charge_rate", "charge_due_date")
+        if not any(key in validated_data for key in keys):
+            return None
+        return {key: validated_data.pop(key, None) for key in keys}
+
+    def _sync_charge(self, report, charge):
+        """Servis bedelini rapora bağlı tek bir borç hareketi olarak tutar."""
+        if charge is None:
+            return
+        amount = charge.get("charge_amount")
+        entry = report.ledger_entries.filter(type="BORC").first()
+
+        if not amount or amount <= 0:
+            if entry:
+                entry.delete()
+            return
+
+        currency = charge.get("charge_currency") or "TRY"
+        rate = Decimal("1") if currency == "TRY" else (charge.get("charge_rate") or Decimal("0"))
+        if rate <= 0:
+            raise serializers.ValidationError(
+                {"charge_rate": "Döviz cinsinden servis bedeli için kur girilmelidir."}
+            )
+
+        values = {
+            "customer": report.customer,
+            "type": "BORC",
+            "date": report.service_date,
+            "amount": amount,
+            "currency": currency,
+            "rate": rate,
+            "due_date": charge.get("charge_due_date"),
+            "description": f"Servis bedeli {report.report_no}",
+        }
+        if entry:
+            for field, value in values.items():
+                setattr(entry, field, value)
+            entry.save()
+        else:
+            LedgerEntry.objects.create(report=report, **values)
 
     def _sync_children(self, report, departments, parts):
         for item in departments:
@@ -171,3 +252,69 @@ class MailSettingsSerializer(serializers.ModelSerializer):
         if not validated_data.get("password"):
             validated_data.pop("password", None)
         return super().update(instance, validated_data)
+
+
+class LedgerEntrySerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    type_label = serializers.CharField(source="get_type_display", read_only=True)
+    method_label = serializers.CharField(source="get_payment_method_display", read_only=True)
+    try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    report_no = serializers.CharField(source="report.report_no", read_only=True, default="")
+
+    class Meta:
+        model = LedgerEntry
+        fields = [
+            "id", "customer", "customer_name", "report", "report_no", "type", "type_label",
+            "date", "amount", "currency", "rate", "try_amount", "description", "document_no",
+            "due_date", "promised_date", "payment_method", "method_label",
+            "external_id", "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+    def validate(self, attrs):
+        rate = attrs.get("rate", getattr(self.instance, "rate", 1))
+        currency = attrs.get("currency", getattr(self.instance, "currency", "TRY"))
+        if currency == "TRY":
+            attrs["rate"] = 1
+        elif not rate or rate <= 0:
+            raise serializers.ValidationError(
+                {"rate": "Döviz işlemleri için geçerli bir kur girilmelidir."}
+            )
+        return attrs
+
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    category_label = serializers.CharField(source="get_category_display", read_only=True)
+    customer_name = serializers.CharField(source="customer.name", read_only=True, default="")
+    report_no = serializers.CharField(source="report.report_no", read_only=True, default="")
+    try_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Expense
+        fields = [
+            "id", "report", "report_no", "customer", "customer_name", "category", "category_label",
+            "date", "amount", "currency", "rate", "try_amount", "description", "quantity",
+            "billable", "receipt", "external_id", "created_at",
+        ]
+        read_only_fields = ["created_at"]
+
+    def validate(self, attrs):
+        rate = attrs.get("rate", getattr(self.instance, "rate", 1))
+        currency = attrs.get("currency", getattr(self.instance, "currency", "TRY"))
+        if currency == "TRY":
+            attrs["rate"] = 1
+        elif not rate or rate <= 0:
+            raise serializers.ValidationError(
+                {"rate": "Döviz işlemleri için geçerli bir kur girilmelidir."}
+            )
+        return attrs
+
+
+class FinanceSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FinanceSettings
+        fields = [
+            "id", "usd_rate", "eur_rate", "rates_updated_at",
+            "show_charge_on_pdf", "overdue_grace_days",
+        ]
+        read_only_fields = ["rates_updated_at"]

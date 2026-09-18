@@ -14,6 +14,9 @@ import MailSettings from "./pages/admin/MailSettings";
 import ServiceReports from "./pages/service/ServiceReports";
 import ServiceReportForm from "./pages/service/ServiceReportForm";
 import ServiceMachines from "./pages/service/ServiceMachines";
+import ServiceFinance from "./pages/service/ServiceFinance";
+import CustomerAccount from "./pages/service/CustomerAccount";
+import MonthlyReport from "./pages/service/MonthlyReport";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -42,6 +45,9 @@ export default function App() {
           <Route path="/service/new-report" element={<ProtectedRoute><ServiceReportForm /></ProtectedRoute>} />
           <Route path="/service/report/:id" element={<ProtectedRoute><ServiceReportForm /></ProtectedRoute>} />
           <Route path="/service/machines" element={<ProtectedRoute><ServiceMachines /></ProtectedRoute>} />
+          <Route path="/service/finance" element={<ProtectedRoute><ServiceFinance /></ProtectedRoute>} />
+          <Route path="/service/account/:id" element={<ProtectedRoute><CustomerAccount /></ProtectedRoute>} />
+          <Route path="/service/monthly-report" element={<ProtectedRoute><MonthlyReport /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>

@@ -17,5 +17,18 @@ urlpatterns = [
     path("mail-settings/", views.mail_settings_view),
     path("mail-settings/test/", views.test_mail_view),
     path("stats/", views.service_stats),
+
+    # Cari ve masraf
+    path("ledger/", views.LedgerEntryListCreateView.as_view()),
+    path("ledger/<int:pk>/", views.LedgerEntryDetailView.as_view()),
+    path("expenses/", views.ExpenseListCreateView.as_view()),
+    path("expenses/<int:pk>/", views.ExpenseDetailView.as_view()),
+    path("accounts/", views.accounts_view),
+    path("accounts/<int:pk>/", views.customer_account_view),
+    path("overdue/", views.overdue_view),
+    path("monthly-report/", views.monthly_report_view),
+    path("monthly-report/pdf/", views.monthly_report_pdf),
+    path("monthly-report/mail/", views.monthly_report_mail),
+    path("finance-settings/", views.finance_settings_view),
     path("sync/", views.sync_from_mobile),
 ]

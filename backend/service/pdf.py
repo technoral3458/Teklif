@@ -367,3 +367,141 @@ def build_report_pdf(report, company):
     L.c.showPage()
     L.c.save()
     return buffer.getvalue()
+
+
+def build_finance_pdf(summary, company, overdue, accounts):
+    """Aylık gelir-gider ve alacak raporunun PDF çıktısı."""
+    if not REPORTLAB_AVAILABLE:
+        return None
+
+    buffer = io.BytesIO()
+    L = _Layout(buffer, company)
+
+    def fmt(value):
+        return f"{float(value):,.2f} TL".replace(",", "@").replace(".", ",").replace("@", ".")
+
+    # --------------------------------------------------------------- başlık
+    top = L.y
+    L.at(company.company_name or "Servis", MARGIN, top - 13, 14, True, INK)
+    L.at("Aylık Finans Raporu", MARGIN, top - 27, 9, False, MUTED)
+    L.at(summary["label"], PAGE_W - MARGIN, top - 13, 14, True, ACCENT, "right")
+    L.y = top - 40
+    L.c.setStrokeColorRGB(*BORDER)
+    L.c.line(MARGIN, L.y, PAGE_W - MARGIN, L.y)
+    L.y -= 12
+
+    # ---------------------------------------------------------- özet kutular
+    green = (0.11, 0.50, 0.29)
+    red = (0.70, 0.15, 0.12)
+    amber = (0.70, 0.42, 0.0)
+
+    def tiles(items):
+        gap = 8
+        cell_w = (PAGE_W - 2 * MARGIN - gap * 3) / 4
+        L.ensure(54)
+        block_top = L.y - 46
+        for i, (label, value, color) in enumerate(items):
+            x = MARGIN + i * (cell_w + gap)
+            L.box(x, block_top, cell_w, 46, SOFT)
+            L.at(label, x + 10, block_top + 31, 6.5, False, MUTED)
+            L.at(value, x + 10, block_top + 13, 11, True, color)
+        L.y = block_top - 8
+
+    tiles([
+        ("HAKEDİŞ", fmt(summary["income_try"]), ACCENT),
+        ("TAHSİLAT", fmt(summary["collected_try"]), green),
+        ("MASRAF", fmt(summary["expense_try"]), amber),
+        ("NET KÂR", fmt(summary["net_try"]), green if summary["net_try"] >= 0 else red),
+    ])
+    tiles([
+        ("KASA AKIŞI", fmt(summary["cash_flow_try"]), green if summary["cash_flow_try"] >= 0 else red),
+        ("SERVİS SAYISI", str(summary["service_count"]), INK),
+        ("YAKIT", f"{float(summary['fuel_liters']):g} lt" if summary["fuel_liters"] else "-", INK),
+        ("YANSITILACAK MASRAF", fmt(summary["billable_expense_try"]), MUTED),
+    ])
+
+    # ------------------------------------------------------ masraf dağılımı
+    if summary["expense_by_category"]:
+        L.section("MASRAF DAĞILIMI")
+        max_value = max(float(row["amount"]) for row in summary["expense_by_category"]) or 1
+        for row in summary["expense_by_category"]:
+            L.ensure(20)
+            row_top = L.y - 17
+            L.at(row["label"], MARGIN, row_top + 5, 8.5, False, INK)
+            bar_left = MARGIN + 150
+            bar_width = PAGE_W - 2 * MARGIN - 150 - 90
+            L.c.setFillColorRGB(*SOFT)
+            L.c.roundRect(bar_left, row_top + 2, bar_width, 9, 4.5, stroke=0, fill=1)
+            filled = max(2, bar_width * float(row["amount"]) / max_value)
+            L.c.setFillColorRGB(*ACCENT)
+            L.c.roundRect(bar_left, row_top + 2, filled, 9, 4.5, stroke=0, fill=1)
+            L.at(fmt(row["amount"]), PAGE_W - MARGIN, row_top + 5, 8.5, True, INK, "right")
+            L.y = row_top
+        L.y -= 8
+
+    # -------------------------------------------------------- müşteri bazında
+    if summary["by_customer"]:
+        L.section("MÜŞTERİ BAZINDA")
+        L.ensure(20)
+        header_top = L.y - 16
+        L.c.setFillColorRGB(*SOFT)
+        L.c.rect(MARGIN, header_top, PAGE_W - 2 * MARGIN, 16, stroke=0, fill=1)
+        L.at("MÜŞTERİ", MARGIN + 6, header_top + 5, 7.5, True, MUTED)
+        L.at("HAKEDİŞ", PAGE_W - MARGIN - 110, header_top + 5, 7.5, True, MUTED, "right")
+        L.at("TAHSİLAT", PAGE_W - MARGIN, header_top + 5, 7.5, True, MUTED, "right")
+        L.y = header_top
+        for row in summary["by_customer"]:
+            L.ensure(18)
+            row_top = L.y - 16
+            L.at(row["customer"], MARGIN + 6, row_top + 5, 8.5, True, INK)
+            L.at(fmt(row["income"]), PAGE_W - MARGIN - 110, row_top + 5, 8.5, False, INK, "right")
+            L.at(fmt(row["collected"]), PAGE_W - MARGIN, row_top + 5, 8.5, False, green, "right")
+            L.c.setStrokeColorRGB(*BORDER)
+            L.c.line(MARGIN, row_top, PAGE_W - MARGIN, row_top)
+            L.y = row_top - 2
+        L.y -= 6
+
+    # --------------------------------------------------------- açık alacaklar
+    open_accounts = [a for a in accounts if a["balance_try"] > 0]
+    if open_accounts:
+        L.section("AÇIK ALACAKLAR")
+        for account in sorted(open_accounts, key=lambda a: a["balance_try"], reverse=True):
+            L.ensure(16)
+            row_top = L.y - 15
+            L.at(account["customer"].name, MARGIN + 6, row_top + 4, 8.5, False, INK)
+            L.at(fmt(account["balance_try"]), PAGE_W - MARGIN, row_top + 4, 8.5, True, amber, "right")
+            L.c.setStrokeColorRGB(*BORDER)
+            L.c.line(MARGIN, row_top, PAGE_W - MARGIN, row_top)
+            L.y = row_top - 2
+        L.ensure(18)
+        total_top = L.y - 16
+        L.at("TOPLAM", MARGIN + 6, total_top + 5, 9, True, INK)
+        L.at(
+            fmt(sum(a["balance_try"] for a in open_accounts)),
+            PAGE_W - MARGIN, total_top + 5, 9, True, INK, "right",
+        )
+        L.y = total_top - 8
+
+    # --------------------------------------------------------- vadesi geçen
+    if overdue:
+        L.section("ÖDEMESİ GECİKEN ALACAKLAR")
+        for row in overdue:
+            L.ensure(26)
+            row_top = L.y - 24
+            L.c.setFillColorRGB(*red)
+            L.c.roundRect(MARGIN, row_top + 4, 3, 18, 1.5, stroke=0, fill=1)
+            L.at(row["customer"].name, MARGIN + 10, row_top + 15, 8.5, True, INK)
+            deadline = row["deadline"].strftime("%d.%m.%Y") if row["deadline"] else "-"
+            prefix = "Söz verilen tarih: " if row["broken_promise"] else "Vade: "
+            L.at(
+                f"{prefix}{deadline}  •  {row['days_late']} gün gecikme",
+                MARGIN + 10, row_top + 5, 7.5, False, red,
+            )
+            L.at(fmt(row["open_try"]), PAGE_W - MARGIN, row_top + 10, 9, True, red, "right")
+            L.c.setStrokeColorRGB(*BORDER)
+            L.c.line(MARGIN, row_top, PAGE_W - MARGIN, row_top)
+            L.y = row_top - 2
+
+    L.c.showPage()
+    L.c.save()
+    return buffer.getvalue()

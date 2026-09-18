@@ -1,23 +1,32 @@
+from decimal import Decimal
+
 from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from .mailer import send_report_mail, send_test_mail
+from . import finance
+from .mailer import send_finance_mail, send_report_mail, send_test_mail
 from .models import (
     Customer,
     DepartmentWork,
+    Expense,
+    FinanceSettings,
+    LedgerEntry,
     Machine,
     MailSettings,
     ServicePhoto,
     ServiceReport,
     SparePart,
 )
-from .pdf import build_report_pdf
+from .pdf import build_finance_pdf, build_report_pdf
 from .serializers import (
     CustomerSerializer,
+    ExpenseSerializer,
+    FinanceSettingsSerializer,
+    LedgerEntrySerializer,
     MachineSerializer,
     MailSettingsSerializer,
     ServicePhotoSerializer,
@@ -444,3 +453,202 @@ def _as_time(millis):
     if not millis:
         return None
     return timezone.datetime.fromtimestamp(int(millis) / 1000, tz=timezone.get_current_timezone()).time()
+
+
+# ---------------------------------------------------------------- Cari / Finans
+
+
+class LedgerEntryListCreateView(generics.ListCreateAPIView):
+    serializer_class = LedgerEntrySerializer
+    permission_classes = [CanManageService]
+
+    def get_queryset(self):
+        qs = LedgerEntry.objects.select_related("customer", "report")
+        params = self.request.query_params
+        if params.get("customer"):
+            qs = qs.filter(customer_id=params["customer"])
+        if params.get("type"):
+            qs = qs.filter(type=params["type"])
+        if params.get("from"):
+            qs = qs.filter(date__gte=params["from"])
+        if params.get("to"):
+            qs = qs.filter(date__lte=params["to"])
+        return qs
+
+
+class LedgerEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = LedgerEntry.objects.select_related("customer", "report")
+    serializer_class = LedgerEntrySerializer
+    permission_classes = [CanManageService]
+
+
+class ExpenseListCreateView(generics.ListCreateAPIView):
+    serializer_class = ExpenseSerializer
+    permission_classes = [CanManageService]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_queryset(self):
+        qs = Expense.objects.select_related("customer", "report")
+        params = self.request.query_params
+        if params.get("report"):
+            qs = qs.filter(report_id=params["report"])
+        if params.get("customer"):
+            qs = qs.filter(customer_id=params["customer"])
+        if params.get("category"):
+            qs = qs.filter(category=params["category"])
+        if params.get("from"):
+            qs = qs.filter(date__gte=params["from"])
+        if params.get("to"):
+            qs = qs.filter(date__lte=params["to"])
+        return qs
+
+
+class ExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Expense.objects.select_related("customer", "report")
+    serializer_class = ExpenseSerializer
+    permission_classes = [CanManageService]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+
+def _account_payload(account):
+    return {
+        "customer_id": account["customer"].id,
+        "customer": account["customer"].name,
+        "debit_try": account["debit_try"],
+        "credit_try": account["credit_try"],
+        "balance_try": account["balance_try"],
+        "overdue_try": account["overdue_try"],
+        "has_overdue": account["has_overdue"],
+        "last_activity": account["last_activity"],
+        "open_debts": [
+            {
+                "entry_id": debt["entry"].id,
+                "date": debt["entry"].date,
+                "description": debt["entry"].description,
+                "open_try": debt["open_try"],
+                "deadline": debt["deadline"],
+                "is_overdue": debt["is_overdue"],
+                "broken_promise": debt["broken_promise"],
+                "days_late": debt["days_late"],
+            }
+            for debt in account["open_debts"]
+        ],
+    }
+
+
+@api_view(["GET"])
+@permission_classes([CanManageService])
+def accounts_view(request):
+    accounts = finance.all_accounts()
+    accounts.sort(key=lambda a: a["balance_try"], reverse=True)
+    return Response({
+        "total_receivable": sum(
+            (a["balance_try"] for a in accounts if a["balance_try"] > 0), Decimal("0")
+        ),
+        "total_overdue": sum((a["overdue_try"] for a in accounts), Decimal("0")),
+        "accounts": [_account_payload(a) for a in accounts],
+    })
+
+
+@api_view(["GET"])
+@permission_classes([CanManageService])
+def customer_account_view(request, pk):
+    try:
+        customer = Customer.objects.get(pk=pk)
+    except Customer.DoesNotExist:
+        return Response({"error": "Müşteri bulunamadı"}, status=404)
+
+    account = finance.customer_account(customer)
+    entries = customer.ledger_entries.select_related("report").all()
+    return Response({
+        **_account_payload(account),
+        "entries": LedgerEntrySerializer(entries, many=True).data,
+    })
+
+
+@api_view(["GET"])
+@permission_classes([CanManageService])
+def overdue_view(request):
+    rows = finance.overdue_list()
+    return Response({
+        "total": sum((row["open_try"] for row in rows), Decimal("0")),
+        "count": len(rows),
+        "items": [
+            {
+                "customer_id": row["customer"].id,
+                "customer": row["customer"].name,
+                "phone": row["customer"].phone,
+                "email": row["customer"].email,
+                "description": row["entry"].description,
+                "document_no": row["entry"].document_no,
+                "date": row["entry"].date,
+                "deadline": row["deadline"],
+                "broken_promise": row["broken_promise"],
+                "days_late": row["days_late"],
+                "open_try": row["open_try"],
+            }
+            for row in rows
+        ],
+    })
+
+
+def _resolve_period(request):
+    today = timezone.localdate()
+    year = int(request.query_params.get("year", today.year))
+    month = int(request.query_params.get("month", today.month))
+    return year, month
+
+
+@api_view(["GET"])
+@permission_classes([CanManageService])
+def monthly_report_view(request):
+    year, month = _resolve_period(request)
+    return Response(finance.monthly_summary(year, month))
+
+
+@api_view(["GET"])
+@permission_classes([CanManageService])
+def monthly_report_pdf(request):
+    from django.http import HttpResponse
+
+    year, month = _resolve_period(request)
+    summary = finance.monthly_summary(year, month)
+    pdf_bytes = build_finance_pdf(summary, MailSettings.load(), finance.overdue_list(), finance.all_accounts())
+    if pdf_bytes is None:
+        return Response({"error": "PDF üretimi için reportlab kurulu değil."}, status=501)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="finans-{year}-{month:02d}.pdf"'
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([CanManageService])
+def monthly_report_mail(request):
+    year, month = _resolve_period(request)
+    summary = finance.monthly_summary(year, month)
+    ok, message = send_finance_mail(
+        summary=summary,
+        to=request.data.get("to", ""),
+        note=request.data.get("note", ""),
+        overdue=finance.overdue_list(),
+        accounts=finance.all_accounts(),
+    )
+    if not ok:
+        return Response({"error": message}, status=400)
+    return Response({"detail": message})
+
+
+@api_view(["GET", "PUT", "PATCH"])
+@permission_classes([permissions.IsAuthenticated])
+def finance_settings_view(request):
+    settings_obj = FinanceSettings.load()
+    if request.method == "GET":
+        return Response(FinanceSettingsSerializer(settings_obj).data)
+
+    if request.user.role not in ("admin", "sales"):
+        return Response({"error": "Bu ayarları yalnızca yönetici değiştirebilir."}, status=403)
+
+    serializer = FinanceSettingsSerializer(settings_obj, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save(rates_updated_at=timezone.now())
+    return Response(serializer.data)

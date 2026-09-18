@@ -3,12 +3,15 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Box, Typography, Card, CardContent, TextField, MenuItem, Button, Grid, Stack,
   Chip, IconButton, Alert, Divider, Table, TableBody, TableRow, TableCell,
+  Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import api from "../../api/client";
+import { CURRENCIES, EXPENSE_CATEGORIES, fmtDate, money, todayISO } from "./financeUtils";
 
 const TYPES = [
   ["ARIZA", "Arıza"], ["PERIYODIK_BAKIM", "Periyodik Bakım"], ["KURULUM", "Kurulum"],
@@ -56,6 +59,10 @@ export default function ServiceReportForm() {
   const [machines, setMachines] = useState([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [charge, setCharge] = useState({ amount: "", currency: "TRY", rate: "1", due_date: "" });
+  const [expenses, setExpenses] = useState([]);
+  const [expenseForm, setExpenseForm] = useState(null);
+  const [rates, setRates] = useState(null);
 
   const loadMachines = (customerId) => {
     if (!customerId) { setMachines([]); return; }
@@ -64,7 +71,18 @@ export default function ServiceReportForm() {
 
   useEffect(() => {
     api.get("/service/customers/").then((r) => setCustomers(r.data));
+    api.get("/service/finance-settings/").then((r) => setRates(r.data)).catch(() => {});
   }, []);
+
+  const loadExpenses = (reportId) => {
+    api.get(`/service/expenses/?report=${reportId}`).then((r) => setExpenses(r.data));
+  };
+
+  const suggestedRate = (currency) => {
+    if (currency === "TRY") return "1";
+    if (!rates) return "";
+    return String(currency === "USD" ? rates.usd_rate : rates.eur_rate);
+  };
 
   // Makine listesinden "servis aç" ile gelindiyse makine ve müşterisi hazır seçilir
   useEffect(() => {
@@ -95,6 +113,15 @@ export default function ServiceReportForm() {
       })));
       setPhotos(d.photos);
       if (d.customer) loadMachines(d.customer);
+      if (d.charge) {
+        setCharge({
+          amount: String(d.charge.amount),
+          currency: d.charge.currency,
+          rate: String(d.charge.rate),
+          due_date: d.charge.due_date || "",
+        });
+      }
+      loadExpenses(d.id);
     });
   }, [id]);
 
@@ -125,6 +152,10 @@ export default function ServiceReportForm() {
       next_maintenance: form.next_maintenance || null,
       travel_km: form.travel_km || 0,
       departments, parts,
+      charge_amount: charge.amount || null,
+      charge_currency: charge.currency,
+      charge_rate: charge.currency === "TRY" ? 1 : charge.rate || null,
+      charge_due_date: charge.due_date || null,
     };
     try {
       const res = id
@@ -136,6 +167,30 @@ export default function ServiceReportForm() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveExpense = async () => {
+    const payload = {
+      ...expenseForm,
+      report: id,
+      customer: form.customer || null,
+      rate: expenseForm.currency === "TRY" ? 1 : expenseForm.rate,
+      quantity: expenseForm.quantity || 0,
+    };
+    try {
+      if (expenseForm.id) await api.put(`/service/expenses/${expenseForm.id}/`, payload);
+      else await api.post("/service/expenses/", payload);
+      setExpenseForm(null);
+      loadExpenses(id);
+    } catch {
+      setError("Masraf kaydedilemedi. Döviz girdiyseniz kur alanını doldurun.");
+    }
+  };
+
+  const removeExpense = async (expenseId) => {
+    if (!window.confirm("Masraf silinsin mi?")) return;
+    await api.delete(`/service/expenses/${expenseId}/`);
+    loadExpenses(id);
   };
 
   const uploadPhoto = async (event) => {
@@ -318,6 +373,87 @@ export default function ServiceReportForm() {
       </CardContent></Card>
 
       <Card sx={{ mb: 2 }}><CardContent>
+        <Typography variant="subtitle1" fontWeight={600} gutterBottom>Servis Bedeli</Typography>
+        <Typography variant="body2" color="text.secondary" mb={2}>
+          Girilen tutar müşterinin carisine borç olarak işlenir.
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={6} md={3}>
+            <TextField label="Tutar" value={charge.amount} fullWidth
+              onChange={(e) => setCharge({ ...charge, amount: e.target.value })} />
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <TextField select label="Para birimi" value={charge.currency} fullWidth
+              onChange={(e) => setCharge({
+                ...charge, currency: e.target.value, rate: suggestedRate(e.target.value),
+              })}>
+              {CURRENCIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
+            </TextField>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <TextField label="Kur (TL)" value={charge.rate} fullWidth
+              disabled={charge.currency === "TRY"}
+              helperText={charge.currency !== "TRY" && charge.amount && charge.rate
+                ? money(Number(charge.amount) * Number(charge.rate)) : " "}
+              onChange={(e) => setCharge({ ...charge, rate: e.target.value })} />
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <TextField type="date" label="Vade tarihi" InputLabelProps={{ shrink: true }} fullWidth
+              value={charge.due_date}
+              onChange={(e) => setCharge({ ...charge, due_date: e.target.value })} />
+          </Grid>
+        </Grid>
+      </CardContent></Card>
+
+      <Card sx={{ mb: 2 }}><CardContent>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+          <Typography variant="subtitle1" fontWeight={600}>
+            Servis Masrafları
+            {expenses.length > 0 && (
+              <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                toplam {money(expenses.reduce((sum, e) => sum + Number(e.try_amount), 0))}
+              </Typography>
+            )}
+          </Typography>
+          <Button size="small" startIcon={<AddIcon />} disabled={!id}
+            onClick={() => setExpenseForm({
+              category: "YAKIT", date: todayISO(), amount: "", currency: "TRY",
+              rate: "1", description: "", quantity: "", billable: false,
+            })}>
+            Masraf Ekle
+          </Button>
+        </Stack>
+        {!id ? (
+          <Alert severity="info">Masraf eklemek için önce raporu kaydedin.</Alert>
+        ) : expenses.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Yakıt, otel, yemek, otoyol gibi harcamaları ekleyin; aylık raporda kategori kategori dökülür.
+          </Typography>
+        ) : (
+          <Table size="small">
+            <TableBody>
+              {expenses.map((expense) => (
+                <TableRow key={expense.id}>
+                  <TableCell>{expense.category_label}</TableCell>
+                  <TableCell>{fmtDate(expense.date)}</TableCell>
+                  <TableCell>{expense.description || "-"}</TableCell>
+                  <TableCell align="right">{money(expense.try_amount)}</TableCell>
+                  <TableCell align="right" sx={{ width: 90 }}>
+                    <IconButton size="small" onClick={() => setExpenseForm({ ...expense })}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" onClick={() => removeExpense(expense.id)}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent></Card>
+
+      <Card sx={{ mb: 2 }}><CardContent>
         <Typography variant="subtitle1" fontWeight={600} gutterBottom>Teslim</Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
@@ -358,6 +494,65 @@ export default function ServiceReportForm() {
           </>
         )}
       </CardContent></Card>
+
+      {expenseForm && (
+        <Dialog open onClose={() => setExpenseForm(null)} maxWidth="sm" fullWidth>
+          <DialogTitle>{expenseForm.id ? "Masrafı Düzenle" : "Yeni Masraf"}</DialogTitle>
+          <DialogContent dividers>
+            <Grid container spacing={2} mt={0}>
+              <Grid item xs={12} md={6}>
+                <TextField select label="Kategori" value={expenseForm.category} fullWidth
+                  onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}>
+                  {EXPENSE_CATEGORIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField type="date" label="Tarih" InputLabelProps={{ shrink: true }} fullWidth
+                  value={expenseForm.date}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })} />
+              </Grid>
+              <Grid item xs={6} md={4}>
+                <TextField label="Tutar *" value={expenseForm.amount} fullWidth
+                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} />
+              </Grid>
+              <Grid item xs={6} md={4}>
+                <TextField select label="Para birimi" value={expenseForm.currency} fullWidth
+                  onChange={(e) => setExpenseForm({
+                    ...expenseForm, currency: e.target.value, rate: suggestedRate(e.target.value),
+                  })}>
+                  {CURRENCIES.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField label="Kur (TL)" value={expenseForm.rate} fullWidth
+                  disabled={expenseForm.currency === "TRY"}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, rate: e.target.value })} />
+              </Grid>
+              {expenseForm.category === "YAKIT" && (
+                <Grid item xs={12} md={6}>
+                  <TextField label="Litre" value={expenseForm.quantity || ""} fullWidth
+                    onChange={(e) => setExpenseForm({ ...expenseForm, quantity: e.target.value })} />
+                </Grid>
+              )}
+              <Grid item xs={12}>
+                <TextField label="Açıklama" value={expenseForm.description || ""} fullWidth
+                  onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })} />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={<Checkbox checked={!!expenseForm.billable}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, billable: e.target.checked })} />}
+                  label="Müşteriye yansıtılacak"
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setExpenseForm(null)}>Vazgeç</Button>
+            <Button variant="contained" onClick={saveExpense} disabled={!expenseForm.amount}>Kaydet</Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       <Divider sx={{ my: 2 }} />
       <Stack direction="row" spacing={2} justifyContent="flex-end">

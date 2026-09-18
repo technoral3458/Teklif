@@ -3,6 +3,9 @@ from django.contrib import admin
 from .models import (
     Customer,
     DepartmentWork,
+    Expense,
+    FinanceSettings,
+    LedgerEntry,
     Machine,
     MailSettings,
     ServicePhoto,
@@ -20,6 +23,7 @@ class MachineInline(admin.TabularInline):
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ("name", "contact_name", "phone", "email", "city")
+    ordering = ["name"]
     search_fields = ("name", "contact_name", "phone", "email", "city")
     inlines = [MachineInline]
 
@@ -41,6 +45,12 @@ class SparePartInline(admin.TabularInline):
     extra = 0
 
 
+class ExpenseInline(admin.TabularInline):
+    model = Expense
+    extra = 0
+    fields = ("category", "date", "amount", "currency", "rate", "description", "billable")
+
+
 class ServicePhotoInline(admin.TabularInline):
     model = ServicePhoto
     extra = 0
@@ -54,7 +64,32 @@ class ServiceReportAdmin(admin.ModelAdmin):
     search_fields = ("report_no", "customer__name", "machine__serial_no", "fault_description", "work_done")
     date_hierarchy = "service_date"
     readonly_fields = ("report_no", "mailed_to", "mailed_at", "created_at", "updated_at")
-    inlines = [DepartmentWorkInline, SparePartInline, ServicePhotoInline]
+    inlines = [DepartmentWorkInline, SparePartInline, ServicePhotoInline, ExpenseInline]
+
+
+@admin.register(LedgerEntry)
+class LedgerEntryAdmin(admin.ModelAdmin):
+    list_display = ("date", "customer", "type", "amount", "currency", "due_date", "promised_date")
+    list_filter = ("type", "currency", "date")
+    search_fields = ("customer__name", "description", "document_no")
+    date_hierarchy = "date"
+    autocomplete_fields = ["customer"]
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ("date", "category", "amount", "currency", "customer", "report", "billable")
+    list_filter = ("category", "currency", "billable", "date")
+    search_fields = ("description", "customer__name", "report__report_no")
+    date_hierarchy = "date"
+
+
+@admin.register(FinanceSettings)
+class FinanceSettingsAdmin(admin.ModelAdmin):
+    list_display = ("usd_rate", "eur_rate", "rates_updated_at", "show_charge_on_pdf")
+
+    def has_add_permission(self, request):
+        return not FinanceSettings.objects.exists()
 
 
 @admin.register(MailSettings)

@@ -21,11 +21,15 @@ const MENUS = {
     { label: "Tüm Siparişler", path: "/sales/all-orders", icon: "📋" },
     { label: "Servis Raporları", path: "/service/reports", icon: "🛠️" },
     { label: "Makineler", path: "/service/machines", icon: "⚙️" },
+    { label: "Cari Takip", path: "/service/finance", icon: "💰" },
+    { label: "Aylık Rapor", path: "/service/monthly-report", icon: "📊" },
   ],
   service: [
     { label: "Servis Raporları", path: "/service/reports", icon: "🛠️" },
     { label: "Yeni Servis Raporu", path: "/service/new-report", icon: "➕" },
     { label: "Makineler & Müşteriler", path: "/service/machines", icon: "⚙️" },
+    { label: "Cari Takip", path: "/service/finance", icon: "💰" },
+    { label: "Aylık Rapor", path: "/service/monthly-report", icon: "📊" },
   ],
   cnc: [
     { label: "CNC Kuyruğu", path: "/cnc/queue", icon: "🔧" },
@@ -40,6 +44,8 @@ const MENUS = {
     { label: "CNC Kuyruğu", path: "/cnc/queue", icon: "🔧" },
     { label: "Servis Raporları", path: "/service/reports", icon: "🛠️" },
     { label: "Makineler & Müşteriler", path: "/service/machines", icon: "⚙️" },
+    { label: "Cari Takip", path: "/service/finance", icon: "💰" },
+    { label: "Aylık Rapor", path: "/service/monthly-report", icon: "📊" },
     { label: "Mail Ayarları", path: "/admin/mail-settings", icon: "✉️" },
   ],
 };
