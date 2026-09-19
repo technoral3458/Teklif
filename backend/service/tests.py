@@ -54,3 +54,32 @@ class MailSettingsTests(TestCase):
         second = MailSettings.load()
         self.assertEqual(first.pk, second.pk)
         self.assertFalse(first.is_configured)
+
+
+class DurationTests(TestCase):
+    """Çalışma süresi hesabı."""
+
+    def setUp(self):
+        self.customer = Customer.objects.create(name="Süre Test")
+
+    def _report(self, start, end):
+        report = ServiceReport.objects.create(
+            customer=self.customer, service_date=timezone.localdate(),
+            start_time=start, end_time=end,
+        )
+        # Saat alanları veritabanından okunurken time nesnesine dönüşüyor
+        report.refresh_from_db()
+        return report
+
+    def test_same_day(self):
+        self.assertEqual(self._report("08:49", "15:50").duration_minutes, 421)
+
+    def test_overnight(self):
+        """22:30 - 02:15 arası gece vardiyası: 3 sa 45 dk."""
+        self.assertEqual(self._report("22:30", "02:15").duration_minutes, 225)
+
+    def test_equal_times_is_none(self):
+        self.assertIsNone(self._report("09:00", "09:00").duration_minutes)
+
+    def test_missing_time_is_none(self):
+        self.assertIsNone(self._report("09:00", None).duration_minutes)

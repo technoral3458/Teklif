@@ -1,9 +1,17 @@
 package com.technoral.servis.data
 
+import java.util.Calendar
 import java.util.UUID
 
 /** Uygulamadaki tüm kayıtlar bu arayüzü taşır; kimlik üretimi tek yerden yapılır. */
 fun newId(): String = UUID.randomUUID().toString()
+
+/** Zaman damgasının gün içindeki dakikası (00:00'dan itibaren). */
+private fun minutesOfDay(millis: Long): Int {
+    val calendar = Calendar.getInstance()
+    calendar.timeInMillis = millis
+    return calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+}
 
 enum class ServiceType(val label: String) {
     ARIZA("Arıza"),
@@ -144,13 +152,18 @@ data class ServiceReport(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
-    /** Çalışma süresi (dakika). Başlangıç/bitiş girilmemişse null. */
+    /**
+     * Çalışma süresi (dakika). Saatler ekranda yalnızca saat:dakika olarak
+     * göründüğü için süre de gün farkından değil saat farkından hesaplanır;
+     * bitiş başlangıçtan küçükse iş gece yarısını geçmiş sayılır.
+     */
     val durationMinutes: Long?
         get() {
-            val s = startTime ?: return null
-            val e = endTime ?: return null
-            if (e <= s) return null
-            return (e - s) / 60000L
+            val start = startTime ?: return null
+            val end = endTime ?: return null
+            val diff = minutesOfDay(end) - minutesOfDay(start)
+            val minutes = if (diff >= 0) diff else diff + 24 * 60
+            return minutes.toLong().takeIf { it > 0 }
         }
 
     val isClosed: Boolean

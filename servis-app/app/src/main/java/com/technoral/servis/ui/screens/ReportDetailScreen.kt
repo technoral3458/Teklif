@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.technoral.servis.data.Currency
+import com.technoral.servis.data.LedgerKind
 import com.technoral.servis.data.LedgerType
 import com.technoral.servis.data.ServiceReport
 import com.technoral.servis.ui.AppViewModel
@@ -98,7 +99,11 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
 
     val ledger by vm.ledger.collectAsState()
     val allExpenses by vm.expenses.collectAsState()
-    val charge = ledger.firstOrNull { it.reportId == report.id && it.type == LedgerType.BORC }
+    // Rapora bağlı iki borç kalemi olabilir (servis bedeli + yansıtılan masraf);
+    // burada yalnızca servis bedeli kalemi alınmalı.
+    val charge = ledger.firstOrNull {
+        it.reportId == report.id && it.type == LedgerType.BORC && it.kind == LedgerKind.SERVIS
+    }
     val reportExpenses = allExpenses.filter { it.reportId == report.id }
     val customer = vm.customer(report.customerId)
     val machine = vm.machine(report.machineId)
@@ -430,6 +435,11 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
 
                         if (reportExpenses.isNotEmpty()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            Text(
+                                "Masraf dökümü (${reportExpenses.size} kalem)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             reportExpenses.forEach { expense ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
@@ -437,7 +447,8 @@ fun ReportDetailScreen(vm: AppViewModel, nav: Navigator, reportId: String) {
                                         Text(
                                             listOfNotNull(
                                                 expense.description.takeIf { it.isNotBlank() },
-                                                if (expense.billable) "yansıtıldı" else "yansıtılmadı",
+                                                if (expense.billable) "müşteriye yansıtılıyor"
+                                                else "yansıtılmıyor",
                                                 if (expense.receiptPath != null) "fiş ekli" else null,
                                             ).joinToString(" • "),
                                             style = MaterialTheme.typography.bodySmall,

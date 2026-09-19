@@ -170,11 +170,15 @@ class ServiceReport(models.Model):
 
     @property
     def duration_minutes(self):
+        """Çalışma süresi (dakika). Bitiş başlangıçtan küçükse iş gece yarısını geçmiştir."""
         if not self.start_time or not self.end_time:
             return None
         start = self.start_time.hour * 60 + self.start_time.minute
         end = self.end_time.hour * 60 + self.end_time.minute
-        return end - start if end > start else None
+        diff = end - start
+        if diff < 0:
+            diff += 24 * 60
+        return diff or None
 
 
 class DepartmentWork(models.Model):

@@ -94,7 +94,10 @@ import com.technoral.servis.ui.components.TimeField
 import com.technoral.servis.util.asDate
 import com.technoral.servis.util.asNumber
 import com.technoral.servis.util.money
+import com.technoral.servis.util.combineDateTime
 import com.technoral.servis.util.createCameraTarget
+import com.technoral.servis.util.hourOf
+import com.technoral.servis.util.minuteOf
 import com.technoral.servis.util.minutesAsDuration
 import java.io.File
 
@@ -459,7 +462,21 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                         onSelect = { s -> vm.updateDraft { it.copy(status = s) } },
                     )
                     DateField("Servis tarihi", report.serviceDate, { value ->
-                        value?.let { day -> vm.updateDraft { it.copy(serviceDate = day) } }
+                        value?.let { day ->
+                            // Saatler mutlak zaman damgası olarak tutuluyor; tarih
+                            // değişince başlangıç/bitiş de yeni güne taşınmalı.
+                            vm.updateDraft { current ->
+                                current.copy(
+                                    serviceDate = day,
+                                    startTime = current.startTime?.let {
+                                        combineDateTime(day, hourOf(it), minuteOf(it))
+                                    },
+                                    endTime = current.endTime?.let {
+                                        combineDateTime(day, hourOf(it), minuteOf(it))
+                                    },
+                                )
+                            }
+                        }
                     })
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(Modifier.weight(1f)) {
@@ -759,7 +776,8 @@ fun ReportEditScreen(vm: AppViewModel, nav: Navigator) {
                                         listOfNotNull(
                                             expense.date.asDate(),
                                             expense.description.takeIf { it.isNotBlank() },
-                                            if (expense.billable) "yansıtılacak" else null,
+                                            if (expense.billable) "müşteriye yansıtılıyor"
+                                            else "yansıtılmıyor",
                                         ).joinToString(" • "),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
