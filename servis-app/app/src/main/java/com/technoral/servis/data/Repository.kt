@@ -282,7 +282,7 @@ class Repository private constructor(private val appContext: Context) {
     /** Tüm veriyi tek bir JSON metnine çevirir (mail/paylaş ile dışarı aktarmak için). */
     fun exportJson(includeSecrets: Boolean = false): String {
         val root = JSONObject()
-        root.put("uygulama", "TeknoServis")
+        root.put("uygulama", "Deli Kadir App")
         root.put("surum", 1)
         root.put("tarih", System.currentTimeMillis())
         root.put("musteriler", _customers.value.toJsonArray { it.toJson() })

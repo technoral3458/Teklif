@@ -1,4 +1,4 @@
-# TeknoServis — Makine Servis Raporlama Uygulaması
+# Deli Kadir App — Makine Servis Raporlama Uygulaması
 
 Teknisyenlerin sahada, internet olmadan servis raporu oluşturabilmesi için yazılmış
 Android uygulaması. Tüm kayıtlar telefonda tutulur; internet yalnızca mail gönderirken
@@ -8,6 +8,8 @@ gerekir.
 
 Her derlemede imzalı bir APK otomatik yayınlanır:
 **https://github.com/technoral3458/Teklif/releases** → `servis-apk-*` etiketli sürüm.
+
+Uygulama açılırken kısa bir tanıtım animasyonu oynar; ekrana dokunarak geçebilirsiniz.
 
 Telefondan bu sayfayı açıp APK dosyasına dokunun. Android "bilinmeyen kaynak" uyarısı
 verirse *Ayarlar > Güvenlik > Bu kaynaktan kuruluma izin ver* seçeneğini açın.
@@ -106,6 +108,8 @@ cd servis-app
 ```
 
 - Kotlin + Jetpack Compose (Material 3), minSdk 26 / targetSdk 35
+- Uygulama kimliği `com.technoral.servis` olarak korunur; yeni sürüm eskisinin
+  üzerine kurulur, kayıtlar silinmez
 - Veri: uygulama klasöründe JSON dosyaları (`Repository.kt`) — harici veritabanı yok
 - Cari hesaplamalar: `data/Finance.kt` (FIFO borç kapatma, vade ve aylık özetler)
 - PDF: `android.graphics.pdf` üzerine yazılmış yerleşim motoru (`pdf/PdfBuilder.kt`)

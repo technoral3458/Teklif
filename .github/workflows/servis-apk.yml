@@ -1,4 +1,4 @@
-name: TeknoServis APK
+name: Deli Kadir App APK
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
         run: |
           set -e
           SRC=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
-          DEST="TeknoServis-1.${{ github.run_number }}.apk"
+          DEST="DeliKadirApp-1.${{ github.run_number }}.apk"
           cp "$SRC" "$DEST"
           echo "path=servis-app/$DEST" >> "$GITHUB_OUTPUT"
           echo "name=$DEST" >> "$GITHUB_OUTPUT"
@@ -59,7 +59,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TeknoServis-apk
+          name: DeliKadirApp-apk
           path: ${{ steps.apk.outputs.path }}
           retention-days: 90
 
@@ -70,8 +70,8 @@ jobs:
           set -e
           TAG="servis-apk-v1.${{ github.run_number }}"
           gh release create "$TAG" "${{ steps.apk.outputs.name }}" \
-            --title "TeknoServis 1.${{ github.run_number }}" \
-            --notes "Makine servis raporlama uygulaması.
+            --title "Deli Kadir App 1.${{ github.run_number }}" \
+            --notes "Deli Kadir App — makine servis raporlama uygulaması.
 
           **Kurulum:** Telefonunuzdan bu sayfayı açın, APK dosyasına dokunun ve kuruluma izin verin.
           (Ayarlar > Güvenlik > Bilinmeyen kaynaklardan kuruluma izin verilmesi gerekir.)

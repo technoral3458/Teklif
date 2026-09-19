@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TeknoServis"
+rootProject.name = "DeliKadirApp"
 include(":app")

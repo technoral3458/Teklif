@@ -128,7 +128,7 @@ object RateService {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
-            setRequestProperty("User-Agent", "TeknoServis/1.0")
+            setRequestProperty("User-Agent", "DeliKadirApp/1.0")
         }
         try {
             if (connection.responseCode !in 200..299) return null

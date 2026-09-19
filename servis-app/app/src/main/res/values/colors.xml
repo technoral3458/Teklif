@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0B3D5C</color>
+    <color name="ic_launcher_background">#2C2044</color>
+    <!-- Açılış ekranı ile aynı ton: pencere arka planı beyaz parlamasın -->
+    <color name="splash_background">#0A0A12</color>
 </resources>

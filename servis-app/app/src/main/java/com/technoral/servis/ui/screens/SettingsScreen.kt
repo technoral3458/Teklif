@@ -74,7 +74,7 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { AppTopBar(title = "Ayarlar", subtitle = settings.company.name.ifBlank { "TeknoServis" }) },
+        topBar = { AppTopBar(title = "Ayarlar", subtitle = settings.company.name.ifBlank { "Deli Kadir App" }) },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
@@ -283,7 +283,7 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
                                     val intent = Intent(Intent.ACTION_SEND).apply {
                                         type = "application/json"
                                         putExtra(Intent.EXTRA_STREAM, shareUri(context, file))
-                                        putExtra(Intent.EXTRA_SUBJECT, "TeknoServis yedek")
+                                        putExtra(Intent.EXTRA_SUBJECT, "Deli Kadir App yedek")
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     context.startActivity(Intent.createChooser(intent, "Yedeği paylaş"))
@@ -304,7 +304,7 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
             item {
                 SectionCard(title = "Hakkında") {
                     Text(
-                        "TeknoServis — makine servis raporlama uygulaması. Tüm kayıtlar cihazınızda tutulur, " +
+                        "Deli Kadir App — makine servis raporlama uygulaması. Tüm kayıtlar cihazınızda tutulur, " +
                             "internet bağlantısı yalnızca mail gönderirken gerekir.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

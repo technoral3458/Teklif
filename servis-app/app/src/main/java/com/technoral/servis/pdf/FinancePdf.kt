@@ -218,7 +218,7 @@ object FinancePdf {
         b.advance(10f)
         b.text(
             "Tutarlar, hareketin yapıldığı günkü kur ile TL'ye çevrilerek toplanmıştır. " +
-                "Bu rapor TeknoServis mobil uygulaması ile oluşturulmuştur.",
+                "Bu rapor Deli Kadir App ile oluşturulmuştur.",
             size = 7f, color = MUTED, align = Paint.Align.CENTER,
         )
 

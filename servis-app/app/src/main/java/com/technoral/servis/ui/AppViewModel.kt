@@ -551,7 +551,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val result = MailSender.send(
             settings = s.mail,
             to = to,
-            subject = "TeknoServis • Mail ayarı testi",
+            subject = "Deli Kadir App • Mail ayarı testi",
             bodyHtml = MailTemplates.testBody(s),
         )
         _busy.value = null

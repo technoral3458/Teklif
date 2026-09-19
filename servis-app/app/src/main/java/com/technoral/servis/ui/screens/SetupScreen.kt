@@ -77,7 +77,7 @@ fun SetupScreen(vm: AppViewModel, onDone: () -> Unit) {
             }
             Spacer(Modifier.width(14.dp))
             Column {
-                Text("TeknoServis'e hoş geldiniz", style = MaterialTheme.typography.headlineSmall)
+                Text("Deli Kadir App'e hoş geldiniz", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     "Raporlarda görünecek bilgileri girerek başlayalım.",
                     style = MaterialTheme.typography.bodySmall,

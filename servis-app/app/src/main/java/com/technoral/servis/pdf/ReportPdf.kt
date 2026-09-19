@@ -368,7 +368,7 @@ object ReportPdf {
 
         b.moveTo(top + 88f)
         b.text(
-            "Bu rapor TeknoServis mobil uygulaması ile oluşturulmuştur. " +
+            "Bu rapor Deli Kadir App ile oluşturulmuştur. " +
                 "Rapor No: ${report.reportNo} • Düzenleme: ${report.updatedAt.asDate()}",
             size = 7f, color = MUTED, align = Paint.Align.CENTER,
         )

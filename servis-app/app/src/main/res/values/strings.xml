@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TeknoServis</string>
+    <string name="app_name">Deli Kadir App</string>
+    <string name="splash_line_one">BEN DELİ KADİR ULANNNN</string>
+    <string name="splash_line_two">Yer Yüzünün En Sexsü Teknik Servisi</string>
 </resources>

@@ -105,7 +105,7 @@ object MailTemplates {
 <!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"></head>
 <body style="font-family:Segoe UI,Roboto,Arial,sans-serif;padding:24px;color:#0f172a">
   <h2 style="color:#0f4c75;margin:0 0 12px">Mail ayarları çalışıyor ✔</h2>
-  <p style="$P">Bu bir test mesajıdır. TeknoServis uygulamasındaki SMTP ayarlarınız doğru yapılandırılmıştır.</p>
+  <p style="$P">Bu bir test mesajıdır. Deli Kadir App uygulamasındaki SMTP ayarlarınız doğru yapılandırılmıştır.</p>
   <p style="$P"><b>Sunucu:</b> ${esc(settings.mail.host)}:${settings.mail.port} (${esc(settings.mail.security)})<br>
   <b>Gönderen:</b> ${esc(settings.mail.fromAddress)}</p>
 </body></html>
