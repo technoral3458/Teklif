@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Deli Kadir App — tanıtım</title>
+<link rel="stylesheet" href="faces.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="bg"><div id="bgGrid"></div><div class="blob" id="blobA"></div><div class="blob" id="blobB"></div><div class="blob" id="blobC"></div><div id="vign"></div></div>
+
+  <!-- 1. AÇILIŞ (uygulamanın gerçek splash ekranı) -->
+  <section class="scene" id="sc-splash">
+    <div id="spWrap">
+      <div id="spIconBox"><div id="spHalo"></div><img id="spIcon" src="assets/deli_kadir.png" alt=""></div>
+      <div id="spTitle"></div>
+      <div id="spSub"></div>
+      <div id="spDots"><i></i><i></i><i></i></div>
+    </div>
+    <div id="spHint">geçmek için dokun</div>
+  </section>
+
+  <!-- başlık -->
+  <div id="head">
+    <div id="eyebrow"><b></b><span id="eyebrowT">SAHADA</span></div>
+    <div id="headline"></div>
+    <div id="subline"></div>
+  </div>
+
+  <!-- telefon -->
+  <div id="phoneWrap"><div id="phone"><div id="screen">
+
+    <!-- ÖZET -->
+    <div class="app" id="app-dash">
+      <div class="statusbar"><span>16:42</span><span class="right"><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+      <div class="topbar"><div class="tt"><h1>Deli Kadir App</h1><p>Servis takip paneli</p></div>
+        <div class="act"><span><span class="ms">sync</span></span><span><span class="ms">search</span></span></div></div>
+      <div class="body"><div class="scroll" id="dashScroll">
+        <div class="stats an">
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(15,76,117,.14)"><span class="ms" style="color:#0F4C75">assignment</span></div><div class="lb">Bu ay</div></div><div class="vl"><b>14</b><i>servis</i></div></div>
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(178,106,0,.14)"><span class="ms" style="color:#B26A00">pending_actions</span></div><div class="lb">Açık</div></div><div class="vl"><b>3</b><i>bekleyen</i></div></div>
+        </div>
+        <div class="stats an">
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(15,76,117,.14)"><span class="ms" style="color:#0F4C75">inventory_2</span></div><div class="lb">Parça</div></div><div class="vl"><b>27</b><i>kayıt</i></div></div>
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(15,76,117,.14)"><span class="ms" style="color:#0F4C75">precision_manufacturing</span></div><div class="lb">Makine</div></div><div class="vl"><b>18</b><i>kayıtlı</i></div></div>
+        </div>
+        <div class="stats an">
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(27,127,75,.14)"><span class="ms" style="color:#1B7F4B">account_balance_wallet</span></div><div class="lb">Bu ay net</div></div><div class="vl"><b>84 bin</b><i>₺</i></div></div>
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(178,106,0,.14)"><span class="ms" style="color:#B26A00">request_quote</span></div><div class="lb">Alacak</div></div><div class="vl"><b>126 bin</b><i>₺</i></div></div>
+        </div>
+        <div class="warncard an" id="dashWarn"><div class="hd"><span class="ms">warning</span>Ödemesi geciken 2 alacak</div><p>Ayrıntı için dokunun</p></div>
+        <div class="sect an"><h2>Son raporlar</h2><span>Tümü</span></div>
+        <div class="rowitem an"><div class="av"><span class="ms">build</span></div><div class="mid"><b>SRV-202609-0042</b><p>Mermerci Makine · CNC Köprü Kesme</p></div><div class="end"><span class="badge b-ok">Çözüldü</span><p style="font-size:11px;color:#47535E;margin-top:5px">16.09</p></div></div>
+        <div class="rowitem an"><div class="av"><span class="ms">build</span></div><div class="mid"><b>SRV-202609-0041</b><p>Akın Metal · Lazer Kesim Tezgâhı</p></div><div class="end"><span class="badge b-warn">Parça Bekliyor</span><p style="font-size:11px;color:#47535E;margin-top:5px">12.09</p></div></div>
+        <div class="rowitem an"><div class="av"><span class="ms">build</span></div><div class="mid"><b>SRV-202609-0040</b><p>Demir Plastik · Enjeksiyon Makinesi</p></div><div class="end"><span class="badge b-ok">Çözüldü</span><p style="font-size:11px;color:#47535E;margin-top:5px">09.09</p></div></div>
+      </div></div>
+      <div class="fab" id="dashFab"><span class="ms">add</span>Yeni Servis</div>
+      <div class="navbar"><div class="on"><div class="pill"><span class="ms">dashboard</span></div><span class="lb">Özet</span></div>
+        <div><div class="pill"><span class="ms">assignment</span></div><span class="lb">Raporlar</span></div>
+        <div><div class="pill"><span class="ms">account_balance_wallet</span></div><span class="lb">Cari</span></div>
+        <div><div class="pill"><span class="ms">precision_manufacturing</span></div><span class="lb">Kayıtlar</span></div>
+        <div><div class="pill"><span class="ms">settings</span></div><span class="lb">Ayarlar</span></div></div>
+    </div>
+
+    <!-- RAPOR FORMU -->
+    <div class="app" id="app-form">
+      <div class="statusbar"><span>16:43</span><span class="right"><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+      <div class="topbar"><div class="nav"><span class="ms">arrow_back</span></div><div class="tt"><h1>Yeni Servis Raporu</h1><p>SRV-202609-0042 · 16.09.2026</p></div>
+        <div class="act"><span><span class="ms">save</span></span></div></div>
+      <div class="body"><div class="scroll" id="formScroll">
+        <div class="field an"><label>Müşteri</label><div class="val">Mermerci Makine San. Tic. A.Ş.<span class="ms">expand_more</span></div></div>
+        <div class="field an"><label>Makine</label><div class="val">CNC Köprü Kesme · TK-4200<span class="ms">expand_more</span></div></div>
+        <div class="lbl an">Çalışılan bölümler</div>
+        <div class="chips an" id="depChips">
+          <span class="chip" data-dep="1"><span class="ms">check</span>Mekanik</span>
+          <span class="chip">Elektrik</span>
+          <span class="chip" data-dep="2"><span class="ms">check</span>Elektronik</span>
+          <span class="chip">Pnömatik</span>
+          <span class="chip">Hidrolik</span>
+          <span class="chip" data-dep="3"><span class="ms">check</span>Yazılım / PLC</span>
+          <span class="chip">Kalibrasyon</span>
+        </div>
+        <div class="field area an"><label>Arıza / talep tanımı</label><div class="val" id="faultText"></div></div>
+        <div class="lbl an">Fotoğraflar</div>
+        <div class="photos an" id="photoRow">
+          <div class="photo"><img src="assets/foto_ariza.png"><span>Arıza</span></div>
+          <div class="photo"><img src="assets/foto_oncesi.png"><span>İşlem Öncesi</span></div>
+          <div class="photo"><img src="assets/foto_sonrasi.png"><span>İşlem Sonrası</span></div>
+          <div class="photo add"><span class="ms">add_a_photo</span></div>
+        </div>
+        <div class="lbl an">Yedek parçalar</div>
+        <div class="rowitem an"><div class="av"><span class="ms">settings_input_component</span></div><div class="mid"><b>Rulman 6208-2RS</b><p>SKF-6208 · 2 adet</p></div><div class="end"><span class="badge b-ok">Takıldı</span></div></div>
+        <div class="rowitem an"><div class="av"><span class="ms">settings_input_component</span></div><div class="mid"><b>X ekseni kayışı</b><p>HTD-8M-1200 · 1 adet</p></div><div class="end"><span class="badge b-inf">Teklif</span></div></div>
+        <div class="lbl an">İmza</div>
+        <div class="card an" style="padding:8px"><img src="assets/imza.png" style="width:100%;border-radius:10px;display:block"></div>
+      </div></div>
+    </div>
+
+    <!-- ÜCRETLENDİRME -->
+    <div class="app" id="app-money">
+      <div class="statusbar"><span>16:44</span><span class="right"><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+      <div class="topbar"><div class="nav"><span class="ms">arrow_back</span></div><div class="tt"><h1>Ücretlendirme</h1><p>SRV-202609-0042</p></div></div>
+      <div class="body"><div class="scroll">
+        <div class="lbl an">Para birimi</div>
+        <div class="segment an" id="curSeg"><div data-c="TRY">₺ TRY</div><div data-c="USD">$ USD</div><div data-c="EUR">€ EUR</div></div>
+        <div class="card an" style="display:flex;flex-direction:column;gap:12px">
+          <label style="font-size:11.5px;color:#47535E;font-weight:500">Servis bedeli</label>
+          <div class="amount"><b id="amtVal">0</b><i id="amtCur">₺</i></div>
+          <div class="raterow" id="rateRow"><span class="spin" id="rateSpin"></span><span class="ms" id="rateIcon" style="display:none">currency_exchange</span><span id="rateTxt">Kur alınıyor…</span></div>
+        </div>
+        <div class="card an" id="tlCard" style="display:flex;flex-direction:column;gap:9px">
+          <label style="font-size:11.5px;color:#47535E;font-weight:500">TL karşılığı</label>
+          <div class="bigmoney" id="tlVal">0,00 ₺</div>
+          <div class="hr"></div>
+          <div class="kv"><span>Kur (kayda işlenir)</span><b id="kvRate">—</b></div>
+          <div class="kv"><span>Vade</span><b>16.10.2026</b></div>
+          <div class="kv"><span>Cari karşılığı</span><b>Mermerci Makine</b></div>
+        </div>
+        <div class="raterow an" style="background:rgba(27,127,75,.08)"><span class="ms" style="color:#1B7F4B">lock_clock</span><span style="font-size:12.5px">Kur rapora kaydedilir; sonra değişse de bu raporun hesabı bozulmaz.</span></div>
+        <div class="card an" style="display:flex;flex-direction:column;gap:8px">
+          <div class="kv"><span style="font-weight:600;color:#121A21">Güncel kurlar</span><span style="font-size:11.5px">TCMB · 16.09.2026</span></div>
+          <div class="hr"></div>
+          <div class="kv"><span>1 USD</span><b>41,2860 ₺</b></div>
+          <div class="kv"><span>1 EUR</span><b>47,8231 ₺</b></div>
+          <div class="btn ghost" style="height:42px;font-size:13.5px;margin-top:4px"><span class="ms">refresh</span>Kurları yenile</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- MASRAFLAR -->
+    <div class="app" id="app-exp">
+      <div class="statusbar"><span>16:46</span><span class="right"><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+      <div class="topbar"><div class="nav"><span class="ms">arrow_back</span></div><div class="tt"><h1>Masraflar</h1><p>SRV-202609-0042</p></div>
+        <div class="act"><span><span class="ms">add</span></span></div></div>
+      <div class="body"><div class="scroll" id="expScroll">
+        <div class="switchrow an"><div><b>Müşteriye yansıt</b><p>Masraflar servis bedeline eklenir</p></div><div class="sw"><i></i></div></div>
+        <div class="explist" id="expList">
+          <div class="exp ex"><div class="th"><img src="assets/fis_1_grand.png"></div><div class="mid"><b>Konaklama / Otel</b><p>Grand Otel - 1 gece · fiş ekli</p></div><div class="amt">1.474,00 ₺</div></div>
+          <div class="exp ex"><div class="th"><img src="assets/fis_2_petrol.png"></div><div class="mid"><b>Yakıt</b><p>Motorin 42,30 L · fiş ekli</p></div><div class="amt">2.031,26 ₺</div></div>
+          <div class="exp ex"><div class="th"><img src="assets/fis_3_hgs.png"></div><div class="mid"><b>Otoyol / Köprü</b><p>Kuzey Marmara geçişi · fiş ekli</p></div><div class="amt">184,50 ₺</div></div>
+          <div class="exp ex"><div class="th"><img src="assets/fis_4_market.png"></div><div class="mid"><b>Yemek</b><p>Yol ve saha yemeği · fiş ekli</p></div><div class="amt">328,00 ₺</div></div>
+        </div>
+        <div class="card an" id="expTotals" style="display:flex;flex-direction:column;gap:8px">
+          <div class="kv"><span>Masraf toplamı</span><b id="expSum">0,00 ₺</b></div>
+          <div class="kv"><span>Servis bedeli</span><b>500,00 € = 23.911,55 ₺</b></div>
+          <div class="hr"></div>
+          <div class="totalband"><span>MÜŞTERİYE TOPLAM</span><b id="expTotal">0,00 ₺</b></div>
+        </div>
+        <div class="btn an" id="expBtn"><span class="ms">picture_as_pdf</span>Masraf Dökümü ve Fişler (PDF)</div>
+        <div class="btn ghost an"><span class="ms">mail</span>Raporu Mail Gönder</div>
+      </div></div>
+    </div>
+
+    <!-- CARİ -->
+    <div class="app" id="app-fin">
+      <div class="statusbar"><span>16:51</span><span class="right"><span class="ms">signal_cellular_alt</span><span class="ms">wifi</span><span class="ms">battery_full</span></span></div>
+      <div class="topbar"><div class="tt"><h1>Cari Takip</h1><p>Alacak, tahsilat ve masraflar</p></div>
+        <div class="act"><span><span class="ms">picture_as_pdf</span></span></div></div>
+      <div class="tabs"><div class="on">Hesaplar</div><div>Hareketler</div><div>Masraflar</div></div>
+      <div class="body" style="padding-top:12px"><div class="scroll" style="top:12px">
+        <div class="stats an">
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(15,76,117,.14)"><span class="ms" style="color:#0F4C75">account_balance</span></div><div class="lb">Toplam alacak</div></div><div class="vl"><b>126.480</b><i>₺</i></div></div>
+          <div class="stat"><div class="hd"><div class="ic" style="background:rgba(179,38,30,.14)"><span class="ms" style="color:#B3261E">running_with_errors</span></div><div class="lb">Vadesi geçen</div></div><div class="vl"><b style="color:#B3261E">38.900</b><i>₺</i></div></div>
+        </div>
+        <div class="lbl an">Takip gerekenler</div>
+        <div class="rowitem an" style="box-shadow:inset 3px 0 0 #B3261E"><div class="av" style="background:rgba(179,38,30,.1)"><span class="ms" style="color:#B3261E">schedule</span></div><div class="mid"><b>Mermerci Makine</b><p>Vade 04.09.2026 · 12 gün gecikti</p></div><div class="end"><b style="font-size:14px">18.400,00 ₺</b><p style="margin-top:4px"><span class="badge b-dng">Gecikti</span></p></div></div>
+        <div class="rowitem an" style="box-shadow:inset 3px 0 0 #B26A00"><div class="av" style="background:rgba(178,106,0,.1)"><span class="ms" style="color:#B26A00">handshake</span></div><div class="mid"><b>Akın Metal</b><p>Söz verdiği tarih: 10.09.2026</p></div><div class="end"><b style="font-size:14px">20.500,00 ₺</b><p style="margin-top:4px"><span class="badge b-warn">Söz tutulmadı</span></p></div></div>
+        <div class="sect an"><h2>Son 6 ay</h2><span>Aylık rapor</span></div>
+        <div class="card an"><div class="bars" id="finBars">
+          <div><u data-h="46"></u><s>Nis</s></div><div><u data-h="62"></u><s>May</s></div><div><u data-h="54"></u><s>Haz</s></div>
+          <div><u data-h="78"></u><s>Tem</s></div><div><u data-h="68"></u><s>Ağu</s></div><div><u data-h="100"></u><s>Eyl</s></div>
+        </div>
+        <div class="hr"></div>
+        <div class="kv"><span>Hakediş</span><b>112.300,00 ₺</b></div>
+        <div class="kv"><span>Masraf</span><b>28.160,00 ₺</b></div>
+        <div class="kv"><span>Net kâr</span><b style="color:#1B7F4B">84.140,00 ₺</b></div>
+        </div>
+        <div class="btn an"><span class="ms">picture_as_pdf</span>Aylık Rapor (PDF)</div>
+        <div class="btn ghost an"><span class="ms">receipt_long</span>Cari Ekstre</div>
+      </div></div>
+      <div class="navbar"><div><div class="pill"><span class="ms">dashboard</span></div><span class="lb">Özet</span></div>
+        <div><div class="pill"><span class="ms">assignment</span></div><span class="lb">Raporlar</span></div>
+        <div class="on"><div class="pill"><span class="ms">account_balance_wallet</span></div><span class="lb">Cari</span></div>
+        <div><div class="pill"><span class="ms">precision_manufacturing</span></div><span class="lb">Kayıtlar</span></div>
+        <div><div class="pill"><span class="ms">settings</span></div><span class="lb">Ayarlar</span></div></div>
+    </div>
+
+    <!-- MAİL DİYALOĞU -->
+    <div class="scrim" id="mailDlg" style="opacity:0">
+      <div class="dialog">
+        <h3>Raporu Mail Gönder</h3>
+        <div class="field"><label>Alıcı(lar)</label><div class="val" style="font-size:13px" id="mailTo"></div></div>
+        <div class="checkrow"><div class="box"><span class="ms">check</span></div>Masraf dökümü ve fişleri ekle</div>
+        <div class="checkrow"><div class="box"><span class="ms">check</span></div>Fotoğrafları ekle</div>
+        <p class="note">PDF ve fişler tek dosyada eklenir.</p>
+        <div class="acts"><div>Kapat</div><div class="pri" id="mailSend">Gönder</div></div>
+      </div>
+    </div>
+    <div class="toast" id="toast" style="opacity:0"><span class="ms">mark_email_read</span><span>Rapor maili gönderildi</span></div>
+
+  </div></div></div>
+
+  <!-- PDF SAHNESİ -->
+  <section class="scene" id="sc-pdf">
+    <div id="pdfStack">
+      <div class="pdfpage" id="pg1"><img src="pdfpng/servis_raporu_01.png"></div>
+      <div class="pdfpage" id="pg2"><img src="pdfpng/servis_raporu_02.png"></div>
+      <div class="pdfpage" id="pg3"><img src="pdfpng/masraf_dokumu_01.png"></div>
+      <div class="pdfpage" id="pg4"><img src="pdfpng/masraf_dokumu_02.png"></div>
+      <div class="pdfpage" id="pg5"><img src="pdfpng/masraf_dokumu_03.png"></div>
+    </div>
+  </section>
+
+  <!-- KAPANIŞ -->
+  <section class="scene" id="sc-outro">
+    <img id="outIcon" src="assets/deli_kadir.png" alt="">
+    <div id="outName">Deli Kadir App</div>
+    <div id="outSlog">Yer Yüzünün En Sexsü Teknik Servisi</div>
+    <div id="outChips">
+      <span>Servis raporu</span><span>Fotoğraf &amp; imza</span><span>Yedek parça</span>
+      <span>Otomatik kur</span><span>Masraf &amp; fiş</span><span>Cari takip</span>
+      <span>Aylık rapor</span><span>PDF &amp; mail</span><span>İnternetsiz çalışır</span>
+    </div>
+    <div id="outQr"><img src="assets/qr.png" alt=""><div class="t"><b>APK'yı indir</b><p>github.com/technoral3458/Teklif</p></div></div>
+  </section>
+
+  <div id="brand"><img src="assets/ic_launcher.png" alt=""><b>Deli Kadir App</b><i>· makine servis takibi</i></div>
+  <div id="prog"></div>
+</div>
+<script src="scenes.js"></script>
+</body>
+</html>
