@@ -26,6 +26,7 @@ import com.technoral.servis.mail.MailTemplates
 import com.technoral.servis.pdf.ExpensePdf
 import com.technoral.servis.pdf.FinancePdf
 import com.technoral.servis.pdf.ReportPdf
+import com.technoral.servis.ui.components.Celebration
 import com.technoral.servis.util.compressInPlace
 import com.technoral.servis.util.fileStamp
 import com.technoral.servis.util.importImage
@@ -65,6 +66,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun notify(message: String) {
         _toast.value = message
+    }
+
+    private val _celebration = MutableStateFlow<Celebration?>(null)
+    val celebration: StateFlow<Celebration?> = _celebration.asStateFlow()
+
+    fun clearCelebration() {
+        _celebration.value = null
     }
 
     fun clearToast() {
@@ -181,7 +189,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- cari
 
-    fun saveLedgerEntry(entry: LedgerEntry) = repo.saveLedgerEntry(entry)
+    fun saveLedgerEntry(entry: LedgerEntry) {
+        // Yeni bir tahsilat mı? (düzenlemede kutlama tekrar oynamasın)
+        val isNew = ledger.value.none { it.id == entry.id }
+        repo.saveLedgerEntry(entry)
+        if (isNew && entry.type == LedgerType.TAHSILAT && entry.amount > 0.0 &&
+            settings.value.celebrateCollections
+        ) {
+            _celebration.value = Celebration(
+                amountText = money(entry.amount, entry.currency.symbol),
+                tryText = if (entry.currency != Currency.TRY && entry.rate > 0) {
+                    "= ${money(entry.tryAmount)}"
+                } else null,
+                customer = customer(entry.customerId)?.name.orEmpty(),
+            )
+        }
+    }
     fun deleteLedgerEntry(id: String) = repo.deleteLedgerEntry(id)
     fun ledgerOfCustomer(customerId: String) = repo.ledgerOfCustomer(customerId)
     fun chargeOfReport(reportId: String) = repo.chargeOfReport(reportId)

@@ -234,6 +234,7 @@ fun AppSettings.toJson(): JSONObject = JSONObject().apply {
     put("showChargeOnPdf", showChargeOnPdf)
     put("expensesBillableByDefault", expensesBillableByDefault)
     put("overdueGraceDays", overdueGraceDays)
+    put("celebrateCollections", celebrateCollections)
 }
 
 fun appSettingsFromJson(o: JSONObject): AppSettings {
@@ -276,6 +277,7 @@ fun appSettingsFromJson(o: JSONObject): AppSettings {
         showChargeOnPdf = o.optBoolean("showChargeOnPdf", false),
         expensesBillableByDefault = o.optBoolean("expensesBillableByDefault", true),
         overdueGraceDays = o.optInt("overdueGraceDays", 0),
+        celebrateCollections = o.optBoolean("celebrateCollections", true),
     )
 }
 

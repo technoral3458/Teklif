@@ -224,6 +224,8 @@ data class AppSettings(
     val expensesBillableByDefault: Boolean = true,
     /** Vadesi geçen alacaklar için kaç gün sonra uyarılsın. */
     val overdueGraceDays: Int = 0,
+    /** Tahsilat kaydedilince kutlama animasyonu oynasın mı. */
+    val celebrateCollections: Boolean = true,
 ) {
     fun rateFor(currency: Currency): Double = when (currency) {
         Currency.TRY -> 1.0

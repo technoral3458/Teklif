@@ -245,6 +245,29 @@ fun SettingsScreen(vm: AppViewModel, nav: Navigator) {
                     }
                     Row(
                         Modifier.fillMaxWidth().clickable {
+                            vm.saveSettings(
+                                settings.copy(celebrateCollections = !settings.celebrateCollections)
+                            )
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = settings.celebrateCollections,
+                            onCheckedChange = {
+                                vm.saveSettings(settings.copy(celebrateCollections = it))
+                            },
+                        )
+                        Column {
+                            Text("Tahsilatta kutlama animasyonu", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Para girişi kaydedilince konfetili kutlama oynar",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
                             vm.saveSettings(settings.copy(showChargeOnPdf = !settings.showChargeOnPdf))
                         },
                         verticalAlignment = Alignment.CenterVertically,

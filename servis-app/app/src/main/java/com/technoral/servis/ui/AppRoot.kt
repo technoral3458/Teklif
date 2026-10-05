@@ -2,8 +2,12 @@ package com.technoral.servis.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -29,20 +33,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
+import com.technoral.servis.ui.components.CelebrationOverlay
+import com.technoral.servis.ui.screens.CompanySettingsScreen
 import com.technoral.servis.ui.screens.CustomerAccountScreen
 import com.technoral.servis.ui.screens.CustomerDetailScreen
-import com.technoral.servis.ui.screens.FinanceScreen
-import com.technoral.servis.ui.screens.MonthlyReportScreen
 import com.technoral.servis.ui.screens.CustomersScreen
 import com.technoral.servis.ui.screens.DashboardScreen
+import com.technoral.servis.ui.screens.FinanceScreen
 import com.technoral.servis.ui.screens.MachineDetailScreen
 import com.technoral.servis.ui.screens.MachinesScreen
 import com.technoral.servis.ui.screens.MailSettingsScreen
-import com.technoral.servis.ui.screens.CompanySettingsScreen
+import com.technoral.servis.ui.screens.MonthlyReportScreen
 import com.technoral.servis.ui.screens.ReportDetailScreen
 import com.technoral.servis.ui.screens.ReportEditScreen
 import com.technoral.servis.ui.screens.ReportsScreen
@@ -72,6 +73,7 @@ fun AppRoot(vm: AppViewModel) {
     val settings by vm.settings.collectAsState()
     val toast by vm.toast.collectAsState()
     val busy by vm.busy.collectAsState()
+    val celebration by vm.celebration.collectAsState()
 
     val nav = rememberNavigator(Screen.Dashboard)
     val snackbar = remember { SnackbarHostState() }
@@ -107,49 +109,56 @@ fun AppRoot(vm: AppViewModel) {
 
     val showBottomBar = nav.current in rootScreens
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            // Koşullu çizim: alt menü yokken Scaffold, gezinme çubuğu boşluğunu
-            // kendisi bıraksın (AnimatedVisibility sıfır yükseklikle bunu bozuyordu).
-            if (showBottomBar) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    navItems.forEach { item ->
-                        NavigationBarItem(
-                            selected = item.matches(nav.current),
-                            onClick = { nav.switchRoot(item.screen) },
-                            icon = { Icon(item.icon, item.label) },
-                            label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
-                            alwaysShowLabel = true,
-                        )
+    // Kutlama animasyonu alt menünün de üstünü kaplasın diye Scaffold dışında duruyor.
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbar) },
+            bottomBar = {
+                // Koşullu çizim: alt menü yokken Scaffold, gezinme çubuğu boşluğunu
+                // kendisi bıraksın (AnimatedVisibility sıfır yükseklikle bunu bozuyordu).
+                if (showBottomBar) {
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        navItems.forEach { item ->
+                            NavigationBarItem(
+                                selected = item.matches(nav.current),
+                                onClick = { nav.switchRoot(item.screen) },
+                                icon = { Icon(item.icon, item.label) },
+                                label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+                                alwaysShowLabel = true,
+                            )
+                        }
                     }
                 }
-            }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            when (val screen = nav.current) {
-                Screen.Setup -> SetupScreen(vm) { nav.switchRoot(Screen.Dashboard) }
-                Screen.Dashboard -> DashboardScreen(vm, nav)
-                Screen.Reports -> ReportsScreen(vm, nav)
-                Screen.Machines -> MachinesScreen(vm, nav)
-                Screen.Customers -> CustomersScreen(vm, nav)
-                Screen.Settings -> SettingsScreen(vm, nav)
-                Screen.Finance -> FinanceScreen(vm, nav)
-                Screen.MonthlyReport -> MonthlyReportScreen(vm, nav)
-                is Screen.CustomerAccount -> CustomerAccountScreen(vm, nav, screen.customerId)
-                Screen.ReportEdit -> ReportEditScreen(vm, nav)
-                is Screen.ReportDetail -> ReportDetailScreen(vm, nav, screen.reportId)
-                is Screen.MachineDetail -> MachineDetailScreen(vm, nav, screen.machineId)
-                is Screen.CustomerDetail -> CustomerDetailScreen(vm, nav, screen.customerId)
-                Screen.MailSettings -> MailSettingsScreen(vm, nav)
-                Screen.CompanySettings -> CompanySettingsScreen(vm, nav)
-            }
+            },
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                when (val screen = nav.current) {
+                    Screen.Setup -> SetupScreen(vm) { nav.switchRoot(Screen.Dashboard) }
+                    Screen.Dashboard -> DashboardScreen(vm, nav)
+                    Screen.Reports -> ReportsScreen(vm, nav)
+                    Screen.Machines -> MachinesScreen(vm, nav)
+                    Screen.Customers -> CustomersScreen(vm, nav)
+                    Screen.Settings -> SettingsScreen(vm, nav)
+                    Screen.Finance -> FinanceScreen(vm, nav)
+                    Screen.MonthlyReport -> MonthlyReportScreen(vm, nav)
+                    is Screen.CustomerAccount -> CustomerAccountScreen(vm, nav, screen.customerId)
+                    Screen.ReportEdit -> ReportEditScreen(vm, nav)
+                    is Screen.ReportDetail -> ReportDetailScreen(vm, nav, screen.reportId)
+                    is Screen.MachineDetail -> MachineDetailScreen(vm, nav, screen.machineId)
+                    is Screen.CustomerDetail -> CustomerDetailScreen(vm, nav, screen.customerId)
+                    Screen.MailSettings -> MailSettingsScreen(vm, nav)
+                    Screen.CompanySettings -> CompanySettingsScreen(vm, nav)
+                }
 
-            busy?.let { message ->
-                BusyOverlay(message)
+                busy?.let { message ->
+                    BusyOverlay(message)
+                }
             }
+        }
+
+        celebration?.let { party ->
+            CelebrationOverlay(party) { vm.clearCelebration() }
         }
     }
 }
