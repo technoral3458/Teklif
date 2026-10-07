@@ -284,10 +284,157 @@ def _paths_v105(ev: dict) -> list:
     return paths
 
 
+# ------- parametrik model yardımcıları (fotoğraflardaki desenler) -------
+def _rect(x0, y0, x1, y1):
+    return [{"kind": "line", "a": (x0, y0), "b": (x1, y0)},
+            {"kind": "line", "a": (x1, y0), "b": (x1, y1)},
+            {"kind": "line", "a": (x1, y1), "b": (x0, y1)},
+            {"kind": "line", "a": (x0, y1), "b": (x0, y0)}]
+
+
+def _frame(x0, y0, x1, y1, role="cerceve"):
+    return {"closed": True, "role": role, "segs": _rect(x0, y0, x1, y1)}
+
+
+def _clip_line(slope, b, x0, y0, x1, y1):
+    """y = slope*x + b doğrusunu [x0,x1]x[y0,y1] dikdörtgenine kırpar."""
+    c = []
+    for x in (x0, x1):
+        y = slope * x + b
+        if y0 - 1e-6 <= y <= y1 + 1e-6:
+            c.append((x, y))
+    for y in (y0, y1):
+        x = (y - b) / slope
+        if x0 - 1e-6 <= x <= x1 + 1e-6:
+            c.append((x, y))
+    c = list({(round(p[0], 3), round(p[1], 3)) for p in c})
+    if len(c) < 2:
+        return None
+    best = max(((a, d) for i, a in enumerate(c) for d in c[i + 1:]),
+              key=lambda pq: (pq[0][0] - pq[1][0]) ** 2 + (pq[0][1] - pq[1][1]) ** 2)
+    return best
+
+
+def _paths_raised1(ev):
+    """Düz kabartma kaset — iç içe çerçeveler (fotoğraf 3, 8)."""
+    W = ev["width"]; L = ev["length"]; v = ev["vals"]
+    k = v["kenar"]; ara = v["ara"]; n = max(int(v["cerceve"]), 1)
+    return [_frame(k + i * ara, k + i * ara, W - k - i * ara, L - k - i * ara) for i in range(n)]
+
+
+def _paths_raised2(ev):
+    """İki kaset — üstte büyük, altta küçük panel (fotoğraf 5)."""
+    W = ev["width"]; L = ev["length"]; v = ev["vals"]
+    k = v["kenar"]; u = v["ust"]; o = v["orta"]; n = max(int(v["cerceve"]), 1); ara = v["ara"]
+    inner = L - 2 * u - o
+    bot = inner * 0.4; top = inner - bot
+    panels = [(k, u, W - k, u + bot), (k, u + bot + o, W - k, L - u)]
+    out = []
+    for (x0, y0, x1, y1) in panels:
+        for i in range(n):
+            d = i * ara
+            out.append(_frame(x0 + d, y0 + d, x1 - d, y1 - d))
+    return out
+
+
+def _paths_hourglass(ev):
+    """Kum saati — dış çerçeve + içeri kavisli (konkav) kenarlı panel (fotoğraf 4)."""
+    W = ev["width"]; L = ev["length"]; v = ev["vals"]
+    k = v["kenar"]; bel = max(v["bel"], 10); pad = v["panel"]
+    out = [_frame(k, k, W - k, L - k)]
+    xL = k + pad; xR = W - k - pad; yT = L - k - pad; yB = k + pad
+    mid = (yT + yB) / 2
+    chord = yT - yB
+    R = (chord ** 2 + 4 * bel ** 2) / (8 * bel)
+    cLx = xL + bel - R      # sol kenar merkezi (sola), içeri (+x) kavis
+    cRx = xR - bel + R      # sağ kenar merkezi (sağa), içeri (-x) kavis
+    segs = [
+        {"kind": "line", "a": (xL, yT), "b": (xR, yT)},
+        {"kind": "arc", "a": (xR, yT), "b": (xR, yB), "c": (cRx, mid), "r": R},
+        {"kind": "line", "a": (xR, yB), "b": (xL, yB)},
+        {"kind": "arc", "a": (xL, yB), "b": (xL, yT), "c": (cLx, mid), "r": R},
+    ]
+    out.append({"closed": True, "role": "desen", "segs": segs})
+    return out
+
+
+def _paths_diamond(ev):
+    """Baklava petek — çerçeve + 45° çapraz ızgara (fotoğraf 7)."""
+    W = ev["width"]; L = ev["length"]; v = ev["vals"]
+    k = v["kenar"]; adim = max(v["adim"], 20)
+    out = [_frame(k, k, W - k, L - k)]
+    m = k + 40
+    x0, y0, x1, y1 = m, m, W - m, L - m
+    out.append(_frame(x0, y0, x1, y1))
+    b = math.floor((y0 - x1) / adim) * adim
+    while b <= y1 - x0:
+        seg = _clip_line(1, b, x0, y0, x1, y1)
+        if seg:
+            out.append({"closed": False, "role": "desen",
+                        "segs": [{"kind": "line", "a": seg[0], "b": seg[1]}]})
+        b += adim
+    b = math.floor((y0 + x0) / adim) * adim
+    while b <= y1 + x1:
+        seg = _clip_line(-1, b, x0, y0, x1, y1)
+        if seg:
+            out.append({"closed": False, "role": "desen",
+                        "segs": [{"kind": "line", "a": seg[0], "b": seg[1]}]})
+        b += adim
+    return out
+
+
+def _paths_modern(ev):
+    """Modern çizgi — üstte dikey oluklar + altta kademeli çerçeve (fotoğraf 1)."""
+    W = ev["width"]; L = ev["length"]; v = ev["vals"]
+    sol = v["sol"]; ara = v["ara"]; n = max(int(v["cizgi"]), 1); bel = v["bel"]
+    out = []
+    for i in range(n):
+        x = sol + i * ara
+        ytop = L - v["ust"] - i * v["kademe"]
+        out.append({"closed": False, "role": "desen",
+                    "segs": [{"kind": "line", "a": (x, bel), "b": (x, ytop)}]})
+    # alt kademeli yatay çizgiler
+    for j, yy in enumerate((bel, bel - v["kademe"])):
+        out.append({"closed": False, "role": "desen",
+                    "segs": [{"kind": "line", "a": (sol, yy), "b": (W - v["sag"] - j * 90, yy)}]})
+    return out
+
+
+PROGRAMS = {
+    "v105": _paths_v105, "raised1": _paths_raised1, "raised2": _paths_raised2,
+    "hourglass": _paths_hourglass, "diamond": _paths_diamond, "modern": _paths_modern,
+}
+
+
 def build_paths(model: dict, ev: dict) -> list:
-    if model.get("program") == "v105":
-        return _paths_v105(ev)
+    fn = PROGRAMS.get(model.get("program"))
+    if fn:
+        return fn(ev)
     return [{"closed": True, "role": "profil", "segs": segments(ev["pts"])}]
+
+
+def dxf(name: str, ev: dict, paths: list) -> str:
+    """Kapak geometrisini DXF'e (LINE + ARC) çevirir — AutoCAD/CNC uyumlu."""
+    out = ["0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4", "0", "ENDSEC",
+           "0", "SECTION", "2", "ENTITIES"]
+    for p in paths:
+        for s in p["segs"]:
+            ax, ay = s["a"]; bx, by = s["b"]
+            if s["kind"] == "line":
+                out += ["0", "LINE", "8", "KAPAK",
+                        "10", f"{ax:.3f}", "20", f"{ay:.3f}", "30", "0",
+                        "11", f"{bx:.3f}", "21", f"{by:.3f}", "31", "0"]
+            else:
+                cx, cy = s["c"]; r = s["r"]
+                sa = math.degrees(math.atan2(ay - cy, ax - cx))
+                ea = math.degrees(math.atan2(by - cy, bx - cx))
+                if (ax - cx) * (by - cy) - (ay - cy) * (bx - cx) < 0:  # DXF yayı CCW
+                    sa, ea = ea, sa
+                out += ["0", "ARC", "8", "KAPAK",
+                        "10", f"{cx:.3f}", "20", f"{cy:.3f}", "30", "0",
+                        "40", f"{r:.3f}", "50", f"{sa:.3f}", "51", f"{ea:.3f}"]
+    out += ["0", "ENDSEC", "0", "EOF"]
+    return "\n".join(out)
 
 
 def gcode(name: str, ev: dict, paths: list, depth=8.0, feed=3000, plunge=1200, safe=6.0) -> str:
@@ -312,7 +459,20 @@ def gcode(name: str, ev: dict, paths: list, depth=8.0, feed=3000, plunge=1200, s
     return "\n".join(out)
 
 
+def _mk(program, W, L, **vars):
+    return {"program": program, "width": float(W), "length": float(L), "turns": [],
+            "vars": [{"name": k, "formula": None, "value": float(val)} for k, val in vars.items()]}
+
+
 def default_models():
     m = parse_adoormac(V105_MACRO)
     m["program"] = "v105"   # tam VBA geometrisi (profil + kayıt + kaset)
-    return [("V-105", m)]
+    return [
+        ("V-105 (Kemerli)", m),
+        ("Düz Kaset", _mk("raised1", 820, 2010, kenar=70, ara=14, cerceve=3)),
+        ("İki Kaset", _mk("raised2", 820, 2010, kenar=90, ust=120, orta=120, cerceve=2, ara=16)),
+        ("Kum Saati", _mk("hourglass", 820, 2010, kenar=70, panel=45, bel=130)),
+        ("Baklava Petek", _mk("diamond", 820, 2010, kenar=90, adim=120)),
+        ("Modern Çizgi", _mk("modern", 820, 2010, sol=140, ara=55, cizgi=3, bel=760,
+                             ust=120, kademe=70, sag=120)),
+    ]

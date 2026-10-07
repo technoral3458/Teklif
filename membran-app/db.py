@@ -319,10 +319,11 @@ def init():
                 "INSERT INTO vardar_orders (sn, customer, city, area, model, color, color_group, "
                 "entered_by, amount, term_date, stage) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (f"10 2606 {2090 - i}", cust, city, area, model, color, cg, by, amt, "2026-07-08", stage))
-    # Vardar kapak modelleri (ilk açılışta - AlphaCAM makroları)
-    if conn.execute("SELECT COUNT(*) FROM vardar_doors").fetchone()[0] == 0:
-        import doormac
-        for name, model in doormac.default_models():
+    # Vardar kapak modelleri (eksik olanları ekle - AlphaCAM makroları + parametrik)
+    import doormac
+    have = {r[0] for r in conn.execute("SELECT name FROM vardar_doors").fetchall()}
+    for name, model in doormac.default_models():
+        if name not in have:
             conn.execute("INSERT INTO vardar_doors (name, def_json) VALUES (?,?)",
                          (name, json.dumps(model)))
     conn.commit()

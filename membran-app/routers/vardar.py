@@ -178,8 +178,22 @@ async def kapak_gcode(request: Request, did: int):
     ev, draw, paths = _solve(model, request.query_params)
     depth = float(request.query_params.get("depth", 8))
     nc = doormac.gcode(row["name"], ev, paths, depth=depth)
-    fn = f"{row['name']}_{int(draw['width'])}x{int(draw['length'])}.nc"
+    safe = "".join(c if (c.isascii() and c.isalnum()) else "_" for c in row["name"])
+    fn = f"{safe}_{int(draw['width'])}x{int(draw['length'])}.nc"
     return Response(nc, media_type="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="{fn}"'})
+
+
+@router.get("/membrane/kapak/{did}/dxf")
+async def kapak_dxf(request: Request, did: int):
+    row, model = _door(did)
+    if not model:
+        return RedirectResponse("/membrane/kapak", status_code=303)
+    ev, draw, paths = _solve(model, request.query_params)
+    data = doormac.dxf(row["name"], ev, paths)
+    safe = "".join(c if (c.isascii() and c.isalnum()) else "_" for c in row["name"])
+    fn = f"{safe}_{int(draw['width'])}x{int(draw['length'])}.dxf"
+    return Response(data, media_type="application/dxf",
                     headers={"Content-Disposition": f'attachment; filename="{fn}"'})
 
 

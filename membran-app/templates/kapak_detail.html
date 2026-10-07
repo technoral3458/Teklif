@@ -41,12 +41,14 @@
       <svg viewBox="-6 -6 {{ draw.pw + 12 }} {{ draw.ph + 12 }}" style="max-height:440px;width:auto">
         <rect x="0" y="0" width="{{ draw.pw }}" height="{{ draw.ph }}" rx="3" fill="#efe6d6" stroke="#caa46a" stroke-width="1.5"/>
         {% for p in draw.paths %}
-          {% if p.closed %}
+          {% if p.role == 'profil' and p.closed %}
           <polygon points="{{ p.poly }}" fill="#e2c99a" fill-opacity="0.45" stroke="#2e7d32" stroke-width="1.6"/>
+          {% elif p.role == 'cerceve' %}
+          <polyline points="{{ p.poly }}" fill="none" stroke="#2e7d32" stroke-width="1.6"/>
           {% elif p.role == 'kayit' %}
           <polyline points="{{ p.poly }}" fill="none" stroke="#8d5a2b" stroke-width="1.4"/>
           {% else %}
-          <polyline points="{{ p.poly }}" fill="none" stroke="#1565c0" stroke-width="1.2" stroke-dasharray="4 2"/>
+          <polyline points="{{ p.poly }}" fill="none" stroke="#1565c0" stroke-width="1.2"/>
           {% endif %}
         {% endfor %}
       </svg>
@@ -58,7 +60,8 @@
       {% for k, val in request.query_params.items() %}<input type="hidden" name="{{ k }}" value="{{ val }}">{% endfor %}
       <input type="hidden" name="width" value="{{ draw.width }}"><input type="hidden" name="length" value="{{ draw.length }}">
       <label>Frezeleme derinliği (mm)<input name="depth" type="number" step="0.5" value="8" class="border rounded px-2 py-1 block w-40"></label>
-      <button class="bg-slate-800 text-white rounded px-4 py-2">⬇️ MC kodu (.nc) indir</button>
+      <button class="bg-slate-800 text-white rounded px-4 py-2">⬇️ MC kodu (.nc)</button>
+      <button formaction="/membrane/kapak/{{ door.id }}/dxf" class="bg-emerald-700 text-white rounded px-4 py-2">⬇️ DXF indir</button>
     </form>
     <p class="text-xs text-slate-400 mt-2">G21/G90, G1 çizgiler + G2/G3 yaylar (merkez I/J). AlphaCAM makro geometrisinden üretilir.</p>
   </div>
