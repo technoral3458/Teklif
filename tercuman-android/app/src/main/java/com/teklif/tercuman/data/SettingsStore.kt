@@ -11,6 +11,10 @@ data class AppSettings(
     val topic: String = "",
     val glossary: String = "",
     val autoSpeak: Boolean = true,
+    /** Doluysa ses tanıma OpenAI Whisper ile yapılır (dil sesten algılanır). */
+    val openAiKey: String = "",
+    /** Konuşmanın bittiği sayılacak sessizlik süresi. */
+    val silenceMs: Long = 2000L,
 ) {
     fun toEngineConfig() = EngineConfig(
         apiKey = apiKey.trim(),
@@ -32,6 +36,8 @@ class SettingsStore(context: Context) {
         topic = prefs.getString(KEY_TOPIC, "") ?: "",
         glossary = prefs.getString(KEY_GLOSSARY, "") ?: "",
         autoSpeak = prefs.getBoolean(KEY_AUTO_SPEAK, true),
+        openAiKey = prefs.getString(KEY_OPENAI, "") ?: "",
+        silenceMs = prefs.getLong(KEY_SILENCE, 2000L),
     )
 
     fun save(s: AppSettings) {
@@ -42,6 +48,8 @@ class SettingsStore(context: Context) {
             .putString(KEY_TOPIC, s.topic)
             .putString(KEY_GLOSSARY, s.glossary)
             .putBoolean(KEY_AUTO_SPEAK, s.autoSpeak)
+            .putString(KEY_OPENAI, s.openAiKey)
+            .putLong(KEY_SILENCE, s.silenceMs)
             .apply()
     }
 
@@ -52,5 +60,7 @@ class SettingsStore(context: Context) {
         const val KEY_TOPIC = "topic"
         const val KEY_GLOSSARY = "glossary"
         const val KEY_AUTO_SPEAK = "auto_speak"
+        const val KEY_OPENAI = "openai_key"
+        const val KEY_SILENCE = "silence_ms"
     }
 }

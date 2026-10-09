@@ -5,8 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.teklif.tercuman.data.AppSettings
 import com.teklif.tercuman.data.SettingsStore
+import com.teklif.tercuman.speech.PhoneSpeechInput
 import com.teklif.tercuman.speech.Speaker
-import com.teklif.tercuman.speech.SpeechInput
+import com.teklif.tercuman.speech.VoiceInput
+import com.teklif.tercuman.speech.WhisperSpeechInput
 import com.teklif.tercuman.translate.EngineConfig
 import com.teklif.tercuman.translate.HistoryTurn
 import com.teklif.tercuman.translate.Lang
@@ -63,13 +65,21 @@ data class UiState(
     val settings: AppSettings = AppSettings(),
 )
 
-class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Listener {
+class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listener {
 
     private val store = SettingsStore(app)
     private val _state = MutableStateFlow(UiState(settings = store.load()))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private val speech = SpeechInput(app, this)
+    private val phoneInput = PhoneSpeechInput(app, this) { _state.value.settings.silenceMs }
+    private val whisperInput = WhisperSpeechInput(
+        scope = viewModelScope,
+        listener = this,
+        apiKey = { _state.value.settings.openAiKey },
+        silenceMs = { _state.value.settings.silenceMs },
+    )
+    /** OpenAI anahtarı girildiyse Whisper (dil sesten algılanır), yoksa telefonun tanıyıcısı. */
+    private var activeInput: VoiceInput = phoneInput
     private val speaker = Speaker(app) { problem -> showMessage(problem) }
 
     private var engine: TranslationEngine? = null
@@ -78,8 +88,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
 
     /** Bu dinleme oturumunda sabit dil seçildiyse o dil; otomatikse null. */
     private var forcedForSession: Lang? = null
-    /** Otomatik modda ardışık konuşmacı tahmini için son konuşulan dil. */
-    private var lastSpoken: Lang? = null
 
     // ---- Kullanıcı eylemleri ----
 
@@ -98,7 +106,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
 
     fun clearConversation() {
         speaker.stop()
-        lastSpoken = null
         _state.update { it.copy(utterances = emptyList()) }
     }
 
@@ -110,7 +117,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
      */
     fun toggleListening(fixed: Lang?) {
         if (_state.value.listening) {
-            speech.stop()
+            activeInput.stop()
             return
         }
         if (_state.value.settings.apiKey.isBlank()) {
@@ -120,14 +127,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
         }
         speaker.stop()
         forcedForSession = fixed
-        val primary = fixed ?: (lastSpoken?.other ?: Lang.TR)
-        val alternative = if (fixed == null) primary.other else null
+        activeInput = if (_state.value.settings.openAiKey.isNotBlank()) whisperInput else phoneInput
         _state.update { it.copy(listening = true, listeningFor = fixed, partial = "", level = 0f) }
-        speech.start(primary, alternative)
+        activeInput.start(fixed)
     }
 
     fun cancelListening() {
-        speech.cancel()
+        activeInput.cancel()
         _state.update { it.copy(listening = false, partial = "", level = 0f) }
     }
 
@@ -141,7 +147,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
         translate(utterance.id, utterance.rawText, utterance.forced, utterance.guessedSource)
     }
 
-    // ---- SpeechInput.Listener ----
+    // ---- VoiceInput.Listener ----
 
     override fun onListening() {
         _state.update { it.copy(listening = true) }
@@ -158,8 +164,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
     override fun onFinal(text: String, detected: Lang?) {
         _state.update { it.copy(listening = false, partial = "", level = 0f) }
         val forced = forcedForSession
-        // Yazı sistemi Türkçe/Çince ayrımında en güvenilir işaret; yoksa servisin algıladığı dil.
-        val hint = forced ?: Lang.guessFromScript(text) ?: detected
+        // Whisper dili sesten algılar; telefonda ise yazı sistemi (Çince karakter / Latin harf)
+        // servisin tahmininden daha güvenilir.
+        val hint = forced
+            ?: (if (activeInput === whisperInput) detected else null)
+            ?: Lang.guessFromScript(text)
+            ?: detected
         val id = nextId++
         _state.update { it.copy(utterances = it.utterances + Utterance(id, hint, text, forced)) }
         translate(id, text, forced, hint)
@@ -168,6 +178,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
     override fun onSpeechError(message: String) {
         _state.update { it.copy(listening = false, partial = "", level = 0f) }
         showMessage(message)
+    }
+
+    override fun onIdle() {
+        _state.update { it.copy(listening = false, partial = "", level = 0f) }
     }
 
     // ---- İç işler ----
@@ -183,7 +197,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
             }
             outcome
                 .onSuccess { result ->
-                    lastSpoken = result.source
                     replace(id) { it.copy(result = result, error = null) }
                     if (_state.value.settings.autoSpeak) speaker.speak(result.translation, result.target)
                 }
@@ -212,7 +225,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Liste
     private fun showMessage(text: String) = _state.update { it.copy(message = text) }
 
     override fun onCleared() {
-        speech.destroy()
+        phoneInput.destroy()
+        whisperInput.destroy()
         speaker.shutdown()
     }
 }

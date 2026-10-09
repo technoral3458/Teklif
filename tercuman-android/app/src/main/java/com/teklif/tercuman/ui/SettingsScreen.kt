@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 private val EFFORTS = listOf("low" to "Hızlı", "medium" to "Dengeli", "high" to "En iyi")
+private val SILENCES = listOf(1200L to "Kısa (1,2 sn)", 2000L to "Normal (2 sn)", 3000L to "Uzun (3 sn)")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +67,45 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 supportingText = { Text("console.anthropic.com → API Keys. Sadece bu telefonda saklanır.") },
                 modifier = Modifier.fillMaxWidth(),
+            )
+
+            Text("Ses tanıma ve otomatik dil algılama", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(
+                value = s.openAiKey,
+                onValueChange = { v -> vm.updateSettings { it.copy(openAiKey = v.trim()) } },
+                label = { Text("OpenAI API anahtarı (isteğe bağlı, önerilir)") },
+                placeholder = { Text("sk-…") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                supportingText = {
+                    Text(
+                        if (s.openAiKey.isBlank()) {
+                            "Boşsa telefonun kendi ses tanıması kullanılır. Doldurursanız Whisper konuşulan dili " +
+                                "sesten algılar: aynı kişi art arda konuşsa da doğru dil seçilir. " +
+                                "platform.openai.com → API keys."
+                        } else {
+                            "Whisper etkin: konuşulan dil sesten otomatik algılanır."
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Text("Konuşma bitti sayılacak sessizlik", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SILENCES.forEach { (value, label) ->
+                    FilterChip(
+                        selected = s.silenceMs == value,
+                        onClick = { vm.updateSettings { it.copy(silenceMs = value) } },
+                        label = { Text(label) },
+                    )
+                }
+            }
+            Text(
+                "Mikrofon, konuşma başlayana kadar (en fazla 90 sn) sessizce bekler. Cümle arasında duraklıyorsanız Uzun'u seçin.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Text("Çeviri kalitesi / hız", style = MaterialTheme.typography.titleSmall)

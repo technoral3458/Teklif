@@ -4,8 +4,12 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## Nasıl çalışır?
 
-1. **Mikrofon** → Telefonun konuşma tanıma servisi konuşmayı yazıya çevirir.
-   *Otomatik* modda Türkçe mi Çince mi konuşulduğu kendiliğinden algılanır.
+1. **Mikrofon** → Konuşma yazıya çevrilir. *Otomatik* modda Türkçe mi Çince mi konuşulduğu
+   kendiliğinden algılanır; aynı kişi art arda konuşabilir. Mikrofon, konuşma başlayana kadar
+   (en fazla 90 sn) sessizce bekler. İki yol vardır:
+   - **OpenAI Whisper** (Ayarlar'a OpenAI anahtarı girilirse, önerilir): Dil sesten algılanır, her telefonda güvenilir.
+   - **Telefonun ses tanıması** (anahtar yoksa): Türkçe + Çince birlikte dinlenir; Android 14+ telefonlarda
+     dil algılama ve dil değiştirme açılır. Eski telefonlarda yanlış algılarsa dili sabitleyin.
 2. **Anlamlı çeviri (İngilizce köprü)** → Claude metni üç adımda işler:
    - Konuşma tanıma hatalarını bağlama göre düzeltir,
    - Anlamı açık İngilizceye aktarır (deyimler, ima edilen özne, teknik terimler çözülür),
@@ -13,7 +17,8 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
    Ekranda İngilizce köprü metni de görünür, böylece çevirinin doğru anlaşılıp anlaşılmadığını kontrol edebilirsiniz.
    Çince çevirilerin altında pinyin okunuşu da yazılır.
-3. **Sesli okuma** → Çeviri, karşı tarafın dilinde otomatik seslendirilir.
+3. **Sesli okuma** → Çeviri, karşı tarafın dilinde, o dilin sesiyle otomatik okunur
+   (Çince için Çin anakarası sesi seçilir).
 
 ## Ekranlar
 
@@ -23,6 +28,9 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
   Karşı tarafın söylediği, her yarıda o kişinin dilinde büyük harflerle görünür.
 - **Ayarlar**:
   - *Claude API anahtarı* (zorunlu)
+  - *OpenAI API anahtarı* (isteğe bağlı): https://platform.openai.com → *API keys*. Ses tanıma
+    dakikası yaklaşık 0,6 sent.
+  - *Sessizlik süresi*: Konuşmanın bitti sayılması için gereken sessizlik (1,2 / 2 / 3 sn)
   - *Görüşmenin konusu*: örn. "CNC membran kapak üretimi, fiyat teklifi". Terimler buna göre seçilir.
   - *Terim sözlüğü*: Her satıra `Türkçe = English = 中文`. Bu terimler her zaman aynen kullanılır.
   - *Çeviri kalitesi*: Hızlı / Dengeli / En iyi
@@ -46,9 +54,8 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## İpuçları
 
-- Otomatik algılama, konuşma sırası değiştikçe bir sonraki konuşmacının diğer dilde konuşacağını varsayar
-  ve iki dili birden dinler. Yanlış algılarsa yön seçiminden dili sabitleyin veya yüz yüze modda kişinin kendi tuşunu kullanın
-  (en güvenilir yöntem budur).
+- Otomatik algılama en iyi Whisper ile çalışır. Telefonun kendi tanımasıyla yanlış algılarsa yön seçiminden
+  dili sabitleyin veya yüz yüze modda kişinin kendi tuşunu kullanın.
 - Kısa, tam cümleler en iyi sonucu verir. Konu ve terim sözlüğünü doldurmak teknik görüşmelerde çeviriyi belirgin şekilde iyileştirir.
 
 ## Geliştirme
@@ -68,6 +75,7 @@ Kod düzeni:
 |---|---|
 | `translate/TranslationEngine.kt` | Claude ile TR→EN→ZH / ZH→EN→TR köprü çeviri |
 | `translate/Lang.kt` | Diller ve yazı sistemine göre dil tahmini |
-| `speech/SpeechInput.kt` | Mikrofon ve otomatik dil algılamalı konuşma tanıma |
+| `speech/WhisperSpeechInput.kt` | Ses kaydı, sessizlik algılama, Whisper ile dil algılamalı tanıma |
+| `speech/PhoneSpeechInput.kt` | Telefonun ses tanıması (Türkçe + Çince, Android 14+ dil değiştirme) |
 | `speech/Speaker.kt` | Sesli okuma |
 | `ui/` | Sohbet, yüz yüze ve ayarlar ekranları |

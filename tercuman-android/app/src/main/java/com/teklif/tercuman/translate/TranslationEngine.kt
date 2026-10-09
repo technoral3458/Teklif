@@ -171,7 +171,7 @@ class TranslationEngine(private val config: EngineConfig) {
                conversation so far, and put that in cleaned_source (same language as
                spoken). If the transcript looks like Chinese speech written phonetically
                in Latin letters (pinyin-like), treat it as Chinese and write it in
-               Chinese characters.
+               Chinese characters. Always write Chinese in Simplified characters.
             2. English bridge: write the meaning in clear English. Translate meaning,
                not words: resolve idioms, implied subjects, politeness, and domain
                terms so the English says exactly what the speaker intends.
@@ -216,7 +216,7 @@ class TranslationEngine(private val config: EngineConfig) {
             forcedSource != null ->
                 append("The utterance is in ${forcedSource.englishName}; translate it into ${forcedSource.other.englishName}.\n")
             scriptHint != null ->
-                append("Detect the language. The recognizer's script suggests ${scriptHint.englishName}, but verify.\n")
+                append("Detect the language. The speech recognizer suggests ${scriptHint.englishName}, but verify from the text.\n")
             else -> append("Detect the language.\n")
         }
         append("<utterance>\n").append(text.trim()).append("\n</utterance>")

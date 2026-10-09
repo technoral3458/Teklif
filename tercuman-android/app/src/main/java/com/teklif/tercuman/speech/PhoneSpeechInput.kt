@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -12,19 +13,18 @@ import com.teklif.tercuman.translate.Lang
 /**
  * Telefonun konuşma tanıma servisini (Google) saran sınıf. Ana iş parçacığından çağrılmalı.
  *
- * Otomatik modda tanıyıcıya "birincil dil + ek dil" verilir; Android 14+ cihazlarda dil
- * algılama da açılır. Sonuç metnin yazı sistemine (Çince karakter / Latin harf) bakılarak
- * kesinleştirilir.
+ * Otomatik modda tanıyıcıya Türkçe + Çince birlikte verilir; Android 14+ cihazlarda dil
+ * algılama ve konuşma sırasında dil değiştirme de açılır. Sonuç metnin yazı sistemine
+ * (Çince karakter / Latin harf) bakılarak kesinleştirilir.
+ *
+ * Tanıyıcı birkaç saniye sessizlikte kendini kapatır; konuşma gelene kadar sessizce
+ * yeniden başlatılır.
  */
-class SpeechInput(context: Context, private val listener: Listener) {
-
-    interface Listener {
-        fun onListening()
-        fun onPartial(text: String)
-        fun onLevel(level: Float)
-        fun onFinal(text: String, detected: Lang?)
-        fun onSpeechError(message: String)
-    }
+class PhoneSpeechInput(
+    context: Context,
+    private val listener: VoiceInput.Listener,
+    private val silenceMs: () -> Long,
+) : VoiceInput {
 
     private val recognizer: SpeechRecognizer? =
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -33,12 +33,14 @@ class SpeechInput(context: Context, private val listener: Listener) {
             null
         }
 
+    private var forced: Lang? = null
+    private var active = false
+    private var userStopped = false
+    private var deadline = 0L
     private var detectedByService: Lang? = null
     private var lastPartial = ""
     private var languageDetectionSupported = true
-    private var pendingRetry: (() -> Unit)? = null
-
-    val isAvailable: Boolean get() = recognizer != null
+    private var usedDetection = false
 
     init {
         recognizer?.setRecognitionListener(object : RecognitionListener {
@@ -58,11 +60,13 @@ class SpeechInput(context: Context, private val listener: Listener) {
             }
 
             override fun onResults(results: Bundle?) {
+                if (!active) return
                 val text = results.firstResult()?.takeIf { it.isNotBlank() } ?: lastPartial
-                if (text.isBlank()) {
-                    listener.onSpeechError("Ses anlaşılamadı, tekrar deneyin.")
-                } else {
-                    listener.onFinal(text, detectedByService)
+                when {
+                    text.isNotBlank() -> finish { listener.onFinal(text, detectedByService) }
+                    keepWaiting() -> begin()
+                    userStopped -> finish { listener.onIdle() }
+                    else -> finish { listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.") }
                 }
             }
 
@@ -71,57 +75,74 @@ class SpeechInput(context: Context, private val listener: Listener) {
                 detectedByService = when {
                     tag.startsWith("zh", ignoreCase = true) || tag.startsWith("cmn", ignoreCase = true) -> Lang.ZH
                     tag.startsWith("tr", ignoreCase = true) -> Lang.TR
-                    else -> null
+                    else -> detectedByService
                 }
             }
 
             override fun onError(error: Int) {
-                val retry = pendingRetry
-                pendingRetry = null
-                if (retry != null && (error == ERROR_LANGUAGE_NOT_SUPPORTED || error == ERROR_LANGUAGE_UNAVAILABLE)) {
-                    // Bu cihaz dil algılamayı desteklemiyor: algılamasız tekrar dene.
+                if (!active) return
+                if (usedDetection && (error == ERROR_LANGUAGE_NOT_SUPPORTED || error == ERROR_LANGUAGE_UNAVAILABLE)) {
+                    // Bu cihaz dil algılamayı desteklemiyor: algılamasız devam et.
                     languageDetectionSupported = false
-                    retry()
+                    begin()
                     return
                 }
-                if (error == SpeechRecognizer.ERROR_NO_MATCH && lastPartial.isNotBlank()) {
-                    listener.onFinal(lastPartial, detectedByService)
-                    return
+                val silence = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                when {
+                    silence && lastPartial.isNotBlank() -> finish { listener.onFinal(lastPartial, detectedByService) }
+                    silence && keepWaiting() -> begin()
+                    silence && userStopped -> finish { listener.onIdle() }
+                    silence -> finish { listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.") }
+                    else -> finish { listener.onSpeechError(errorText(error)) }
                 }
-                listener.onSpeechError(errorText(error))
             }
         })
     }
 
-    /**
-     * @param primary tanıyıcının öncelikli dili
-     * @param alternative otomatik modda ikinci dil; sabit yönde null
-     */
-    fun start(primary: Lang, alternative: Lang?) {
-        val rec = recognizer ?: run {
+    override fun start(forced: Lang?) {
+        if (recognizer == null) {
             listener.onSpeechError("Bu telefonda konuşma tanıma servisi yok. Google uygulamasını yükleyin/güncelleyin.")
             return
         }
-        detectedByService = null
-        lastPartial = ""
-        rec.cancel()
-
-        val useDetection = alternative != null && languageDetectionSupported && Build.VERSION.SDK_INT >= 34
-        pendingRetry = if (useDetection) ({ start(primary, alternative) }) else null
-        rec.startListening(buildIntent(primary, alternative, useDetection))
+        this.forced = forced
+        active = true
+        userStopped = false
+        deadline = SystemClock.elapsedRealtime() + VoiceInput.MAX_WAIT_FOR_SPEECH_MS
+        begin()
     }
 
-    fun stop() {
+    override fun stop() {
+        userStopped = true
         recognizer?.stopListening()
     }
 
-    fun cancel() {
-        pendingRetry = null
+    override fun cancel() {
+        active = false
         recognizer?.cancel()
     }
 
-    fun destroy() {
+    override fun destroy() {
+        active = false
         recognizer?.destroy()
+    }
+
+    private fun keepWaiting() = !userStopped && SystemClock.elapsedRealtime() < deadline
+
+    private fun finish(report: () -> Unit) {
+        active = false
+        report()
+    }
+
+    private fun begin() {
+        val rec = recognizer ?: return
+        detectedByService = null
+        lastPartial = ""
+        rec.cancel()
+        // Otomatikte birincil dil Türkçe, Çince ek dil olarak verilir; sıra tahmini yapılmaz.
+        val primary = forced ?: Lang.TR
+        val alternative = if (forced == null) Lang.ZH else null
+        usedDetection = alternative != null && languageDetectionSupported && Build.VERSION.SDK_INT >= 34
+        rec.startListening(buildIntent(primary, alternative, usedDetection))
     }
 
     private fun buildIntent(primary: Lang, alternative: Lang?, useDetection: Boolean) =
@@ -131,18 +152,22 @@ class SpeechInput(context: Context, private val listener: Listener) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, primary.speechTag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            // Konuşmacı kısa duraklamalarda kesilmesin.
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            // Cümle arasındaki kısa duraklamalarda kesilmesin.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs())
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs())
             if (alternative != null) {
                 // Google tanıyıcısının çok dilli tanıma desteği.
                 putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf(alternative.speechTag))
                 if (useDetection && Build.VERSION.SDK_INT >= 34) {
+                    val both = arrayListOf(primary.speechTag, alternative.speechTag)
                     putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
-                    putStringArrayListExtra(
-                        RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES,
-                        arrayListOf(primary.speechTag, alternative.speechTag),
+                    putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES, both)
+                    // Konuşulan dil algılanınca tanıma o dile geçsin.
+                    putExtra(
+                        RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH,
+                        RecognizerIntent.LANGUAGE_SWITCH_HIGH_PRECISION,
                     )
+                    putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES, both)
                 }
             }
         }
@@ -151,7 +176,6 @@ class SpeechInput(context: Context, private val listener: Listener) {
         this?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
 
     private fun errorText(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Ses algılanamadı, tekrar deneyin."
         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Konuşma tanıma için internet gerekli."
         SpeechRecognizer.ERROR_AUDIO -> "Mikrofon kullanılamıyor."
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mikrofon izni verilmedi."
