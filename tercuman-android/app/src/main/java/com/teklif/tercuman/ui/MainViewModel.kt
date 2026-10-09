@@ -24,13 +24,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Çeviri yönü. AUTO: konuşanın dili otomatik algılanır. */
-enum class Direction(val label: String, val source: Lang?) {
-    AUTO("Otomatik", null),
-    TR_TO_ZH("TR → 中文", Lang.TR),
-    ZH_TO_TR("中文 → TR", Lang.ZH),
-}
-
 enum class Screen { CHAT, FACE_TO_FACE, SETTINGS }
 
 data class Utterance(
@@ -64,7 +57,6 @@ data class Utterance(
 
 data class UiState(
     val screen: Screen = Screen.CHAT,
-    val direction: Direction = Direction.AUTO,
     val utterances: List<Utterance> = emptyList(),
     /** Şu an dinlenen dil; AUTO'da null olabilir. */
     val listening: Boolean = false,
@@ -101,8 +93,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
 
     // ---- Kullanıcı eylemleri ----
 
-    fun setDirection(direction: Direction) = _state.update { it.copy(direction = direction) }
-
     fun navigate(screen: Screen) {
         if (_state.value.listening) cancelListening()
         _state.update { it.copy(screen = screen) }
@@ -122,12 +112,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
     fun consumeMessage() = _state.update { it.copy(message = null) }
 
     /**
-     * @param fixed null ise otomatik algılama, değilse o dilde dinler
-     *              (yüz yüze modda her kişinin kendi tuşu).
+     * Dokun-başlat, tekrar dokun-bitir. Dinlerken hangi tuşa basılırsa basılsın konuşma biter.
+     * @param fixed null ise otomatik algılama, değilse o dilde dinler.
      */
     fun toggleListening(fixed: Lang?) {
         if (_state.value.listening) {
             activeInput.stop()
+            _state.update { it.copy(partial = it.partial.ifBlank { "Tamamlanıyor…" }) }
             return
         }
         if (_state.value.settings.apiKey.isBlank()) {

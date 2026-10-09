@@ -4,9 +4,10 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## Nasıl çalışır?
 
-1. **Mikrofon** → Konuşma yazıya çevrilir. *Otomatik* modda Türkçe mi Çince mi konuşulduğu
-   kendiliğinden algılanır; aynı kişi art arda konuşabilir. Mikrofon, konuşma başlayana kadar
-   (en fazla 90 sn) sessizce bekler. İki yol vardır:
+1. **Mikrofon** → Mavi tuş Türkçe, sarı tuş Çince. Tuşa dokunup konuşursunuz; kelime
+   aralarındaki duraklamalar konuşmayı kesmez, bitirince aynı tuşa tekrar dokunursunuz
+   (Ayarlar'dan 3 / 5 sn sessizlikte kendiliğinden kapanma da seçilebilir). Ortadaki küçük
+   *Otomatik* tuş dili kendisi algılamaya çalışır. Ses tanıma için iki yol vardır:
    - **OpenAI Whisper** (Ayarlar'a OpenAI anahtarı girilirse, önerilir): Dil sesten algılanır, her telefonda güvenilir.
    - **Telefonun ses tanıması** (anahtar yoksa): Türkçe + Çince birlikte dinlenir; Android 14+ telefonlarda
      dil algılama ve dil değiştirme açılır. Eski telefonlarda yanlış algılarsa dili sabitleyin.
@@ -22,7 +23,8 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## Ekranlar
 
-- **Sohbet**: Üstte yön seçimi: `Otomatik`, `TR → 中文`, `中文 → TR`. Alttaki büyük mikrofon tuşu.
+- **Sohbet**: Altta iki büyük tuş: 🇹🇷 **Türkçe** (mavi) ve 🇨🇳 **中文** (sarı); aralarında küçük *Otomatik* tuş.
+  Dokun-konuş-tekrar dokun.
 - **Yüz yüze mod** (üstteki iki kişi simgesi): Telefonu masaya koyun. Üst yarı Çinli misafire dönük
   (ters çevrili), alt yarı size. Herkesin kendi mikrofon tuşu var; ortadaki küçük tuş otomatik algılar.
   Karşı tarafın söylediği, her yarıda o kişinin dilinde büyük harflerle görünür.
@@ -30,7 +32,7 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
   - *Claude API anahtarı* (zorunlu)
   - *OpenAI API anahtarı* (isteğe bağlı): https://platform.openai.com → *API keys*. Ses tanıma
     dakikası yaklaşık 0,6 sent.
-  - *Sessizlik süresi*: Konuşmanın bitti sayılması için gereken sessizlik (1,2 / 2 / 3 sn)
+  - *Mikrofon ne zaman kapansın*: Dokununca (önerilir) / 3 sn / 5 sn sessizlik
   - *Görüşmenin konusu*: örn. "CNC membran kapak üretimi, fiyat teklifi". Terimler buna göre seçilir.
   - *Terim sözlüğü*: Her satıra `Türkçe = English = 中文`. Bu terimler her zaman aynen kullanılır.
   - *Çeviri kalitesi*: Hızlı / Dengeli / En iyi
@@ -54,8 +56,8 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## İpuçları
 
-- Otomatik algılama en iyi Whisper ile çalışır. Telefonun kendi tanımasıyla yanlış algılarsa yön seçiminden
-  dili sabitleyin veya yüz yüze modda kişinin kendi tuşunu kullanın.
+- En güvenilir kullanım dil tuşlarıdır. *Otomatik* tuş Whisper ile iyi çalışır; telefonun kendi tanımasında
+  yanılabilir.
 - Kısa, tam cümleler en iyi sonucu verir. Konu ve terim sözlüğünü doldurmak teknik görüşmelerde çeviriyi belirgin şekilde iyileştirir.
 
 ## Geliştirme

@@ -38,14 +38,21 @@ import androidx.compose.ui.unit.sp
 import com.teklif.tercuman.R
 import com.teklif.tercuman.translate.Lang
 
-val TurkishRed = Color(0xFFC62828)
-val ChinaGold = Color(0xFFD18800)
+/** Türkçe tuşu mavi, Çince tuşu sarı. */
+val TurkeyBlue = Color(0xFF1565C0)
+val ChinaGold = Color(0xFFF9A825)
 
-fun Lang.color(): Color = if (this == Lang.TR) TurkishRed else ChinaGold
+fun Lang.color(): Color = if (this == Lang.TR) TurkeyBlue else ChinaGold
+
+/** Sarı zemin üzerinde beyaz okunmaz; Çince tuşunda koyu simge/yazı kullanılır. */
+fun Lang.onColor(): Color = if (this == Lang.TR) Color.White else Color(0xFF212121)
 
 fun Lang.flag(): String = if (this == Lang.TR) "🇹🇷" else "🇨🇳"
 
-/** Ses seviyesine göre büyüyüp küçülen yuvarlak mikrofon tuşu. */
+/**
+ * Ses seviyesine göre büyüyüp küçülen yuvarlak mikrofon tuşu. Dinlerken "bitir" (kare)
+ * simgesine döner: tekrar dokununca konuşma tamamlanır.
+ */
 @Composable
 fun MicButton(
     listening: Boolean,
@@ -54,6 +61,8 @@ fun MicButton(
     color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    contentColor: Color = Color.White,
+    label: String? = null,
 ) {
     val pulse by animateFloatAsState(if (listening) 1f + level * 0.35f else 1f, label = "pulse")
     Box(modifier = modifier.size(size * 1.4f), contentAlignment = Alignment.Center) {
@@ -73,12 +82,23 @@ fun MicButton(
                 containerColor = if (listening) color else color.copy(alpha = 0.9f),
             ),
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_mic),
-                contentDescription = "Mikrofon",
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.45f),
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    painter = painterResource(if (listening) R.drawable.ic_stop else R.drawable.ic_mic),
+                    contentDescription = if (listening) "Bitir" else "Mikrofon",
+                    tint = contentColor,
+                    modifier = Modifier.size(if (label == null) size * 0.45f else size * 0.36f),
+                )
+                if (label != null) {
+                    Text(
+                        text = if (listening) "Bitir" else label,
+                        color = contentColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = (size.value * 0.16f).sp,
+                        lineHeight = (size.value * 0.18f).sp,
+                    )
+                }
+            }
         }
     }
 }

@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +40,7 @@ fun ChatScreen(
     state: UiState,
     snackbar: SnackbarHostState,
     vm: MainViewModel,
-    onMic: () -> Unit,
+    onMic: (Lang?) -> Unit,
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(state.utterances.size, state.utterances.lastOrNull()?.pending) {
@@ -68,24 +67,11 @@ fun ChatScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            ) {
-                Direction.entries.forEach { d ->
-                    FilterChip(
-                        selected = state.direction == d,
-                        onClick = { vm.setDirection(d) },
-                        label = { Text(d.label) },
-                    )
-                }
-            }
-
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (state.utterances.isEmpty()) {
                     Text(
-                        text = "Mikrofona dokunun ve konuşun.\n点击麦克风开始说话。\n\n" +
-                            "Otomatik modda Türkçe mi Çince mi konuşulduğu kendiliğinden algılanır.",
+                        text = "Mavi tuş: Türkçe konuşun.\n黄色按钮：请说中文。\n\n" +
+                            "Konuşmayı bitirince aynı tuşa tekrar dokunun.\n说完后再点一下同一个按钮。",
                         modifier = Modifier.align(Alignment.Center).padding(32.dp),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyLarge,
@@ -112,28 +98,61 @@ fun ChatScreen(
                         text = when {
                             state.partial.isNotBlank() -> state.partial
                             state.listening -> listeningLabel(state)
-                            else -> "Dokun ve konuş · 点击说话"
+                            else -> "Dilinizin tuşuna dokunup konuşun · 点击您语言的按钮说话"
                         },
                         modifier = Modifier.padding(horizontal = 16.dp),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 3,
+                        maxLines = 4,
                     )
-                    MicButton(
-                        listening = state.listening,
-                        level = state.level,
-                        size = 84.dp,
-                        color = state.direction.source?.color() ?: MaterialTheme.colorScheme.primary,
-                        onClick = onMic,
-                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        LangMic(Lang.TR, state, onMic)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            MicButton(
+                                listening = state.listening && state.listeningFor == null,
+                                level = state.level,
+                                size = 44.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                                onClick = { onMic(null) },
+                            )
+                            Text("Otomatik", style = MaterialTheme.typography.labelSmall)
+                        }
+                        LangMic(Lang.ZH, state, onMic)
+                    }
                 }
             }
         }
     }
 }
 
+/** Dil tuşu: dinlenmeyen dilin tuşu, başka bir tuş dinlerken soluklaşır. */
+@Composable
+private fun LangMic(lang: Lang, state: UiState, onMic: (Lang?) -> Unit) {
+    val listeningHere = state.listening && state.listeningFor == lang
+    val dimmed = state.listening && !listeningHere
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        MicButton(
+            listening = listeningHere,
+            level = state.level,
+            size = 92.dp,
+            color = if (dimmed) lang.color().copy(alpha = 0.35f) else lang.color(),
+            contentColor = lang.onColor(),
+            label = if (lang == Lang.TR) "Türkçe" else "中文",
+            onClick = { onMic(lang) },
+        )
+        Text(
+            text = if (lang == Lang.TR) "🇹🇷 Türkçe konuş" else "🇨🇳 请说中文",
+            style = MaterialTheme.typography.labelMedium,
+        )
+    }
+}
+
 fun listeningLabel(state: UiState): String = when (state.listeningFor) {
-    null -> "Dinliyorum… (Türkçe / 中文 otomatik)"
-    Lang.TR -> "Dinliyorum… (Türkçe)"
-    Lang.ZH -> "正在听…（中文）"
+    null -> "Dinliyorum… bitirmek için tekrar dokunun (Türkçe / 中文)"
+    Lang.TR -> "Dinliyorum… bitirmek için tekrar dokunun"
+    Lang.ZH -> "正在听… 说完后再点一下"
 }

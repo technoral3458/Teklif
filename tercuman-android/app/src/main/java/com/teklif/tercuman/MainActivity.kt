@@ -85,7 +85,7 @@ private fun App(vm: MainViewModel) {
     BackHandler(enabled = state.screen != Screen.CHAT) { vm.navigate(Screen.CHAT) }
 
     when (state.screen) {
-        Screen.CHAT -> ChatScreen(state, snackbar, vm, onMic = { onMic(state.direction.source) })
+        Screen.CHAT -> ChatScreen(state, snackbar, vm, onMic)
         Screen.FACE_TO_FACE -> FaceToFaceScreen(state, snackbar, vm, onMic)
         Screen.SETTINGS -> SettingsScreen(state, vm)
     }

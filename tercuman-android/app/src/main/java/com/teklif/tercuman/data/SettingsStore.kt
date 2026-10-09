@@ -13,8 +13,8 @@ data class AppSettings(
     val autoSpeak: Boolean = true,
     /** Doluysa ses tanıma OpenAI Whisper ile yapılır (dil sesten algılanır). */
     val openAiKey: String = "",
-    /** Konuşmanın bittiği sayılacak sessizlik süresi. */
-    val silenceMs: Long = 1500L,
+    /** Konuşmanın bittiği sayılacak sessizlik süresi; 0 = sadece dokununca biter. */
+    val silenceMs: Long = 0L,
     /** Çince çevirinin altında pinyin okunuşu (kapalıyken çeviri daha hızlı biter). */
     val pinyin: Boolean = false,
 ) {
@@ -40,7 +40,8 @@ class SettingsStore(context: Context) {
         glossary = prefs.getString(KEY_GLOSSARY, "") ?: "",
         autoSpeak = prefs.getBoolean(KEY_AUTO_SPEAK, true),
         openAiKey = prefs.getString(KEY_OPENAI, "") ?: "",
-        silenceMs = prefs.getLong(KEY_SILENCE, 1500L),
+        // Eski sürümlerin kısa süreleri (1-2,5 sn) konuşmayı erken kesiyordu: dokununca-bitir'e taşı.
+        silenceMs = prefs.getLong(KEY_SILENCE, 0L).let { if (it in 1 until 3000) 0L else it },
         pinyin = prefs.getBoolean(KEY_PINYIN, false),
     )
 

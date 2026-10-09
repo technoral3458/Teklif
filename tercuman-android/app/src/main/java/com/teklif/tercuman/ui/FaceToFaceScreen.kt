@@ -146,10 +146,10 @@ private fun PersonPane(
         }
         val hint = when {
             listeningHere || (listeningAuto && state.partial.isNotBlank()) -> state.partial.ifBlank {
-                if (lang == Lang.TR) "Dinliyorum…" else "正在听…"
+                if (lang == Lang.TR) "Dinliyorum… bitirmek için tekrar dokunun" else "正在听… 说完后再点一下"
             }
-            lang == Lang.TR -> "Konuşmak için dokunun"
-            else -> "点击麦克风说话"
+            lang == Lang.TR -> "Konuşmak için dokunun, bitirince tekrar dokunun"
+            else -> "点击说话，说完后再点一下"
         }
         Text(
             text = hint,
@@ -162,8 +162,10 @@ private fun PersonPane(
             MicButton(
                 listening = listeningHere,
                 level = state.level,
-                size = 64.dp,
+                size = 72.dp,
                 color = lang.color(),
+                contentColor = lang.onColor(),
+                label = if (lang == Lang.TR) "Türkçe" else "中文",
                 onClick = onMic,
             )
         }

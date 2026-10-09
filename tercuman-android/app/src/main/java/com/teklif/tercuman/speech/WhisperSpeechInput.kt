@@ -31,12 +31,14 @@ import kotlin.math.sqrt
 /**
  * Sesi kendisi kaydeder, konuşma bitince (sessizlik) OpenAI Whisper'a gönderir.
  * Whisper konuşulan dili sesten algılar, bu yüzden Türkçe/Çince ayrımı telefondan bağımsız
- * ve güvenilirdir. Konuşma başlayana kadar uzun süre sessizce bekler.
+ * ve güvenilirdir. Konuşma başlayana kadar uzun süre sessizce bekler; kayıt, kullanıcı
+ * tekrar dokununcaya (ya da ayarlanmışsa uzun bir sessizliğe) kadar sürer.
  */
 class WhisperSpeechInput(
     private val scope: CoroutineScope,
     private val listener: VoiceInput.Listener,
     private val apiKey: () -> String,
+    /** 0 = sadece kullanıcı dokununca biter. */
     private val silenceMs: () -> Long,
 ) : VoiceInput {
 
@@ -162,7 +164,12 @@ class WhisperSpeechInput(
                         speaking = true
                         speech.addAll(preRoll)
                         preRoll.clear()
-                        withContext(Dispatchers.Main) { listener.onPartial("Dinliyorum… / 正在听…") }
+                        withContext(Dispatchers.Main) {
+                            listener.onPartial(
+                                if (endSilence > 0) "Dinliyorum… / 正在听…"
+                                else "Dinliyorum… bitirmek için tekrar dokunun · 说完后再点一下"
+                            )
+                        }
                     } else if (stopRequested || System.currentTimeMillis() > waitDeadline) {
                         return null
                     }
@@ -170,7 +177,8 @@ class WhisperSpeechInput(
                     speech.add(chunk)
                     spokenMs += FRAME_MS
                     silentMs = if (loud) 0 else silentMs + FRAME_MS
-                    if (silentMs >= endSilence || stopRequested || spokenMs >= MAX_UTTERANCE_MS) break
+                    val autoEnd = endSilence > 0 && silentMs >= endSilence
+                    if (autoEnd || stopRequested || spokenMs >= MAX_UTTERANCE_MS) break
                 }
             }
         } finally {
@@ -270,7 +278,8 @@ class WhisperSpeechInput(
         const val FRAME = (SAMPLE_RATE * FRAME_MS / 1000).toInt()
         const val PRE_ROLL_FRAMES = 12
         const val MIN_SPEECH_RMS = 350.0
-        const val MAX_UTTERANCE_MS = 30_000L
+        /** Tek konuşma için üst sınır (3 dk 16 kHz ses ≈ 5,8 MB, Whisper sınırı 25 MB). */
+        const val MAX_UTTERANCE_MS = 3 * 60_000L
 
         val HALLUCINATIONS = listOf(
             "altyazı m.k",

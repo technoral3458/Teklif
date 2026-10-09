@@ -30,7 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 private val EFFORTS = listOf("low" to "Hızlı", "medium" to "Dengeli", "high" to "En iyi")
-private val SILENCES = listOf(1000L to "1 sn", 1500L to "1,5 sn", 2500L to "2,5 sn")
+private val SILENCES = listOf(0L to "Dokununca", 3000L to "3 sn sessizlik", 5000L to "5 sn sessizlik")
 private val MODELS = listOf(
     "claude-opus-5-5" to "Opus",
     "claude-sonnet-5-5" to "Sonnet",
@@ -97,7 +97,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Text("Konuşma bitti sayılacak sessizlik", style = MaterialTheme.typography.titleSmall)
+            Text("Mikrofon ne zaman kapansın?", style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SILENCES.forEach { (value, label) ->
                     FilterChip(
@@ -108,7 +108,8 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 }
             }
             Text(
-                "Konuşma bitince bu kadar sessizlikten sonra mikrofon kapanır ve çeviri başlar. Cümle arasında duraklıyorsanız 2,5 sn'yi seçin.",
+                "Dokununca: istediğiniz kadar uzun konuşun, bitirince tuşa tekrar dokunun (önerilir). " +
+                    "Sessizlik seçeneklerinde mikrofon kendiliğinden kapanır; telefonun kendi tanımasında bu süre yaklaşıktır.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
