@@ -30,7 +30,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 private val EFFORTS = listOf("low" to "Hızlı", "medium" to "Dengeli", "high" to "En iyi")
-private val SILENCES = listOf(1200L to "Kısa (1,2 sn)", 2000L to "Normal (2 sn)", 3000L to "Uzun (3 sn)")
+private val SILENCES = listOf(1000L to "1 sn", 1500L to "1,5 sn", 2500L to "2,5 sn")
+private val MODELS = listOf(
+    "claude-opus-5-5" to "Opus",
+    "claude-sonnet-5-5" to "Sonnet",
+    "claude-haiku-5-5" to "Haiku",
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,7 +108,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 }
             }
             Text(
-                "Mikrofon, konuşma başlayana kadar (en fazla 90 sn) sessizce bekler. Cümle arasında duraklıyorsanız Uzun'u seçin.",
+                "Konuşma bitince bu kadar sessizlikten sonra mikrofon kapanır ve çeviri başlar. Cümle arasında duraklıyorsanız 2,5 sn'yi seçin.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -156,13 +161,32 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 Switch(checked = s.autoSpeak, onCheckedChange = { v -> vm.updateSettings { it.copy(autoSpeak = v) } })
             }
 
-            OutlinedTextField(
-                value = s.model,
-                onValueChange = { v -> vm.updateSettings { it.copy(model = v.trim()) } },
-                label = { Text("Model") },
-                singleLine = true,
-                supportingText = { Text("Varsayılan: claude-opus-5-5") },
-                modifier = Modifier.fillMaxWidth(),
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Çince altında pinyin okunuşu", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Kapalıyken çeviri daha hızlı biter.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = s.pinyin, onCheckedChange = { v -> vm.updateSettings { it.copy(pinyin = v) } })
+            }
+
+            Text("Yapay zekâ modeli", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MODELS.forEach { (value, label) ->
+                    FilterChip(
+                        selected = s.model == value,
+                        onClick = { vm.updateSettings { it.copy(model = value) } },
+                        label = { Text(label) },
+                    )
+                }
+            }
+            Text(
+                "Opus en doğru ama en yavaş. Sonnet belirgin şekilde daha hızlı ve çeviride yine çok iyi. Haiku en hızlı ve en ucuz.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

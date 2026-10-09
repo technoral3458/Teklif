@@ -119,6 +119,7 @@ class WhisperSpeechInput(
         var framesSeen = 0
         var loudRun = 0
         var silentMs = 0L
+        var speechLevel = 0.0
         var speaking = false
         var spokenMs = 0L
         val waitDeadline = System.currentTimeMillis() + VoiceInput.MAX_WAIT_FOR_SPEECH_MS
@@ -138,8 +139,15 @@ class WhisperSpeechInput(
                 if (!speaking) {
                     noiseFloor = if (framesSeen <= 10) max(noiseFloor, rms) else noiseFloor * 0.95 + rms * 0.05
                 }
-                val threshold = max(noiseFloor * 2.5, MIN_SPEECH_RMS)
+                // Konuşma başladıktan sonra eşik, konuşmanın kendi seviyesine göre de yükselir:
+                // ortam gürültüsü sonradan artsa (klima, kalabalık) bile sessizlik yakalanır.
+                val threshold = if (speaking) {
+                    max(max(noiseFloor * 2.5, MIN_SPEECH_RMS), speechLevel * 0.3)
+                } else {
+                    max(noiseFloor * 2.5, MIN_SPEECH_RMS)
+                }
                 val loud = rms > threshold
+                if (loud) speechLevel = if (speechLevel == 0.0) rms else speechLevel * 0.9 + rms * 0.1
 
                 if (framesSeen % 3 == 0) {
                     val level = ((20 * log10(max(rms, 1.0)) - 30) / 45).coerceIn(0.0, 1.0).toFloat()
@@ -262,7 +270,7 @@ class WhisperSpeechInput(
         const val FRAME = (SAMPLE_RATE * FRAME_MS / 1000).toInt()
         const val PRE_ROLL_FRAMES = 12
         const val MIN_SPEECH_RMS = 350.0
-        const val MAX_UTTERANCE_MS = 60_000L
+        const val MAX_UTTERANCE_MS = 30_000L
 
         val HALLUCINATIONS = listOf(
             "altyazı m.k",

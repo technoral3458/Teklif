@@ -162,7 +162,16 @@ fun UtteranceCard(
                     else -> Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.size(8.dp))
-                        Text("Çevriliyor… / 翻译中…", style = MaterialTheme.typography.bodyMedium)
+                        if (utterance.liveTranslation.isNotBlank()) {
+                            Text(
+                                text = utterance.liveTranslation,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = 30.sp,
+                            )
+                        } else {
+                            Text("Çevriliyor… / 翻译中…", style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }

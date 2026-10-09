@@ -17,8 +17,9 @@ import com.teklif.tercuman.translate.Lang
  * algılama ve konuşma sırasında dil değiştirme de açılır. Sonuç metnin yazı sistemine
  * (Çince karakter / Latin harf) bakılarak kesinleştirilir.
  *
- * Tanıyıcı birkaç saniye sessizlikte kendini kapatır; konuşma gelene kadar sessizce
- * yeniden başlatılır.
+ * Tanıyıcı birkaç saniye sessizlikte kendini kapatır; hiç konuşma olmadıysa sessizce
+ * yeniden başlatılır. Konuşma duyulduğu halde metin çıkmadıysa (örn. Çince, Türkçe sanılarak
+ * dinlendi) bir kez diğer dilde tekrar dinlenir ve kişiden tekrar söylemesi istenir.
  */
 class PhoneSpeechInput(
     context: Context,
@@ -41,11 +42,17 @@ class PhoneSpeechInput(
     private var lastPartial = ""
     private var languageDetectionSupported = true
     private var usedDetection = false
+    /** Bu oturumda konuşma sesi duyuldu mu (sessizlikten ayırmak için). */
+    private var speechHeard = false
+    /** Otomatik modda tanınamayan konuşmadan sonra bir kez diğer dil denenir. */
+    private var primaryOverride: Lang? = null
 
     init {
         recognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) = listener.onListening()
-            override fun onBeginningOfSpeech() {}
+            override fun onBeginningOfSpeech() {
+                speechHeard = true
+            }
             override fun onRmsChanged(rmsdB: Float) = listener.onLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f))
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
@@ -64,6 +71,7 @@ class PhoneSpeechInput(
                 val text = results.firstResult()?.takeIf { it.isNotBlank() } ?: lastPartial
                 when {
                     text.isNotBlank() -> finish { listener.onFinal(text, detectedByService) }
+                    speechHeard -> notUnderstood()
                     keepWaiting() -> begin()
                     userStopped -> finish { listener.onIdle() }
                     else -> finish { listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.") }
@@ -90,6 +98,7 @@ class PhoneSpeechInput(
                 val silence = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                 when {
                     silence && lastPartial.isNotBlank() -> finish { listener.onFinal(lastPartial, detectedByService) }
+                    silence && speechHeard -> notUnderstood()
                     silence && keepWaiting() -> begin()
                     silence && userStopped -> finish { listener.onIdle() }
                     silence -> finish { listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.") }
@@ -105,6 +114,7 @@ class PhoneSpeechInput(
             return
         }
         this.forced = forced
+        primaryOverride = null
         active = true
         userStopped = false
         deadline = SystemClock.elapsedRealtime() + VoiceInput.MAX_WAIT_FOR_SPEECH_MS
@@ -128,6 +138,20 @@ class PhoneSpeechInput(
 
     private fun keepWaiting() = !userStopped && SystemClock.elapsedRealtime() < deadline
 
+    /** Konuşma duyuldu ama yazıya dökülemedi. */
+    private fun notUnderstood() {
+        // Dil algılama bayrakları bazı telefonlarda tanımayı bozuyor: bir daha kullanma.
+        if (usedDetection) languageDetectionSupported = false
+        if (forced == null && primaryOverride == null && !userStopped) {
+            // Otomatikte birincil dil yanlış olabilir: diğer dilde bir kez daha dinle.
+            primaryOverride = Lang.ZH
+            listener.onPartial("Anlaşılamadı, tekrar söyleyin · 请再说一遍")
+            begin()
+        } else {
+            finish { listener.onSpeechError("Anlaşılamadı. Dili sabitleyip tekrar deneyin · 请再说一遍") }
+        }
+    }
+
     private fun finish(report: () -> Unit) {
         active = false
         report()
@@ -137,10 +161,11 @@ class PhoneSpeechInput(
         val rec = recognizer ?: return
         detectedByService = null
         lastPartial = ""
+        speechHeard = false
         rec.cancel()
         // Otomatikte birincil dil Türkçe, Çince ek dil olarak verilir; sıra tahmini yapılmaz.
-        val primary = forced ?: Lang.TR
-        val alternative = if (forced == null) Lang.ZH else null
+        val primary = forced ?: primaryOverride ?: Lang.TR
+        val alternative = if (forced == null) primary.other else null
         usedDetection = alternative != null && languageDetectionSupported && Build.VERSION.SDK_INT >= 34
         rec.startListening(buildIntent(primary, alternative, usedDetection))
     }

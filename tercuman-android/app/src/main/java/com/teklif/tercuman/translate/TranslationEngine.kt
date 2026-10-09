@@ -3,11 +3,12 @@ package com.teklif.tercuman.translate
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.core.JsonValue
+import com.anthropic.errors.AnthropicIoException
 import com.anthropic.errors.AnthropicServiceException
 import com.anthropic.errors.BadRequestException
-import com.anthropic.errors.AnthropicIoException
 import com.anthropic.errors.RateLimitException
 import com.anthropic.errors.UnauthorizedException
+import com.anthropic.helpers.MessageAccumulator
 import com.anthropic.models.messages.JsonOutputFormat
 import com.anthropic.models.messages.Message
 import com.anthropic.models.messages.MessageCreateParams
@@ -24,6 +25,8 @@ data class EngineConfig(
     val topic: String = "",
     /** Kullanıcının sabitlediği terimler, her satır: "Türkçe = English = 中文". */
     val glossary: String = "",
+    /** Çince çevirinin altına pinyin yazılsın mı (kapalıyken çeviri daha hızlı biter). */
+    val pinyin: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MODEL = "claude-opus-5-5"
@@ -47,12 +50,20 @@ data class TranslationResult(
     val note: String,
 )
 
+/**
+ * Akış sırasında çevirinin gelen kısmı.
+ * @param source modelin algıladığı kaynak dil (henüz yoksa null)
+ * @param complete çeviri metni bitti; seslendirme hemen başlayabilir
+ */
+data class TranslationProgress(val source: Lang?, val translation: String, val complete: Boolean)
+
 class TranslationException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * Türkçe <-> Çince çeviriyi İngilizce köprü üzerinden yapar:
  * kaynak -> anlamı açıklanmış İngilizce -> hedef dil. Tek istekte iki adım da yapılır,
- * İngilizce ara metin ekranda gösterilmek üzere geri döner.
+ * İngilizce ara metin ekranda gösterilmek üzere geri döner. Yanıt akışla (streaming)
+ * gelir; çeviri metni biter bitmez [TranslationProgress] ile bildirilir.
  */
 class TranslationEngine(private val config: EngineConfig) {
 
@@ -65,20 +76,22 @@ class TranslationEngine(private val config: EngineConfig) {
     /**
      * @param text konuşma tanımadan gelen metin
      * @param forcedSource kullanıcı yönü sabitlediyse kaynak dil; otomatikte null
-     * @param scriptHint yazı sistemine göre tahmin edilen dil (otomatik modda ipucu)
+     * @param scriptHint ses tanımanın tahmin ettiği dil (otomatik modda ipucu)
+     * @param onProgress çeviri metni geldikçe çağrılır (arka plan iş parçacığından)
      */
     fun translate(
         text: String,
         forcedSource: Lang?,
         scriptHint: Lang?,
         history: List<HistoryTurn>,
+        onProgress: (TranslationProgress) -> Unit = {},
     ): TranslationResult {
         val response = try {
             try {
-                client.messages().create(buildParams(text, forcedSource, scriptHint, history, withFallback = true))
+                stream(buildParams(text, forcedSource, scriptHint, history, withFallback = true), forcedSource, onProgress)
             } catch (e: BadRequestException) {
                 // Yedek model parametresi kabul edilmezse onsuz bir kez daha dene.
-                client.messages().create(buildParams(text, forcedSource, scriptHint, history, withFallback = false))
+                stream(buildParams(text, forcedSource, scriptHint, history, withFallback = false), forcedSource, onProgress)
             }
         } catch (e: UnauthorizedException) {
             throw TranslationException("API anahtarı geçersiz. Ayarlardan kontrol edin.", e)
@@ -90,6 +103,33 @@ class TranslationEngine(private val config: EngineConfig) {
             throw TranslationException("İnternet bağlantısı yok veya zayıf.", e)
         }
         return parse(response, text, forcedSource, scriptHint)
+    }
+
+    private fun stream(
+        params: MessageCreateParams,
+        forcedSource: Lang?,
+        onProgress: (TranslationProgress) -> Unit,
+    ): Message {
+        val accumulator = MessageAccumulator.create()
+        val json = StringBuilder()
+        var sent = ""
+        var finished = false
+        client.messages().createStreaming(params).use { response ->
+            response.stream().forEach { event ->
+                accumulator.accumulate(event)
+                val delta = event.contentBlockDelta().flatMap { it.delta().text() }.orElse(null) ?: return@forEach
+                json.append(delta.text())
+                if (finished) return@forEach
+                val (translation, complete) = PartialJson.stringField(json, "translation") ?: return@forEach
+                if (translation == sent && !complete) return@forEach
+                sent = translation
+                finished = complete
+                val source = forcedSource
+                    ?: PartialJson.stringField(json, "source_language")?.takeIf { it.second }?.let { Lang.fromCode(it.first) }
+                onProgress(TranslationProgress(source, translation, complete))
+            }
+        }
+        return accumulator.message()
     }
 
     private fun buildParams(
@@ -161,33 +201,35 @@ class TranslationEngine(private val config: EngineConfig) {
             """
             You are a professional live interpreter between Turkish and Mandarin Chinese.
             Two people are talking face to face: a Turkish speaker and a Chinese guest.
-            Every input is one utterance captured by phone speech recognition.
+            Every input is one utterance captured by phone speech recognition. Speed
+            matters: they are waiting for you, so keep every field short and direct.
 
-            Work in three steps and return them all:
-            1. Source: decide whether the utterance is Turkish ("tr") or Chinese ("zh"),
-               unless the language is given. Speech recognition makes mistakes: wrong
-               homophones, missing punctuation, split or merged words, numbers written
-               as words. Reconstruct what the speaker most plausibly meant, using the
-               conversation so far, and put that in cleaned_source (same language as
-               spoken). If the transcript looks like Chinese speech written phonetically
-               in Latin letters (pinyin-like), treat it as Chinese and write it in
-               Chinese characters. Always write Chinese in Simplified characters.
-            2. English bridge: write the meaning in clear English. Translate meaning,
-               not words: resolve idioms, implied subjects, politeness, and domain
-               terms so the English says exactly what the speaker intends.
-            3. Translation: from the English meaning, write what a native speaker of
-               the target language would naturally say in this situation. Target is
-               the other language (Turkish -> Simplified Chinese, Chinese -> Turkish).
-               Keep the tone and politeness level. Use the standard industry term for
-               technical words. Keep numbers, units, prices, dates and names exact.
-               Do not add explanations to the translation itself.
-
-            pinyin: if the target is Chinese, give Hanyu Pinyin with tone marks for the
-            translation; otherwise an empty string.
-            note: only if something was genuinely ambiguous or a term choice matters,
-            one short sentence in Turkish for the Turkish user; otherwise empty.
+            Fill the fields in this order:
+            source_language: "tr" or "zh" (given to you when known). If the transcript
+               looks like Chinese speech written phonetically in Latin letters
+               (pinyin-like), it is Chinese.
+            english: the meaning in clear English. Speech recognition makes mistakes
+               (wrong homophones, missing punctuation, split or merged words), so first
+               work out what the speaker most plausibly meant from the conversation so
+               far. Translate meaning, not words: resolve idioms, implied subjects,
+               politeness and domain terms.
+            translation: from the English meaning, what a native speaker of the target
+               language would naturally say here. Target is the other language
+               (Turkish -> Simplified Chinese, Chinese -> Turkish). Keep the tone and
+               politeness level, use standard industry terms, keep numbers, units,
+               prices, dates and names exact. No explanations inside the translation.
+            cleaned_source: the utterance in its original language with recognition
+               errors fixed (Chinese always in Simplified characters). Copy it as is if
+               nothing needs fixing.
             """.trimIndent()
         )
+        append('\n')
+        if (config.pinyin) {
+            append("pinyin: if the target is Chinese, Hanyu Pinyin with tone marks for the translation; otherwise \"\".\n")
+        } else {
+            append("pinyin: always \"\".\n")
+        }
+        append("note: \"\" unless something was genuinely ambiguous; then one short sentence in Turkish.")
         if (config.topic.isNotBlank()) {
             append("\n\nConversation topic / setting (use it to choose terms):\n")
             append(config.topic.trim())
@@ -225,16 +267,17 @@ class TranslationEngine(private val config: EngineConfig) {
     companion object {
         private const val MAX_HISTORY = 8
 
+        /** Alan sırası önemli: çeviri erken gelsin ki seslendirme hemen başlasın. */
         private val OUTPUT_SCHEMA: JsonOutputFormat.Schema = JsonOutputFormat.Schema.builder()
             .putAdditionalProperty("type", JsonValue.from("object"))
             .putAdditionalProperty(
                 "properties",
                 JsonValue.from(
-                    mapOf(
+                    linkedMapOf(
                         "source_language" to mapOf("type" to "string", "enum" to listOf("tr", "zh")),
-                        "cleaned_source" to mapOf("type" to "string"),
                         "english" to mapOf("type" to "string"),
                         "translation" to mapOf("type" to "string"),
+                        "cleaned_source" to mapOf("type" to "string"),
                         "pinyin" to mapOf("type" to "string"),
                         "note" to mapOf("type" to "string"),
                     )
@@ -243,7 +286,7 @@ class TranslationEngine(private val config: EngineConfig) {
             .putAdditionalProperty(
                 "required",
                 JsonValue.from(
-                    listOf("source_language", "cleaned_source", "english", "translation", "pinyin", "note")
+                    listOf("source_language", "english", "translation", "cleaned_source", "pinyin", "note")
                 )
             )
             .putAdditionalProperty("additionalProperties", JsonValue.from(false))

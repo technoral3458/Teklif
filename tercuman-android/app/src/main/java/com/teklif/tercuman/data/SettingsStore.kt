@@ -14,7 +14,9 @@ data class AppSettings(
     /** Doluysa ses tanıma OpenAI Whisper ile yapılır (dil sesten algılanır). */
     val openAiKey: String = "",
     /** Konuşmanın bittiği sayılacak sessizlik süresi. */
-    val silenceMs: Long = 2000L,
+    val silenceMs: Long = 1500L,
+    /** Çince çevirinin altında pinyin okunuşu (kapalıyken çeviri daha hızlı biter). */
+    val pinyin: Boolean = false,
 ) {
     fun toEngineConfig() = EngineConfig(
         apiKey = apiKey.trim(),
@@ -22,6 +24,7 @@ data class AppSettings(
         effort = effort,
         topic = topic,
         glossary = glossary,
+        pinyin = pinyin,
     )
 }
 
@@ -37,7 +40,8 @@ class SettingsStore(context: Context) {
         glossary = prefs.getString(KEY_GLOSSARY, "") ?: "",
         autoSpeak = prefs.getBoolean(KEY_AUTO_SPEAK, true),
         openAiKey = prefs.getString(KEY_OPENAI, "") ?: "",
-        silenceMs = prefs.getLong(KEY_SILENCE, 2000L),
+        silenceMs = prefs.getLong(KEY_SILENCE, 1500L),
+        pinyin = prefs.getBoolean(KEY_PINYIN, false),
     )
 
     fun save(s: AppSettings) {
@@ -50,6 +54,7 @@ class SettingsStore(context: Context) {
             .putBoolean(KEY_AUTO_SPEAK, s.autoSpeak)
             .putString(KEY_OPENAI, s.openAiKey)
             .putLong(KEY_SILENCE, s.silenceMs)
+            .putBoolean(KEY_PINYIN, s.pinyin)
             .apply()
     }
 
@@ -62,5 +67,6 @@ class SettingsStore(context: Context) {
         const val KEY_AUTO_SPEAK = "auto_speak"
         const val KEY_OPENAI = "openai_key"
         const val KEY_SILENCE = "silence_ms"
+        const val KEY_PINYIN = "pinyin"
     }
 }

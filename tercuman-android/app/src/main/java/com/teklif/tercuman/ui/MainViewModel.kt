@@ -14,6 +14,7 @@ import com.teklif.tercuman.translate.HistoryTurn
 import com.teklif.tercuman.translate.Lang
 import com.teklif.tercuman.translate.TranslationEngine
 import com.teklif.tercuman.translate.TranslationException
+import com.teklif.tercuman.translate.TranslationProgress
 import com.teklif.tercuman.translate.TranslationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,14 +42,23 @@ data class Utterance(
     val forced: Lang? = null,
     val result: TranslationResult? = null,
     val error: String? = null,
+    /** Akışla gelmekte olan çeviri (sonuç gelene kadar gösterilir). */
+    val liveTranslation: String = "",
+    val liveSource: Lang? = null,
 ) {
     val pending: Boolean get() = result == null && error == null
-    val source: Lang? get() = result?.source ?: guessedSource
+    val source: Lang? get() = result?.source ?: liveSource ?: guessedSource
 
     /** Bu satırın verilen dildeki hali (yüz yüze modda her yarı kendi dilini gösterir). */
     fun textIn(lang: Lang): String? {
-        val r = result ?: return if (guessedSource == lang) rawText else null
-        return if (r.source == lang) r.cleanedSource else r.translation
+        val r = result
+        if (r != null) return if (r.source == lang) r.cleanedSource else r.translation
+        val src = source
+        return when {
+            src == lang -> rawText
+            src != null && liveTranslation.isNotBlank() -> liveTranslation
+            else -> null
+        }
     }
 }
 
@@ -143,7 +153,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
     }
 
     fun retry(utterance: Utterance) {
-        replace(utterance.id) { it.copy(error = null, result = null) }
+        replace(utterance.id) { it.copy(error = null, result = null, liveTranslation = "") }
         translate(utterance.id, utterance.rawText, utterance.forced, utterance.guessedSource)
     }
 
@@ -191,14 +201,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
         val history = _state.value.utterances
             .filter { it.id < id }
             .mapNotNull { u -> u.result?.let { HistoryTurn(it.source, it.cleanedSource, it.translation) } }
+        // Çeviri metni biter bitmez seslendirilir; kalan alanlar (düzeltilmiş metin vb.) beklenmez.
+        var spoken = false
+        val onProgress: (TranslationProgress) -> Unit = { p ->
+            viewModelScope.launch {
+                val source = p.source ?: forced ?: scriptHint
+                replace(id) { it.copy(liveTranslation = p.translation, liveSource = source ?: it.liveSource) }
+                if (p.complete && source != null && !spoken && _state.value.settings.autoSpeak) {
+                    spoken = true
+                    speaker.speak(p.translation, source.other)
+                }
+            }
+        }
         viewModelScope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                runCatching { engineFor(settings).translate(text, forced, scriptHint, history) }
+                runCatching { engineFor(settings).translate(text, forced, scriptHint, history, onProgress) }
             }
             outcome
                 .onSuccess { result ->
                     replace(id) { it.copy(result = result, error = null) }
-                    if (_state.value.settings.autoSpeak) speaker.speak(result.translation, result.target)
+                    if (!spoken && _state.value.settings.autoSpeak) speaker.speak(result.translation, result.target)
+                    spoken = true
                 }
                 .onFailure { e ->
                     val msg = (e as? TranslationException)?.message ?: "Çeviri başarısız: ${e.message}"
