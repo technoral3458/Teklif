@@ -1,0 +1,218 @@
+package com.teklif.tercuman.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.teklif.tercuman.data.AppSettings
+import com.teklif.tercuman.data.SettingsStore
+import com.teklif.tercuman.speech.Speaker
+import com.teklif.tercuman.speech.SpeechInput
+import com.teklif.tercuman.translate.EngineConfig
+import com.teklif.tercuman.translate.HistoryTurn
+import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.TranslationEngine
+import com.teklif.tercuman.translate.TranslationException
+import com.teklif.tercuman.translate.TranslationResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** Çeviri yönü. AUTO: konuşanın dili otomatik algılanır. */
+enum class Direction(val label: String, val source: Lang?) {
+    AUTO("Otomatik", null),
+    TR_TO_ZH("TR → 中文", Lang.TR),
+    ZH_TO_TR("中文 → TR", Lang.ZH),
+}
+
+enum class Screen { CHAT, FACE_TO_FACE, SETTINGS }
+
+data class Utterance(
+    val id: Long,
+    /** Kesinleşmemiş tahmini kaynak dil (çeviri gelince result.source geçerli olur). */
+    val guessedSource: Lang?,
+    val rawText: String,
+    /** Kullanıcı dili sabitlediyse (yön seçimi / yüz yüze tuşu) o dil. */
+    val forced: Lang? = null,
+    val result: TranslationResult? = null,
+    val error: String? = null,
+) {
+    val pending: Boolean get() = result == null && error == null
+    val source: Lang? get() = result?.source ?: guessedSource
+
+    /** Bu satırın verilen dildeki hali (yüz yüze modda her yarı kendi dilini gösterir). */
+    fun textIn(lang: Lang): String? {
+        val r = result ?: return if (guessedSource == lang) rawText else null
+        return if (r.source == lang) r.cleanedSource else r.translation
+    }
+}
+
+data class UiState(
+    val screen: Screen = Screen.CHAT,
+    val direction: Direction = Direction.AUTO,
+    val utterances: List<Utterance> = emptyList(),
+    /** Şu an dinlenen dil; AUTO'da null olabilir. */
+    val listening: Boolean = false,
+    val listeningFor: Lang? = null,
+    val partial: String = "",
+    val level: Float = 0f,
+    val message: String? = null,
+    val settings: AppSettings = AppSettings(),
+)
+
+class MainViewModel(app: Application) : AndroidViewModel(app), SpeechInput.Listener {
+
+    private val store = SettingsStore(app)
+    private val _state = MutableStateFlow(UiState(settings = store.load()))
+    val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val speech = SpeechInput(app, this)
+    private val speaker = Speaker(app) { problem -> showMessage(problem) }
+
+    private var engine: TranslationEngine? = null
+    private var engineConfig: EngineConfig? = null
+    private var nextId = 1L
+
+    /** Bu dinleme oturumunda sabit dil seçildiyse o dil; otomatikse null. */
+    private var forcedForSession: Lang? = null
+    /** Otomatik modda ardışık konuşmacı tahmini için son konuşulan dil. */
+    private var lastSpoken: Lang? = null
+
+    // ---- Kullanıcı eylemleri ----
+
+    fun setDirection(direction: Direction) = _state.update { it.copy(direction = direction) }
+
+    fun navigate(screen: Screen) {
+        if (_state.value.listening) cancelListening()
+        _state.update { it.copy(screen = screen) }
+    }
+
+    fun updateSettings(transform: (AppSettings) -> AppSettings) {
+        val updated = transform(_state.value.settings)
+        store.save(updated)
+        _state.update { it.copy(settings = updated) }
+    }
+
+    fun clearConversation() {
+        speaker.stop()
+        lastSpoken = null
+        _state.update { it.copy(utterances = emptyList()) }
+    }
+
+    fun consumeMessage() = _state.update { it.copy(message = null) }
+
+    /**
+     * @param fixed null ise otomatik algılama, değilse o dilde dinler
+     *              (yüz yüze modda her kişinin kendi tuşu).
+     */
+    fun toggleListening(fixed: Lang?) {
+        if (_state.value.listening) {
+            speech.stop()
+            return
+        }
+        if (_state.value.settings.apiKey.isBlank()) {
+            showMessage("Önce Ayarlar'dan Claude API anahtarını girin.")
+            _state.update { it.copy(screen = Screen.SETTINGS) }
+            return
+        }
+        speaker.stop()
+        forcedForSession = fixed
+        val primary = fixed ?: (lastSpoken?.other ?: Lang.TR)
+        val alternative = if (fixed == null) primary.other else null
+        _state.update { it.copy(listening = true, listeningFor = fixed, partial = "", level = 0f) }
+        speech.start(primary, alternative)
+    }
+
+    fun cancelListening() {
+        speech.cancel()
+        _state.update { it.copy(listening = false, partial = "", level = 0f) }
+    }
+
+    fun speak(utterance: Utterance) {
+        val r = utterance.result ?: return
+        speaker.speak(r.translation, r.target)
+    }
+
+    fun retry(utterance: Utterance) {
+        replace(utterance.id) { it.copy(error = null, result = null) }
+        translate(utterance.id, utterance.rawText, utterance.forced, utterance.guessedSource)
+    }
+
+    // ---- SpeechInput.Listener ----
+
+    override fun onListening() {
+        _state.update { it.copy(listening = true) }
+    }
+
+    override fun onPartial(text: String) {
+        _state.update { it.copy(partial = text) }
+    }
+
+    override fun onLevel(level: Float) {
+        _state.update { it.copy(level = level) }
+    }
+
+    override fun onFinal(text: String, detected: Lang?) {
+        _state.update { it.copy(listening = false, partial = "", level = 0f) }
+        val forced = forcedForSession
+        // Yazı sistemi Türkçe/Çince ayrımında en güvenilir işaret; yoksa servisin algıladığı dil.
+        val hint = forced ?: Lang.guessFromScript(text) ?: detected
+        val id = nextId++
+        _state.update { it.copy(utterances = it.utterances + Utterance(id, hint, text, forced)) }
+        translate(id, text, forced, hint)
+    }
+
+    override fun onSpeechError(message: String) {
+        _state.update { it.copy(listening = false, partial = "", level = 0f) }
+        showMessage(message)
+    }
+
+    // ---- İç işler ----
+
+    private fun translate(id: Long, text: String, forced: Lang?, scriptHint: Lang?) {
+        val settings = _state.value.settings
+        val history = _state.value.utterances
+            .filter { it.id < id }
+            .mapNotNull { u -> u.result?.let { HistoryTurn(it.source, it.cleanedSource, it.translation) } }
+        viewModelScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { engineFor(settings).translate(text, forced, scriptHint, history) }
+            }
+            outcome
+                .onSuccess { result ->
+                    lastSpoken = result.source
+                    replace(id) { it.copy(result = result, error = null) }
+                    if (_state.value.settings.autoSpeak) speaker.speak(result.translation, result.target)
+                }
+                .onFailure { e ->
+                    val msg = (e as? TranslationException)?.message ?: "Çeviri başarısız: ${e.message}"
+                    replace(id) { it.copy(error = msg) }
+                }
+        }
+    }
+
+    @Synchronized
+    private fun engineFor(settings: AppSettings): TranslationEngine {
+        val config = settings.toEngineConfig()
+        val current = engine
+        if (current != null && config == engineConfig) return current
+        return TranslationEngine(config).also {
+            engine = it
+            engineConfig = config
+        }
+    }
+
+    private fun replace(id: Long, transform: (Utterance) -> Utterance) {
+        _state.update { s -> s.copy(utterances = s.utterances.map { if (it.id == id) transform(it) else it }) }
+    }
+
+    private fun showMessage(text: String) = _state.update { it.copy(message = text) }
+
+    override fun onCleared() {
+        speech.destroy()
+        speaker.shutdown()
+    }
+}

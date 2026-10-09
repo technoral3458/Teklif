@@ -1,0 +1,53 @@
+name: Tercüman Android APK
+
+on:
+  push:
+    paths:
+      - "tercuman-android/**"
+      - ".github/workflows/tercuman-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tercuman-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: APK derle
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk "Tercuman-v1.0.${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tercuman-apk
+          path: tercuman-android/Tercuman-*.apk
+
+      - name: Sürüm (Release) olarak yayınla
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tercuman-v1.0.${{ github.run_number }}
+          name: Tercüman v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: tercuman-android/Tercuman-v1.0.${{ github.run_number }}.apk
+          body: |
+            Türkçe ⇄ Çince yapay zekâ destekli tercüman (Android).
+            Telefonda bu sayfayı açıp aşağıdaki .apk dosyasını indirin ve kurun.
+            Kurulum adımları: tercuman-android/README.md
