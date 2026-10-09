@@ -4,10 +4,12 @@ import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.core.JsonValue
 import com.anthropic.errors.AnthropicServiceException
+import com.anthropic.errors.BadRequestException
 import com.anthropic.errors.AnthropicIoException
 import com.anthropic.errors.RateLimitException
 import com.anthropic.errors.UnauthorizedException
 import com.anthropic.models.messages.JsonOutputFormat
+import com.anthropic.models.messages.Message
 import com.anthropic.models.messages.MessageCreateParams
 import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.StopReason
@@ -71,7 +73,33 @@ class TranslationEngine(private val config: EngineConfig) {
         scriptHint: Lang?,
         history: List<HistoryTurn>,
     ): TranslationResult {
-        val params = MessageCreateParams.builder()
+        val response = try {
+            try {
+                client.messages().create(buildParams(text, forcedSource, scriptHint, history, withFallback = true))
+            } catch (e: BadRequestException) {
+                // Yedek model parametresi kabul edilmezse onsuz bir kez daha dene.
+                client.messages().create(buildParams(text, forcedSource, scriptHint, history, withFallback = false))
+            }
+        } catch (e: UnauthorizedException) {
+            throw TranslationException("API anahtarı geçersiz. Ayarlardan kontrol edin.", e)
+        } catch (e: RateLimitException) {
+            throw TranslationException("Çok fazla istek. Birkaç saniye sonra tekrar deneyin.", e)
+        } catch (e: AnthropicServiceException) {
+            throw TranslationException("Çeviri servisi hatası (${e.statusCode()}): ${e.message}", e)
+        } catch (e: AnthropicIoException) {
+            throw TranslationException("İnternet bağlantısı yok veya zayıf.", e)
+        }
+        return parse(response, text, forcedSource, scriptHint)
+    }
+
+    private fun buildParams(
+        text: String,
+        forcedSource: Lang?,
+        scriptHint: Lang?,
+        history: List<HistoryTurn>,
+        withFallback: Boolean,
+    ): MessageCreateParams {
+        val builder = MessageCreateParams.builder()
             .model(config.model)
             .maxTokens(16000L)
             .system(buildSystemPrompt())
@@ -86,24 +114,17 @@ class TranslationEngine(private val config: EngineConfig) {
                     )
                     .build()
             )
+        if (withFallback) {
             // Güvenlik sınıflandırıcısı nadiren yanlışlıkla reddederse sunucu tarafında
             // uygun yedek modele otomatik geçiş.
-            .putAdditionalHeader("anthropic-beta", "server-side-fallback-2026-07-01")
-            .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
-            .build()
-
-        val response = try {
-            client.messages().create(params)
-        } catch (e: UnauthorizedException) {
-            throw TranslationException("API anahtarı geçersiz. Ayarlardan kontrol edin.", e)
-        } catch (e: RateLimitException) {
-            throw TranslationException("Çok fazla istek. Birkaç saniye sonra tekrar deneyin.", e)
-        } catch (e: AnthropicServiceException) {
-            throw TranslationException("Çeviri servisi hatası (${e.statusCode()}): ${e.message}", e)
-        } catch (e: AnthropicIoException) {
-            throw TranslationException("İnternet bağlantısı yok veya zayıf.", e)
+            builder
+                .putAdditionalHeader("anthropic-beta", "server-side-fallback-2026-07-01")
+                .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
         }
+        return builder.build()
+    }
 
+    private fun parse(response: Message, text: String, forcedSource: Lang?, scriptHint: Lang?): TranslationResult {
         if (response.stopReason().orElse(null) == StopReason.REFUSAL) {
             throw TranslationException("Bu cümle çevrilemedi. Lütfen farklı ifade edin.")
         }

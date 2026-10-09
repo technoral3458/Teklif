@@ -63,6 +63,8 @@ android {
 
 dependencies {
     implementation("com.anthropic:anthropic-java:2.71.0")
+    // SDK'nin JSON katmanı kotlin-reflect kullanır; Kotlin sürümüyle hizalı olsun.
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
