@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,14 +46,16 @@ fun FaceToFaceScreen(
     state: UiState,
     snackbar: SnackbarHostState,
     vm: MainViewModel,
-    onMic: (Lang?) -> Unit,
+    onMicPress: (Lang?) -> Unit,
+    onMicRelease: (Boolean) -> Unit,
 ) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
         Column(Modifier.fillMaxSize()) {
             PersonPane(
                 lang = Lang.ZH,
                 state = state,
-                onMic = { onMic(Lang.ZH) },
+                onMicPress = { onMicPress(Lang.ZH) },
+                onMicRelease = onMicRelease,
                 modifier = Modifier.weight(1f).fillMaxWidth().rotate(180f),
             )
             Surface(tonalElevation = 4.dp) {
@@ -62,27 +67,22 @@ fun FaceToFaceScreen(
                     IconButton(onClick = { vm.navigate(Screen.CHAT) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Sohbete dön")
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MicButton(
-                            listening = state.listening && state.listeningFor == null,
-                            level = state.level,
-                            size = 48.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                            onClick = { onMic(null) },
-                        )
-                    }
-                    Text(
-                        "Otomatik\n自动",
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(end = 12.dp),
+                    MicButton(
+                        listening = state.listening && state.listeningFor == null,
+                        level = state.level,
+                        size = 48.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        onPress = { onMicPress(null) },
+                        onRelease = onMicRelease,
                     )
+                    Spacer(Modifier.size(48.dp))
                 }
             }
             PersonPane(
                 lang = Lang.TR,
                 state = state,
-                onMic = { onMic(Lang.TR) },
+                onMicPress = { onMicPress(Lang.TR) },
+                onMicRelease = onMicRelease,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
         }
@@ -94,7 +94,8 @@ fun FaceToFaceScreen(
 private fun PersonPane(
     lang: Lang,
     state: UiState,
-    onMic: () -> Unit,
+    onMicPress: () -> Unit,
+    onMicRelease: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -144,16 +145,10 @@ private fun PersonPane(
                 }
             }
         }
-        val hint = when {
-            listeningHere || (listeningAuto && state.partial.isNotBlank()) -> state.partial.ifBlank {
-                if (lang == Lang.TR) "Dinliyorum… bitirmek için tekrar dokunun" else "正在听… 说完后再点一下"
-            }
-            lang == Lang.TR -> "Konuşmak için dokunun, bitirince tekrar dokunun"
-            else -> "点击说话，说完后再点一下"
-        }
+        // Yalnızca tanınan konuşma canlı görünür; açıklama yazısı yok.
         Text(
-            text = hint,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            text = if (listeningHere || listeningAuto) state.partial else "",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 24.dp),
             textAlign = TextAlign.Center,
             maxLines = 2,
             style = MaterialTheme.typography.bodyMedium,
@@ -166,7 +161,8 @@ private fun PersonPane(
                 color = lang.color(),
                 contentColor = lang.onColor(),
                 label = if (lang == Lang.TR) "Türkçe" else "中文",
-                onClick = onMic,
+                onPress = onMicPress,
+                onRelease = onMicRelease,
             )
         }
     }

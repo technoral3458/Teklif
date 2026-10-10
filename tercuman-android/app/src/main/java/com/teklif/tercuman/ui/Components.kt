@@ -2,6 +2,7 @@ package com.teklif.tercuman.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,20 +16,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -50,8 +53,10 @@ fun Lang.onColor(): Color = if (this == Lang.TR) Color.White else Color(0xFF2121
 fun Lang.flag(): String = if (this == Lang.TR) "🇹🇷" else "🇨🇳"
 
 /**
- * Ses seviyesine göre büyüyüp küçülen yuvarlak mikrofon tuşu. Dinlerken "bitir" (kare)
- * simgesine döner: tekrar dokununca konuşma tamamlanır.
+ * Ses seviyesine göre büyüyüp küçülen yuvarlak mikrofon tuşu.
+ *
+ * Basılı tutulursa bırakılınca konuşma biter (bas-konuş). Kısa dokunuşta mikrofon açık kalır,
+ * ikinci dokunuş bitirir. Dinlerken kare "bitir" simgesi görünür.
  */
 @Composable
 fun MicButton(
@@ -59,12 +64,15 @@ fun MicButton(
     level: Float,
     size: Dp,
     color: Color,
-    onClick: () -> Unit,
+    onPress: () -> Unit,
+    onRelease: (held: Boolean) -> Unit,
     modifier: Modifier = Modifier,
     contentColor: Color = Color.White,
     label: String? = null,
 ) {
     val pulse by animateFloatAsState(if (listening) 1f + level * 0.35f else 1f, label = "pulse")
+    var pressed by remember { mutableStateOf(false) }
+    val pressScale by animateFloatAsState(if (pressed) 0.92f else 1f, label = "press")
     Box(modifier = modifier.size(size * 1.4f), contentAlignment = Alignment.Center) {
         if (listening) {
             Box(
@@ -75,12 +83,25 @@ fun MicButton(
                     .background(color.copy(alpha = 0.25f))
             )
         }
-        FilledIconButton(
-            onClick = onClick,
-            modifier = Modifier.size(size),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = if (listening) color else color.copy(alpha = 0.9f),
-            ),
+        Box(
+            Modifier
+                .size(size)
+                .scale(pressScale)
+                .clip(CircleShape)
+                .background(if (listening) color else color.copy(alpha = 0.9f))
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            pressed = true
+                            val downAt = System.currentTimeMillis()
+                            onPress()
+                            tryAwaitRelease()
+                            pressed = false
+                            onRelease(System.currentTimeMillis() - downAt >= HOLD_MS)
+                        },
+                    )
+                },
+            contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
@@ -91,7 +112,7 @@ fun MicButton(
                 )
                 if (label != null) {
                     Text(
-                        text = if (listening) "Bitir" else label,
+                        text = label,
                         color = contentColor,
                         fontWeight = FontWeight.Bold,
                         fontSize = (size.value * 0.16f).sp,
@@ -102,6 +123,9 @@ fun MicButton(
         }
     }
 }
+
+/** Bu süreden uzun basış "bas-konuş" sayılır: bırakınca konuşma biter. */
+private const val HOLD_MS = 350L
 
 /** Sohbet listesindeki tek bir çeviri kartı. */
 @Composable

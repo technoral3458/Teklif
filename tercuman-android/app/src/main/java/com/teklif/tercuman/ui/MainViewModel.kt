@@ -112,15 +112,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
     fun consumeMessage() = _state.update { it.copy(message = null) }
 
     /**
-     * Dokun-başlat, tekrar dokun-bitir. Dinlerken hangi tuşa basılırsa basılsın konuşma biter.
+     * Tuşa basıldı. Dinlenmiyorsa dinlemeye başlar; dinleniyorsa bu basış "bitir" demektir
+     * (bırakılınca biter).
      * @param fixed null ise otomatik algılama, değilse o dilde dinler.
      */
-    fun toggleListening(fixed: Lang?) {
+    fun micPressed(fixed: Lang?) {
         if (_state.value.listening) {
-            activeInput.stop()
-            _state.update { it.copy(partial = it.partial.ifBlank { "Tamamlanıyor…" }) }
+            stopOnRelease = true
             return
         }
+        stopOnRelease = false
         if (_state.value.settings.apiKey.isBlank()) {
             showMessage("Önce Ayarlar'dan Claude API anahtarını girin.")
             _state.update { it.copy(screen = Screen.SETTINGS) }
@@ -132,6 +133,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
         _state.update { it.copy(listening = true, listeningFor = fixed, partial = "", level = 0f) }
         activeInput.start(fixed)
     }
+
+    /**
+     * Tuş bırakıldı. Basılı tutulmuşsa (bas-konuş) ya da bu basış bitirme dokunuşuysa
+     * konuşma biter; kısa dokunuşta mikrofon açık kalır.
+     */
+    fun micReleased(held: Boolean) {
+        if (!_state.value.listening) return
+        if (held || stopOnRelease) {
+            stopOnRelease = false
+            activeInput.stop()
+            _state.update { it.copy(partial = it.partial.ifBlank { "…" }) }
+        }
+    }
+
+    private var stopOnRelease = false
 
     fun cancelListening() {
         activeInput.cancel()

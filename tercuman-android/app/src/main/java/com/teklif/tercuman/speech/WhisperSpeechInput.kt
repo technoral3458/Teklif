@@ -71,7 +71,7 @@ class WhisperSpeechInput(
                 null -> if (stopRequested) listener.onIdle()
                 else listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.")
                 else -> {
-                    listener.onPartial("Yazıya çevriliyor… / 识别中…")
+                    listener.onPartial("…")
                     val outcome = withContext(Dispatchers.IO) { runCatching { transcribe(audio, forced) } }
                     outcome
                         .onSuccess { (text, lang) ->
@@ -164,12 +164,7 @@ class WhisperSpeechInput(
                         speaking = true
                         speech.addAll(preRoll)
                         preRoll.clear()
-                        withContext(Dispatchers.Main) {
-                            listener.onPartial(
-                                if (endSilence > 0) "Dinliyorum… / 正在听…"
-                                else "Dinliyorum… bitirmek için tekrar dokunun · 说完后再点一下"
-                            )
-                        }
+                        withContext(Dispatchers.Main) { listener.onPartial("…") }
                     } else if (stopRequested || System.currentTimeMillis() > waitDeadline) {
                         return null
                     }

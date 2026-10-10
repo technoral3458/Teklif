@@ -60,20 +60,21 @@ private fun App(vm: MainViewModel) {
     var pendingMic by remember { mutableStateOf<Lang?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            vm.toggleListening(pendingMic)
+            vm.micPressed(pendingMic)
         }
     }
     val hasMicPermission = {
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
-    val onMic: (Lang?) -> Unit = { lang ->
+    val onMicPress: (Lang?) -> Unit = { lang ->
         if (hasMicPermission()) {
-            vm.toggleListening(lang)
+            vm.micPressed(lang)
         } else {
             pendingMic = lang
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
+    val onMicRelease: (Boolean) -> Unit = { held -> vm.micReleased(held) }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -85,8 +86,8 @@ private fun App(vm: MainViewModel) {
     BackHandler(enabled = state.screen != Screen.CHAT) { vm.navigate(Screen.CHAT) }
 
     when (state.screen) {
-        Screen.CHAT -> ChatScreen(state, snackbar, vm, onMic)
-        Screen.FACE_TO_FACE -> FaceToFaceScreen(state, snackbar, vm, onMic)
+        Screen.CHAT -> ChatScreen(state, snackbar, vm, onMicPress, onMicRelease)
+        Screen.FACE_TO_FACE -> FaceToFaceScreen(state, snackbar, vm, onMicPress, onMicRelease)
         Screen.SETTINGS -> SettingsScreen(state, vm)
     }
 }

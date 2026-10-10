@@ -4,9 +4,9 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## Nasıl çalışır?
 
-1. **Mikrofon** → Mavi tuş Türkçe, sarı tuş Çince. Tuşa dokunup konuşursunuz; kelime
-   aralarındaki duraklamalar konuşmayı kesmez, bitirince aynı tuşa tekrar dokunursunuz
-   (Ayarlar'dan 3 / 5 sn sessizlikte kendiliğinden kapanma da seçilebilir). Ortadaki küçük
+1. **Mikrofon** → Mavi tuş Türkçe, sarı tuş Çince. **Basılı tutup** konuşursunuz, bırakınca
+   çeviri başlar. Kısa dokunuşta mikrofon açık kalır, ikinci dokunuş bitirir; kelime aralarındaki
+   duraklamalar konuşmayı kesmez (Ayarlar'dan 3 / 5 sn sessizlikte kendiliğinden kapanma da seçilebilir). Ortadaki küçük
    *Otomatik* tuş dili kendisi algılamaya çalışır. Ses tanıma için iki yol vardır:
    - **OpenAI Whisper** (Ayarlar'a OpenAI anahtarı girilirse, önerilir): Dil sesten algılanır, her telefonda güvenilir.
    - **Telefonun ses tanıması** (anahtar yoksa): Türkçe + Çince birlikte dinlenir; Android 14+ telefonlarda
@@ -24,7 +24,7 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 ## Ekranlar
 
 - **Sohbet**: Altta iki büyük tuş: 🇹🇷 **Türkçe** (mavi) ve 🇨🇳 **中文** (sarı); aralarında küçük *Otomatik* tuş.
-  Dokun-konuş-tekrar dokun.
+  Basılı tut-konuş-bırak, ya da dokun-konuş-tekrar dokun.
 - **Yüz yüze mod** (üstteki iki kişi simgesi): Telefonu masaya koyun. Üst yarı Çinli misafire dönük
   (ters çevrili), alt yarı size. Herkesin kendi mikrofon tuşu var; ortadaki küçük tuş otomatik algılar.
   Karşı tarafın söylediği, her yarıda o kişinin dilinde büyük harflerle görünür.

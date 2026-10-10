@@ -1,12 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- İki konuşma balonu: mavi (Türkçe, "A") ve sarı (Çince, "文"). Güvenli alan 108'lik tuvalin ortasındaki 66dp'lik daire. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:translateX="30" android:translateY="30">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M24,28c3.31,0 5.99,-2.69 5.99,-6L30,10c0,-3.32 -2.68,-6 -6,-6s-6,2.68 -6,6v12c0,3.31 2.69,6 6,6zM34.6,22c0,6 -5.07,10.2 -10.6,10.2S13.4,28 13.4,22L10,22c0,6.83 5.44,12.47 12,13.44L22,42h4v-6.56c6.56,-0.97 12,-6.61 12,-13.44h-3.4z" />
-    </group>
+    <!-- Mavi balon (arkada, sol üst) -->
+    <path
+        android:fillColor="#1E88E5"
+        android:pathData="M30,30 h30 a8,8 0 0 1 8,8 v18 a8,8 0 0 1 -8,8 h-18 l-9,8 v-8 h-3 a8,8 0 0 1 -8,-8 v-18 a8,8 0 0 1 8,-8 z" />
+    <!-- "A" -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M37,56 L45,37 L53,56 M40,49.5 L50,49.5" />
+    <!-- Sarı balon (önde, sağ alt) -->
+    <path
+        android:fillColor="#FDD835"
+        android:pathData="M48,48 h30 a8,8 0 0 1 8,8 v18 a8,8 0 0 1 -8,8 h-3 v8 l-9,-8 h-18 a8,8 0 0 1 -8,-8 v-18 a8,8 0 0 1 8,-8 z" />
+    <!-- "文" -->
+    <path
+        android:strokeColor="#212121"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M63,53 L63,56.5 M54.5,60 L71.5,60 M68.5,61.5 L57,76 M57.5,61.5 L69,76" />
 </vector>
