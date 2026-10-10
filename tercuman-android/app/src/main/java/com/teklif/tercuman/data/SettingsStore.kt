@@ -17,6 +17,8 @@ data class AppSettings(
     val silenceMs: Long = 0L,
     /** Çince çevirinin altında pinyin okunuşu (kapalıyken çeviri daha hızlı biter). */
     val pinyin: Boolean = false,
+    /** Ekonomik mod: yalnızca çeviri üretilir, az geçmiş gönderilir; token ~yarıya iner. */
+    val economy: Boolean = true,
 ) {
     fun toEngineConfig() = EngineConfig(
         apiKey = apiKey.trim(),
@@ -25,6 +27,7 @@ data class AppSettings(
         topic = topic,
         glossary = glossary,
         pinyin = pinyin,
+        economy = economy,
     )
 }
 
@@ -34,7 +37,7 @@ class SettingsStore(context: Context) {
 
     fun load() = AppSettings(
         apiKey = prefs.getString(KEY_API, "") ?: "",
-        model = prefs.getString(KEY_MODEL, EngineConfig.DEFAULT_MODEL) ?: EngineConfig.DEFAULT_MODEL,
+        model = loadModel(),
         effort = prefs.getString(KEY_EFFORT, "low") ?: "low",
         topic = prefs.getString(KEY_TOPIC, "") ?: "",
         glossary = prefs.getString(KEY_GLOSSARY, "") ?: "",
@@ -43,7 +46,23 @@ class SettingsStore(context: Context) {
         // Eski sürümlerin kısa süreleri (1-2,5 sn) konuşmayı erken kesiyordu: dokununca-bitir'e taşı.
         silenceMs = prefs.getLong(KEY_SILENCE, 0L).let { if (it in 1 until 3000) 0L else it },
         pinyin = prefs.getBoolean(KEY_PINYIN, false),
+        economy = prefs.getBoolean(KEY_ECONOMY, true),
     )
+
+    /**
+     * Eski sürümler Opus'u varsayılan olarak kaydediyordu; maliyeti yüzünden bir kez Haiku'ya
+     * geçirilir. Kullanıcı sonra Opus'u yeniden seçerse bir daha dokunulmaz.
+     */
+    private fun loadModel(): String {
+        val stored = prefs.getString(KEY_MODEL, EngineConfig.DEFAULT_MODEL) ?: EngineConfig.DEFAULT_MODEL
+        if (prefs.getBoolean(KEY_MIGRATED_HAIKU, false)) return stored
+        prefs.edit().putBoolean(KEY_MIGRATED_HAIKU, true).apply()
+        if (stored == "claude-opus-5-5") {
+            prefs.edit().putString(KEY_MODEL, EngineConfig.DEFAULT_MODEL).apply()
+            return EngineConfig.DEFAULT_MODEL
+        }
+        return stored
+    }
 
     fun save(s: AppSettings) {
         prefs.edit()
@@ -56,6 +75,7 @@ class SettingsStore(context: Context) {
             .putString(KEY_OPENAI, s.openAiKey)
             .putLong(KEY_SILENCE, s.silenceMs)
             .putBoolean(KEY_PINYIN, s.pinyin)
+            .putBoolean(KEY_ECONOMY, s.economy)
             .apply()
     }
 
@@ -69,5 +89,7 @@ class SettingsStore(context: Context) {
         const val KEY_OPENAI = "openai_key"
         const val KEY_SILENCE = "silence_ms"
         const val KEY_PINYIN = "pinyin"
+        const val KEY_ECONOMY = "economy"
+        const val KEY_MIGRATED_HAIKU = "migrated_haiku_default"
     }
 }

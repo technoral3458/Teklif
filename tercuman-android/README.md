@@ -11,7 +11,9 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
    - **OpenAI Whisper** (Ayarlar'a OpenAI anahtarı girilirse, önerilir): Dil sesten algılanır, her telefonda güvenilir.
    - **Telefonun ses tanıması** (anahtar yoksa): Türkçe + Çince birlikte dinlenir; Android 14+ telefonlarda
      dil algılama ve dil değiştirme açılır. Eski telefonlarda yanlış algılarsa dili sabitleyin.
-2. **Anlamlı çeviri (İngilizce köprü)** → Claude metni üç adımda işler:
+2. **Anlamlı çeviri** → Varsayılan **Ekonomik mod**da Claude yalnızca dili ve çeviriyi üretir
+   (anlamı yine kurar ama ara metin yazmaz; token kullanımı yarıya iner). Ekonomik mod kapatılırsa
+   İngilizce köprü ile üç adımda işler:
    - Konuşma tanıma hatalarını bağlama göre düzeltir,
    - Anlamı açık İngilizceye aktarır (deyimler, ima edilen özne, teknik terimler çözülür),
    - Bu anlamdan hedef dile, o dili ana dili olarak konuşan birinin söyleyeceği şekilde çevirir.
@@ -35,6 +37,8 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
   - *Mikrofon ne zaman kapansın*: Dokununca (önerilir) / 3 sn / 5 sn sessizlik
   - *Görüşmenin konusu*: örn. "CNC membran kapak üretimi, fiyat teklifi". Terimler buna göre seçilir.
   - *Terim sözlüğü*: Her satıra `Türkçe = English = 中文`. Bu terimler her zaman aynen kullanılır.
+  - *Ekonomik mod* (varsayılan açık): yalnızca çeviri, az geçmiş; maliyet ve süre yarıya iner
+  - *Yapay zekâ modeli*: Haiku (varsayılan, en ucuz) / Sonnet / Opus
   - *Çeviri kalitesi*: Hızlı / Dengeli / En iyi
   - *Sesli oku* aç/kapa
 
@@ -75,7 +79,7 @@ Kod düzeni:
 
 | Dosya | Görev |
 |---|---|
-| `translate/TranslationEngine.kt` | Claude ile TR→EN→ZH / ZH→EN→TR köprü çeviri |
+| `translate/TranslationEngine.kt` | Claude ile çeviri (ekonomik mod / İngilizce köprülü tam mod) |
 | `translate/Lang.kt` | Diller ve yazı sistemine göre dil tahmini |
 | `speech/WhisperSpeechInput.kt` | Ses kaydı, sessizlik algılama, Whisper ile dil algılamalı tanıma |
 | `speech/PhoneSpeechInput.kt` | Telefonun ses tanıması (Türkçe + Çince, Android 14+ dil değiştirme) |

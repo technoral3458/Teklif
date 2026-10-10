@@ -27,9 +27,14 @@ data class EngineConfig(
     val glossary: String = "",
     /** Çince çevirinin altına pinyin yazılsın mı (kapalıyken çeviri daha hızlı biter). */
     val pinyin: Boolean = false,
+    /**
+     * Ekonomik mod: model yalnızca dili ve çeviriyi yazar (İngilizce köprü, düzeltilmiş metin,
+     * pinyin ve not üretilmez), geçmişten daha az satır gönderilir. Token kullanımı yaklaşık yarıya iner.
+     */
+    val economy: Boolean = true,
 ) {
     companion object {
-        const val DEFAULT_MODEL = "claude-opus-5-5"
+        const val DEFAULT_MODEL = "claude-haiku-5-5"
     }
 }
 
@@ -149,7 +154,7 @@ class TranslationEngine(private val config: EngineConfig) {
                     .effort(OutputConfig.Effort.of(config.effort))
                     .format(
                         JsonOutputFormat.builder()
-                            .schema(OUTPUT_SCHEMA)
+                            .schema(if (config.economy) ECONOMY_SCHEMA else OUTPUT_SCHEMA)
                             .build()
                     )
                     .build()
@@ -196,7 +201,37 @@ class TranslationEngine(private val config: EngineConfig) {
         )
     }
 
-    private fun buildSystemPrompt(): String = buildString {
+    private fun buildSystemPrompt(): String = if (config.economy) buildEconomyPrompt() else buildFullPrompt()
+
+    /** Ekonomik mod: kısa talimat, iki alanlı çıktı. Anlam köprüsü yine kurulur ama yazılmaz. */
+    private fun buildEconomyPrompt(): String = buildString {
+        append(
+            """
+            You are a live interpreter between Turkish and Mandarin Chinese for a face-to-face
+            business conversation. Each input is one utterance from phone speech recognition,
+            which may contain recognition errors; infer what was meant.
+            source_language: "tr" or "zh" (given when known).
+            translation: what a native speaker of the other language would naturally say
+            (Turkish -> Simplified Chinese, Chinese -> Turkish). Translate the meaning, not
+            the words; keep tone, politeness, numbers, prices and names exact. Standard
+            industry terms. Nothing but the translation.
+            """.trimIndent()
+        )
+        appendContext()
+    }
+
+    private fun StringBuilder.appendContext() {
+        if (config.topic.isNotBlank()) {
+            append("\n\nConversation topic / setting (use it to choose terms):\n")
+            append(config.topic.trim())
+        }
+        if (config.glossary.isNotBlank()) {
+            append("\n\nGlossary. Always use these fixed term pairs:\n")
+            append(config.glossary.trim())
+        }
+    }
+
+    private fun buildFullPrompt(): String = buildString {
         append(
             """
             You are a professional live interpreter between Turkish and Mandarin Chinese.
@@ -230,14 +265,7 @@ class TranslationEngine(private val config: EngineConfig) {
             append("pinyin: always \"\".\n")
         }
         append("note: \"\" unless something was genuinely ambiguous; then one short sentence in Turkish.")
-        if (config.topic.isNotBlank()) {
-            append("\n\nConversation topic / setting (use it to choose terms):\n")
-            append(config.topic.trim())
-        }
-        if (config.glossary.isNotBlank()) {
-            append("\n\nGlossary. Always use these fixed term pairs:\n")
-            append(config.glossary.trim())
-        }
+        appendContext()
     }
 
     private fun buildUserMessage(
@@ -248,7 +276,7 @@ class TranslationEngine(private val config: EngineConfig) {
     ): String = buildString {
         if (history.isNotEmpty()) {
             append("<conversation_so_far>\n")
-            for (turn in history.takeLast(MAX_HISTORY)) {
+            for (turn in history.takeLast(if (config.economy) ECONOMY_HISTORY else MAX_HISTORY)) {
                 append("[").append(turn.source.code).append("] ").append(turn.sourceText)
                 append("  =>  ").append(turn.translation).append('\n')
             }
@@ -266,6 +294,22 @@ class TranslationEngine(private val config: EngineConfig) {
 
     companion object {
         private const val MAX_HISTORY = 8
+        private const val ECONOMY_HISTORY = 3
+
+        private val ECONOMY_SCHEMA: JsonOutputFormat.Schema = JsonOutputFormat.Schema.builder()
+            .putAdditionalProperty("type", JsonValue.from("object"))
+            .putAdditionalProperty(
+                "properties",
+                JsonValue.from(
+                    linkedMapOf(
+                        "source_language" to mapOf("type" to "string", "enum" to listOf("tr", "zh")),
+                        "translation" to mapOf("type" to "string"),
+                    )
+                )
+            )
+            .putAdditionalProperty("required", JsonValue.from(listOf("source_language", "translation")))
+            .putAdditionalProperty("additionalProperties", JsonValue.from(false))
+            .build()
 
         /** Alan sırası önemli: çeviri erken gelsin ki seslendirme hemen başlasın. */
         private val OUTPUT_SCHEMA: JsonOutputFormat.Schema = JsonOutputFormat.Schema.builder()

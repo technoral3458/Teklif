@@ -174,6 +174,19 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 Switch(checked = s.pinyin, onCheckedChange = { v -> vm.updateSettings { it.copy(pinyin = v) } })
             }
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Ekonomik mod", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Yalnızca çeviri üretilir; İngilizce köprü, düzeltilmiş metin ve not yazılmaz, " +
+                            "daha az geçmiş gönderilir. Token kullanımı yaklaşık yarıya iner, çeviri daha hızlı biter.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = s.economy, onCheckedChange = { v -> vm.updateSettings { it.copy(economy = v) } })
+            }
+
             Text("Yapay zekâ modeli", style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MODELS.forEach { (value, label) ->
@@ -185,7 +198,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 }
             }
             Text(
-                "Opus en doğru ama en yavaş. Sonnet belirgin şekilde daha hızlı ve çeviride yine çok iyi. Haiku en hızlı ve en ucuz.",
+                "Haiku: en hızlı ve en ucuz (önerilir). Sonnet: 20 kat pahalı, daha nüanslı. Opus: 40 kat pahalı, en doğru.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
