@@ -48,6 +48,12 @@ class MainActivity : ComponentActivity() {
             TercumanTheme { App(vm) }
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Arka plana geçince dinlemeyi bırak; susturulmuş sistem sesleri geri açılır.
+        vm.cancelListening()
+    }
 }
 
 @Composable

@@ -37,6 +37,7 @@ class PhoneSpeechInput(
             null
         }
     private val handler = Handler(Looper.getMainLooper())
+    private val muter = SystemSoundMuter(context)
 
     private var forced: Lang? = null
     private var pair: LangPair = LangPair.DEFAULT
@@ -123,6 +124,7 @@ class PhoneSpeechInput(
         }
         this.forced = forced
         this.pair = pair
+        muter.mute()
         primaryOverride = null
         segments.setLength(0)
         detectedOverall = null
@@ -146,6 +148,7 @@ class PhoneSpeechInput(
         active = false
         handler.removeCallbacks(stopSafety)
         recognizer?.cancel()
+        muter.unmute()
     }
 
     override fun destroy() {
@@ -193,6 +196,8 @@ class PhoneSpeechInput(
     private fun finish(report: () -> Unit) {
         active = false
         handler.removeCallbacks(stopSafety)
+        // Bitiş bip'i artık çalmış olur; sesi geri aç, sonra sonucu bildir (seslendirme duyulsun).
+        muter.unmute()
         report()
     }
 

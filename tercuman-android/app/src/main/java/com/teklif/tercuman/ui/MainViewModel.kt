@@ -261,7 +261,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
                 if (!stillCurrent()) return@launch
                 val source = p.source ?: forced ?: scriptHint
                 replace(id) { it.copy(liveTranslation = p.translation, liveSource = source ?: it.liveSource) }
-                if (p.complete && source != null && !spoken && _state.value.settings.autoSpeak) {
+                if (p.complete && source != null && !spoken && canAutoSpeak()) {
                     spoken = true
                     speaker.speak(p.translation, pair.other(source))
                 }
@@ -275,7 +275,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
             outcome
                 .onSuccess { result ->
                     replace(id) { it.copy(result = result, error = null) }
-                    if (!spoken && _state.value.settings.autoSpeak) speaker.speak(result.translation, result.target)
+                    if (!spoken && canAutoSpeak()) speaker.speak(result.translation, result.target)
                     spoken = true
                 }
                 .onFailure { e ->
@@ -284,6 +284,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
                 }
         }
     }
+
+    /** Mikrofon açıkken biten çeviri sesli okunmaz; kullanıcı konuşmaya başlamıştır. */
+    private fun canAutoSpeak() = _state.value.settings.autoSpeak && !_state.value.listening
 
     @Synchronized
     private fun engineFor(settings: AppSettings): TranslationEngine {
