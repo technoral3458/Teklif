@@ -1,6 +1,7 @@
-# Tercüman TR ⇄ 中文 (Android)
+# Tercüman (Android)
 
-Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygulaması.
+Türkçe, Çince, İngilizce ve Rusça arasında, yapay zekâ (Claude) destekli, sesli çeviri uygulaması.
+İki tuşun üstündeki bayraklara dokunarak her tarafın dili seçilir; konuşma karşı tarafın diline çevrilir.
 
 ## Nasıl çalışır?
 
@@ -25,8 +26,10 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## Ekranlar
 
-- **Sohbet**: WhatsApp düzeni: Türkçe konuşan solda mavi balon, Çince konuşan sağda sarı balon. Altta iki büyük tuş: 🇹🇷 **Türkçe** (mavi) ve 🇨🇳 **中文** (sarı); aralarında küçük *Otomatik* tuş.
-  Basılı tut-konuş-bırak, ya da dokun-konuş-tekrar dokun.
+- **Sohbet**: WhatsApp düzeni: soldaki dilin konuşanı solda, sağdakinin konuşanı sağda, dil rengiyle
+  (Türkçe mavi, Çince sarı, İngilizce yeşil, Rusça kırmızı). Altta iki büyük dil tuşu, üstlerinde bayraklı dil seçici
+  (🇹🇷 🇨🇳 🇬🇧 🇷🇺); aralarında küçük *Otomatik* tuş. Basılı tut-konuş-bırak, ya da dokun-konuş-tekrar dokun.
+  Balondaki tanınan metne dokununca klavyeyle düzeltilir ve **Çevir** ile yeniden çevrilir.
 - **Yüz yüze mod** (üstteki iki kişi simgesi): Telefonu masaya koyun. Üst yarı Çinli misafire dönük
   (ters çevrili), alt yarı size. Herkesin kendi mikrofon tuşu var; ortadaki küçük tuş otomatik algılar.
   Karşı tarafın söylediği, her yarıda o kişinin dilinde büyük harflerle görünür.

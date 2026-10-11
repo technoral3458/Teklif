@@ -6,6 +6,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.LangPair
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +53,7 @@ class WhisperSpeechInput(
     private var job: Job? = null
     @Volatile private var stopRequested = false
 
-    override fun start(forced: Lang?) {
+    override fun start(forced: Lang?, pair: LangPair) {
         job?.cancel()
         stopRequested = false
         job = scope.launch {
@@ -72,7 +73,7 @@ class WhisperSpeechInput(
                 else listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.")
                 else -> {
                     listener.onPartial("…")
-                    val outcome = withContext(Dispatchers.IO) { runCatching { transcribe(audio, forced) } }
+                    val outcome = withContext(Dispatchers.IO) { runCatching { transcribe(audio, forced, pair) } }
                     outcome
                         .onSuccess { (text, lang) ->
                             if (text.isBlank() || isHallucination(text)) {
@@ -192,7 +193,7 @@ class WhisperSpeechInput(
     }
 
     /** @return (metin, algılanan dil) */
-    private fun transcribe(pcm: ShortArray, forced: Lang?): Pair<String, Lang?> {
+    private fun transcribe(pcm: ShortArray, forced: Lang?, pair: LangPair): Pair<String, Lang?> {
         val key = apiKey().trim()
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -201,8 +202,8 @@ class WhisperSpeechInput(
             .addFormDataPart("temperature", "0")
             .apply {
                 if (forced != null) addFormDataPart("language", forced.code)
-                // Bağlam ipucu: iki dilli iş görüşmesi, Çince basitleştirilmiş yazılsın.
-                else addFormDataPart("prompt", "Türkçe ve Çince iş görüşmesi. 你好，我们谈一下价格。")
+                // Bağlam ipucu: iki dilli iş görüşmesi (Çince varsa basitleştirilmiş yazılsın).
+                else addFormDataPart("prompt", whisperHint(pair))
             }
             .addFormDataPart("file", "speech.wav", wav(pcm).toRequestBody("audio/wav".toMediaType()))
             .build()
@@ -230,13 +231,21 @@ class WhisperSpeechInput(
             }
             val node = mapper.readTree(text)
             val transcript = node.path("text").asText("").trim()
-            val lang = when (node.path("language").asText("").lowercase()) {
-                "turkish", "tr" -> Lang.TR
-                "chinese", "zh", "mandarin" -> Lang.ZH
-                else -> Lang.guessFromScript(transcript)
-            }
+            val lang = Lang.fromWhisperName(node.path("language").asText(""))?.takeIf { it in pair }
+                ?: Lang.guessFromScript(transcript, pair.both)
             return transcript to lang
         }
+    }
+
+    private fun whisperHint(pair: LangPair): String {
+        val samples = mapOf(
+            Lang.TR to "Merhaba, fiyatı konuşalım.",
+            Lang.ZH to "你好，我们谈一下价格。",
+            Lang.EN to "Hello, let's talk about the price.",
+            Lang.RU to "Здравствуйте, давайте обсудим цену.",
+        )
+        return "Business meeting in ${pair.a.englishName} and ${pair.b.englishName}. " +
+            samples[pair.a] + " " + samples[pair.b]
     }
 
     private fun rms(chunk: ShortArray): Double {

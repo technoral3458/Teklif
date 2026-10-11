@@ -12,6 +12,7 @@ import com.teklif.tercuman.speech.WhisperSpeechInput
 import com.teklif.tercuman.translate.EngineConfig
 import com.teklif.tercuman.translate.HistoryTurn
 import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.LangPair
 import com.teklif.tercuman.translate.TranslationEngine
 import com.teklif.tercuman.translate.TranslationException
 import com.teklif.tercuman.translate.TranslationProgress
@@ -26,6 +27,9 @@ import kotlinx.coroutines.withContext
 
 enum class Screen { CHAT, FACE_TO_FACE, SETTINGS }
 
+/** Sol/alt taraf (A, kullanıcı) ve sağ/üst taraf (B, misafir). */
+enum class Side { A, B }
+
 data class Utterance(
     val id: Long,
     /** Kesinleşmemiş tahmini kaynak dil (çeviri gelince result.source geçerli olur). */
@@ -38,6 +42,8 @@ data class Utterance(
     /** Akışla gelmekte olan çeviri (sonuç gelene kadar gösterilir). */
     val liveTranslation: String = "",
     val liveSource: Lang? = null,
+    /** Metin her düzenlendiğinde artar; eski çeviri isteğinin sonucu yok sayılır. */
+    val revision: Int = 0,
 ) {
     val pending: Boolean get() = result == null && error == null
     val source: Lang? get() = result?.source ?: liveSource ?: guessedSource
@@ -111,6 +117,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
 
     fun consumeMessage() = _state.update { it.copy(message = null) }
 
+    private val pair: LangPair get() = _state.value.settings.pair
+
+    /** Sol (a) ya da sağ (b) tuşun dilini değiştirir; iki taraf aynı dil seçilirse yer değiştirir. */
+    fun setLanguage(side: Side, lang: Lang) {
+        if (_state.value.listening) cancelListening()
+        updateSettings { st ->
+            val p = st.pair
+            val newPair = when (side) {
+                Side.A -> if (lang == p.b) LangPair(lang, p.a) else LangPair(lang, p.b)
+                Side.B -> if (lang == p.a) LangPair(p.b, lang) else LangPair(p.a, lang)
+            }
+            st.copy(pair = newPair)
+        }
+    }
+
+    /** Kullanıcı tanınan metni klavyeyle düzeltti: aynı yönle yeniden çevir. */
+    fun editUtterance(id: Long, newText: String) {
+        val text = newText.trim()
+        if (text.isBlank()) return
+        val current = _state.value.utterances.firstOrNull { it.id == id } ?: return
+        speaker.stop()
+        val revision = current.revision + 1
+        val hint = current.forced ?: Lang.guessFromScript(text, pair.both) ?: current.source
+        replace(id) {
+            it.copy(
+                rawText = text,
+                guessedSource = hint,
+                result = null,
+                error = null,
+                liveTranslation = "",
+                liveSource = null,
+                revision = revision,
+            )
+        }
+        translate(id, text, current.forced, hint, revision)
+    }
+
     /**
      * Tuşa basıldı. Dinlenmiyorsa dinlemeye başlar; dinleniyorsa bu basış "bitir" demektir
      * (bırakılınca biter).
@@ -131,7 +174,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
         forcedForSession = fixed
         activeInput = if (_state.value.settings.openAiKey.isNotBlank()) whisperInput else phoneInput
         _state.update { it.copy(listening = true, listeningFor = fixed, partial = "", level = 0f) }
-        activeInput.start(fixed)
+        activeInput.start(fixed, pair)
     }
 
     /**
@@ -161,7 +204,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
 
     fun retry(utterance: Utterance) {
         replace(utterance.id) { it.copy(error = null, result = null, liveTranslation = "") }
-        translate(utterance.id, utterance.rawText, utterance.forced, utterance.guessedSource)
+        translate(utterance.id, utterance.rawText, utterance.forced, utterance.guessedSource, utterance.revision)
     }
 
     // ---- VoiceInput.Listener ----
@@ -185,11 +228,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
         // servisin tahmininden daha güvenilir.
         val hint = forced
             ?: (if (activeInput === whisperInput) detected else null)
-            ?: Lang.guessFromScript(text)
+            ?: Lang.guessFromScript(text, pair.both)
             ?: detected
         val id = nextId++
         _state.update { it.copy(utterances = it.utterances + Utterance(id, hint, text, forced)) }
-        translate(id, text, forced, hint)
+        translate(id, text, forced, hint, revision = 0)
     }
 
     override fun onSpeechError(message: String) {
@@ -203,8 +246,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
 
     // ---- İç işler ----
 
-    private fun translate(id: Long, text: String, forced: Lang?, scriptHint: Lang?) {
+    private fun translate(id: Long, text: String, forced: Lang?, scriptHint: Lang?, revision: Int) {
         val settings = _state.value.settings
+        val pair = settings.pair
+        // Metin bu arada düzenlendiyse bu isteğin sonucu artık geçersizdir.
+        fun stillCurrent() = _state.value.utterances.firstOrNull { it.id == id }?.revision == revision
         val history = _state.value.utterances
             .filter { it.id < id }
             .mapNotNull { u -> u.result?.let { HistoryTurn(it.source, it.cleanedSource, it.translation) } }
@@ -212,18 +258,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
         var spoken = false
         val onProgress: (TranslationProgress) -> Unit = { p ->
             viewModelScope.launch {
+                if (!stillCurrent()) return@launch
                 val source = p.source ?: forced ?: scriptHint
                 replace(id) { it.copy(liveTranslation = p.translation, liveSource = source ?: it.liveSource) }
                 if (p.complete && source != null && !spoken && _state.value.settings.autoSpeak) {
                     spoken = true
-                    speaker.speak(p.translation, source.other)
+                    speaker.speak(p.translation, pair.other(source))
                 }
             }
         }
         viewModelScope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                runCatching { engineFor(settings).translate(text, forced, scriptHint, history, onProgress) }
+                runCatching { engineFor(settings).translate(text, pair, forced, scriptHint, history, onProgress) }
             }
+            if (!stillCurrent()) return@launch
             outcome
                 .onSuccess { result ->
                     replace(id) { it.copy(result = result, error = null) }

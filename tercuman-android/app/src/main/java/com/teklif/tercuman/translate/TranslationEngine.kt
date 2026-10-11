@@ -65,7 +65,7 @@ data class TranslationProgress(val source: Lang?, val translation: String, val c
 class TranslationException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Türkçe <-> Çince çeviriyi İngilizce köprü üzerinden yapar:
+ * Seçili dil çifti arasındaki çeviriyi İngilizce köprü üzerinden yapar:
  * kaynak -> anlamı açıklanmış İngilizce -> hedef dil. Tek istekte iki adım da yapılır,
  * İngilizce ara metin ekranda gösterilmek üzere geri döner. Yanıt akışla (streaming)
  * gelir; çeviri metni biter bitmez [TranslationProgress] ile bildirilir.
@@ -86,6 +86,7 @@ class TranslationEngine(private val config: EngineConfig) {
      */
     fun translate(
         text: String,
+        pair: LangPair,
         forcedSource: Lang?,
         scriptHint: Lang?,
         history: List<HistoryTurn>,
@@ -93,10 +94,10 @@ class TranslationEngine(private val config: EngineConfig) {
     ): TranslationResult {
         val response = try {
             try {
-                stream(buildParams(text, forcedSource, scriptHint, history, withFallback = true), forcedSource, onProgress)
+                stream(buildParams(text, pair, forcedSource, scriptHint, history, withFallback = true), forcedSource, onProgress)
             } catch (e: BadRequestException) {
                 // Yedek model parametresi kabul edilmezse onsuz bir kez daha dene.
-                stream(buildParams(text, forcedSource, scriptHint, history, withFallback = false), forcedSource, onProgress)
+                stream(buildParams(text, pair, forcedSource, scriptHint, history, withFallback = false), forcedSource, onProgress)
             }
         } catch (e: UnauthorizedException) {
             throw TranslationException("API anahtarı geçersiz. Ayarlardan kontrol edin.", e)
@@ -107,7 +108,7 @@ class TranslationEngine(private val config: EngineConfig) {
         } catch (e: AnthropicIoException) {
             throw TranslationException("İnternet bağlantısı yok veya zayıf.", e)
         }
-        return parse(response, text, forcedSource, scriptHint)
+        return parse(response, text, pair, forcedSource, scriptHint)
     }
 
     private fun stream(
@@ -139,6 +140,7 @@ class TranslationEngine(private val config: EngineConfig) {
 
     private fun buildParams(
         text: String,
+        pair: LangPair,
         forcedSource: Lang?,
         scriptHint: Lang?,
         history: List<HistoryTurn>,
@@ -147,14 +149,14 @@ class TranslationEngine(private val config: EngineConfig) {
         val builder = MessageCreateParams.builder()
             .model(config.model)
             .maxTokens(16000L)
-            .system(buildSystemPrompt())
-            .addUserMessage(buildUserMessage(text, forcedSource, scriptHint, history))
+            .system(buildSystemPrompt(pair))
+            .addUserMessage(buildUserMessage(text, pair, forcedSource, scriptHint, history))
             .outputConfig(
                 OutputConfig.builder()
                     .effort(OutputConfig.Effort.of(config.effort))
                     .format(
                         JsonOutputFormat.builder()
-                            .schema(if (config.economy) ECONOMY_SCHEMA else OUTPUT_SCHEMA)
+                            .schema(schemaFor(pair, economy = config.economy))
                             .build()
                     )
                     .build()
@@ -169,7 +171,13 @@ class TranslationEngine(private val config: EngineConfig) {
         return builder.build()
     }
 
-    private fun parse(response: Message, text: String, forcedSource: Lang?, scriptHint: Lang?): TranslationResult {
+    private fun parse(
+        response: Message,
+        text: String,
+        pair: LangPair,
+        forcedSource: Lang?,
+        scriptHint: Lang?,
+    ): TranslationResult {
         if (response.stopReason().orElse(null) == StopReason.REFUSAL) {
             throw TranslationException("Bu cümle çevrilemedi. Lütfen farklı ifade edin.")
         }
@@ -186,10 +194,10 @@ class TranslationEngine(private val config: EngineConfig) {
         }
 
         val source = forcedSource
-            ?: Lang.fromCode(node.path("source_language").asText())
+            ?: Lang.fromCode(node.path("source_language").asText())?.takeIf { it in pair }
             ?: scriptHint
-            ?: Lang.TR
-        val target = source.other
+            ?: pair.a
+        val target = pair.other(source)
         return TranslationResult(
             source = source,
             target = target,
@@ -201,20 +209,26 @@ class TranslationEngine(private val config: EngineConfig) {
         )
     }
 
-    private fun buildSystemPrompt(): String = if (config.economy) buildEconomyPrompt() else buildFullPrompt()
+    private fun buildSystemPrompt(pair: LangPair): String =
+        if (config.economy) buildEconomyPrompt(pair) else buildFullPrompt(pair)
+
+    private fun LangPair.names() = "${a.englishName} and ${b.englishName}"
+    private fun LangPair.codes() = "\"${a.code}\" or \"${b.code}\""
+    private fun LangPair.directions() = "${a.englishName} -> ${b.englishName}, ${b.englishName} -> ${a.englishName}"
+    private fun LangPair.chineseRule() = if (Lang.ZH in this) " Always write Chinese in Simplified characters." else ""
 
     /** Ekonomik mod: kısa talimat, iki alanlı çıktı. Anlam köprüsü yine kurulur ama yazılmaz. */
-    private fun buildEconomyPrompt(): String = buildString {
+    private fun buildEconomyPrompt(pair: LangPair): String = buildString {
         append(
             """
-            You are a live interpreter between Turkish and Mandarin Chinese for a face-to-face
+            You are a live interpreter between ${pair.names()} for a face-to-face
             business conversation. Each input is one utterance from phone speech recognition,
             which may contain recognition errors; infer what was meant.
-            source_language: "tr" or "zh" (given when known).
+            source_language: ${pair.codes()} (given when known).
             translation: what a native speaker of the other language would naturally say
-            (Turkish -> Simplified Chinese, Chinese -> Turkish). Translate the meaning, not
+            (${pair.directions()}). Translate the meaning, not
             the words; keep tone, politeness, numbers, prices and names exact. Standard
-            industry terms. Nothing but the translation.
+            industry terms. Nothing but the translation.${pair.chineseRule()}
             """.trimIndent()
         )
         appendContext()
@@ -231,18 +245,16 @@ class TranslationEngine(private val config: EngineConfig) {
         }
     }
 
-    private fun buildFullPrompt(): String = buildString {
+    private fun buildFullPrompt(pair: LangPair): String = buildString {
         append(
             """
-            You are a professional live interpreter between Turkish and Mandarin Chinese.
-            Two people are talking face to face: a Turkish speaker and a Chinese guest.
+            You are a professional live interpreter between ${pair.names()}.
+            Two people are talking face to face, one speaking each language.
             Every input is one utterance captured by phone speech recognition. Speed
             matters: they are waiting for you, so keep every field short and direct.
 
             Fill the fields in this order:
-            source_language: "tr" or "zh" (given to you when known). If the transcript
-               looks like Chinese speech written phonetically in Latin letters
-               (pinyin-like), it is Chinese.
+            source_language: ${pair.codes()} (given to you when known).
             english: the meaning in clear English. Speech recognition makes mistakes
                (wrong homophones, missing punctuation, split or merged words), so first
                work out what the speaker most plausibly meant from the conversation so
@@ -250,12 +262,11 @@ class TranslationEngine(private val config: EngineConfig) {
                politeness and domain terms.
             translation: from the English meaning, what a native speaker of the target
                language would naturally say here. Target is the other language
-               (Turkish -> Simplified Chinese, Chinese -> Turkish). Keep the tone and
+               (${pair.directions()}). Keep the tone and
                politeness level, use standard industry terms, keep numbers, units,
                prices, dates and names exact. No explanations inside the translation.
             cleaned_source: the utterance in its original language with recognition
-               errors fixed (Chinese always in Simplified characters). Copy it as is if
-               nothing needs fixing.
+               errors fixed.${pair.chineseRule()} Copy it as is if nothing needs fixing.
             """.trimIndent()
         )
         append('\n')
@@ -270,6 +281,7 @@ class TranslationEngine(private val config: EngineConfig) {
 
     private fun buildUserMessage(
         text: String,
+        pair: LangPair,
         forcedSource: Lang?,
         scriptHint: Lang?,
         history: List<HistoryTurn>,
@@ -284,10 +296,10 @@ class TranslationEngine(private val config: EngineConfig) {
         }
         when {
             forcedSource != null ->
-                append("The utterance is in ${forcedSource.englishName}; translate it into ${forcedSource.other.englishName}.\n")
+                append("The utterance is in ${forcedSource.englishName}; translate it into ${pair.other(forcedSource).englishName}.\n")
             scriptHint != null ->
-                append("Detect the language. The speech recognizer suggests ${scriptHint.englishName}, but verify from the text.\n")
-            else -> append("Detect the language.\n")
+                append("The utterance is in ${pair.a.englishName} or ${pair.b.englishName}; the speech recognizer suggests ${scriptHint.englishName}, but verify from the text. Translate into the other one.\n")
+            else -> append("The utterance is in ${pair.a.englishName} or ${pair.b.englishName}; detect which, and translate into the other one.\n")
         }
         append("<utterance>\n").append(text.trim()).append("\n</utterance>")
     }
@@ -296,44 +308,26 @@ class TranslationEngine(private val config: EngineConfig) {
         private const val MAX_HISTORY = 8
         private const val ECONOMY_HISTORY = 3
 
-        private val ECONOMY_SCHEMA: JsonOutputFormat.Schema = JsonOutputFormat.Schema.builder()
-            .putAdditionalProperty("type", JsonValue.from("object"))
-            .putAdditionalProperty(
-                "properties",
-                JsonValue.from(
-                    linkedMapOf(
-                        "source_language" to mapOf("type" to "string", "enum" to listOf("tr", "zh")),
-                        "translation" to mapOf("type" to "string"),
-                    )
-                )
-            )
-            .putAdditionalProperty("required", JsonValue.from(listOf("source_language", "translation")))
-            .putAdditionalProperty("additionalProperties", JsonValue.from(false))
-            .build()
 
         /** Alan sırası önemli: çeviri erken gelsin ki seslendirme hemen başlasın. */
-        private val OUTPUT_SCHEMA: JsonOutputFormat.Schema = JsonOutputFormat.Schema.builder()
-            .putAdditionalProperty("type", JsonValue.from("object"))
-            .putAdditionalProperty(
-                "properties",
-                JsonValue.from(
-                    linkedMapOf(
-                        "source_language" to mapOf("type" to "string", "enum" to listOf("tr", "zh")),
-                        "english" to mapOf("type" to "string"),
-                        "translation" to mapOf("type" to "string"),
-                        "cleaned_source" to mapOf("type" to "string"),
-                        "pinyin" to mapOf("type" to "string"),
-                        "note" to mapOf("type" to "string"),
-                    )
-                )
+        private fun schemaFor(pair: LangPair, economy: Boolean): JsonOutputFormat.Schema {
+            val str = mapOf("type" to "string")
+            val fields = linkedMapOf<String, Any>(
+                "source_language" to mapOf("type" to "string", "enum" to listOf(pair.a.code, pair.b.code)),
             )
-            .putAdditionalProperty(
-                "required",
-                JsonValue.from(
-                    listOf("source_language", "english", "translation", "cleaned_source", "pinyin", "note")
-                )
-            )
-            .putAdditionalProperty("additionalProperties", JsonValue.from(false))
-            .build()
+            if (!economy) fields["english"] = str
+            fields["translation"] = str
+            if (!economy) {
+                fields["cleaned_source"] = str
+                fields["pinyin"] = str
+                fields["note"] = str
+            }
+            return JsonOutputFormat.Schema.builder()
+                .putAdditionalProperty("type", JsonValue.from("object"))
+                .putAdditionalProperty("properties", JsonValue.from(fields))
+                .putAdditionalProperty("required", JsonValue.from(fields.keys.toList()))
+                .putAdditionalProperty("additionalProperties", JsonValue.from(false))
+                .build()
+        }
     }
 }

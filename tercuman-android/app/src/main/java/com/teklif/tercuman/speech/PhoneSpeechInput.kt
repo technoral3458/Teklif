@@ -11,6 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.LangPair
 
 /**
  * Telefonun konuşma tanıma servisini (Google) saran sınıf. Ana iş parçacığından çağrılmalı.
@@ -38,6 +39,7 @@ class PhoneSpeechInput(
     private val handler = Handler(Looper.getMainLooper())
 
     private var forced: Lang? = null
+    private var pair: LangPair = LangPair.DEFAULT
     private var active = false
     private var userStopped = false
     private var startedAt = 0L
@@ -88,11 +90,8 @@ class PhoneSpeechInput(
 
             override fun onLanguageDetection(results: Bundle) {
                 val tag = results.getString(SpeechRecognizer.DETECTED_LANGUAGE) ?: return
-                detectedInSegment = when {
-                    tag.startsWith("zh", ignoreCase = true) || tag.startsWith("cmn", ignoreCase = true) -> Lang.ZH
-                    tag.startsWith("tr", ignoreCase = true) -> Lang.TR
-                    else -> detectedInSegment
-                }
+                val code = if (tag.startsWith("cmn", ignoreCase = true)) "zh" else tag.take(2).lowercase()
+                detectedInSegment = Lang.fromCode(code)?.takeIf { it in pair } ?: detectedInSegment
             }
 
             override fun onError(error: Int) {
@@ -117,12 +116,13 @@ class PhoneSpeechInput(
         })
     }
 
-    override fun start(forced: Lang?) {
+    override fun start(forced: Lang?, pair: LangPair) {
         if (recognizer == null) {
             listener.onSpeechError("Bu telefonda konuşma tanıma servisi yok. Google uygulamasını yükleyin/güncelleyin.")
             return
         }
         this.forced = forced
+        this.pair = pair
         primaryOverride = null
         segments.setLength(0)
         detectedOverall = null
@@ -164,7 +164,7 @@ class PhoneSpeechInput(
         } else if (speechHeard) {
             // Konuşma duyuldu ama yazıya dökülemedi.
             if (usedDetection) languageDetectionSupported = false
-            if (forced == null) primaryOverride = (primaryOverride ?: Lang.TR).other
+            if (forced == null) primaryOverride = pair.other(primaryOverride ?: pair.a)
         }
         lastPartial = ""
 
@@ -202,8 +202,8 @@ class PhoneSpeechInput(
         lastPartial = ""
         speechHeard = false
         rec.cancel()
-        val primary = forced ?: primaryOverride ?: Lang.TR
-        val alternative = if (forced == null) primary.other else null
+        val primary = forced ?: primaryOverride ?: pair.a
+        val alternative = if (forced == null) pair.other(primary) else null
         usedDetection = alternative != null && languageDetectionSupported && Build.VERSION.SDK_INT >= 34
         rec.startListening(buildIntent(primary, alternative, usedDetection))
     }
@@ -241,7 +241,7 @@ class PhoneSpeechInput(
         SpeechRecognizer.ERROR_AUDIO -> "Mikrofon kullanılamıyor."
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mikrofon izni verilmedi."
         ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE ->
-            "Bu dil telefonda desteklenmiyor. Google uygulamasında Çince/Türkçe dil paketini indirin."
+            "Bu dil telefonda desteklenmiyor. Google uygulamasında ilgili dil paketini indirin."
         else -> "Konuşma tanıma hatası ($error)."
     }
 

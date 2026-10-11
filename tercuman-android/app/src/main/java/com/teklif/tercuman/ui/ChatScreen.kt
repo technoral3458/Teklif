@@ -32,6 +32,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import com.teklif.tercuman.R
 import com.teklif.tercuman.translate.Lang
 
@@ -76,7 +86,13 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(state.utterances, key = { it.id }) { u ->
-                        UtteranceCard(u, onSpeak = { vm.speak(u) }, onRetry = { vm.retry(u) })
+                        UtteranceCard(
+                            utterance = u,
+                            pair = state.settings.pair,
+                            onSpeak = { vm.speak(u) },
+                            onRetry = { vm.retry(u) },
+                            onEdit = { text -> vm.editUtterance(u.id, text) },
+                        )
                     }
                 }
             }
@@ -99,7 +115,7 @@ fun ChatScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        LangMic(Lang.TR, state, onMicPress, onMicRelease)
+                        LangMic(Side.A, state, vm, onMicPress, onMicRelease)
                         MicButton(
                             listening = state.listening && state.listeningFor == null,
                             level = state.level,
@@ -108,7 +124,7 @@ fun ChatScreen(
                             onPress = { onMicPress(null) },
                             onRelease = onMicRelease,
                         )
-                        LangMic(Lang.ZH, state, onMicPress, onMicRelease)
+                        LangMic(Side.B, state, vm, onMicPress, onMicRelease)
                     }
                 }
             }
@@ -116,24 +132,57 @@ fun ChatScreen(
     }
 }
 
-/** Dil tuşu: başka bir tuş dinlerken soluklaşır. */
+/** Dil tuşu ve üstünde bayraklı dil seçici. Başka bir tuş dinlerken soluklaşır. */
 @Composable
 private fun LangMic(
-    lang: Lang,
+    side: Side,
     state: UiState,
+    vm: MainViewModel,
     onMicPress: (Lang?) -> Unit,
     onMicRelease: (Boolean) -> Unit,
 ) {
+    val pair = state.settings.pair
+    val lang = if (side == Side.A) pair.a else pair.b
     val listeningHere = state.listening && state.listeningFor == lang
     val dimmed = state.listening && !listeningHere
-    MicButton(
-        listening = listeningHere,
-        level = state.level,
-        size = 96.dp,
-        color = if (dimmed) lang.color().copy(alpha = 0.35f) else lang.color(),
-        contentColor = lang.onColor(),
-        label = if (lang == Lang.TR) "Türkçe" else "中文",
-        onPress = { onMicPress(lang) },
-        onRelease = onMicRelease,
-    )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        FlagPicker(current = lang, onPick = { vm.setLanguage(side, it) })
+        MicButton(
+            listening = listeningHere,
+            level = state.level,
+            size = 96.dp,
+            color = if (dimmed) lang.color().copy(alpha = 0.35f) else lang.color(),
+            contentColor = lang.onColor(),
+            label = lang.displayName,
+            onPress = { onMicPress(lang) },
+            onRelease = onMicRelease,
+        )
+    }
+}
+
+/** Bayrağa dokununca dört dilin bayraklı listesi açılır. */
+@Composable
+fun FlagPicker(current: Lang, onPick: (Lang) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Text(
+            text = "${current.flag} ▾",
+            fontSize = 26.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable { open = true }
+                .padding(horizontal = 10.dp, vertical = 2.dp),
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Lang.entries.forEach { l ->
+                DropdownMenuItem(
+                    text = { Text("${l.flag}  ${l.displayName}", fontSize = 18.sp) },
+                    onClick = {
+                        open = false
+                        onPick(l)
+                    },
+                )
+            }
+        }
+    }
 }

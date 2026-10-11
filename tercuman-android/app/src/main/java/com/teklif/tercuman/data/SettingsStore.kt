@@ -2,6 +2,8 @@ package com.teklif.tercuman.data
 
 import android.content.Context
 import com.teklif.tercuman.translate.EngineConfig
+import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.LangPair
 
 data class AppSettings(
     val apiKey: String = "",
@@ -19,6 +21,8 @@ data class AppSettings(
     val pinyin: Boolean = false,
     /** Ekonomik mod: yalnızca çeviri üretilir, az geçmiş gönderilir; token ~yarıya iner. */
     val economy: Boolean = true,
+    /** Soldaki (kullanıcı) ve sağdaki (misafir) tuşların dilleri. */
+    val pair: LangPair = LangPair.DEFAULT,
 ) {
     fun toEngineConfig() = EngineConfig(
         apiKey = apiKey.trim(),
@@ -47,6 +51,10 @@ class SettingsStore(context: Context) {
         silenceMs = prefs.getLong(KEY_SILENCE, 0L).let { if (it <= 0) 0L else ((it + 500) / 1000).coerceIn(1, 5) * 1000 },
         pinyin = prefs.getBoolean(KEY_PINYIN, false),
         economy = prefs.getBoolean(KEY_ECONOMY, true),
+        pair = LangPair(
+            a = Lang.fromCode(prefs.getString(KEY_LANG_A, null)) ?: LangPair.DEFAULT.a,
+            b = Lang.fromCode(prefs.getString(KEY_LANG_B, null)) ?: LangPair.DEFAULT.b,
+        ),
     )
 
     /**
@@ -76,6 +84,8 @@ class SettingsStore(context: Context) {
             .putLong(KEY_SILENCE, s.silenceMs)
             .putBoolean(KEY_PINYIN, s.pinyin)
             .putBoolean(KEY_ECONOMY, s.economy)
+            .putString(KEY_LANG_A, s.pair.a.code)
+            .putString(KEY_LANG_B, s.pair.b.code)
             .apply()
     }
 
@@ -90,6 +100,8 @@ class SettingsStore(context: Context) {
         const val KEY_SILENCE = "silence_ms"
         const val KEY_PINYIN = "pinyin"
         const val KEY_ECONOMY = "economy"
+        const val KEY_LANG_A = "lang_a"
+        const val KEY_LANG_B = "lang_b"
         const val KEY_MIGRATED_HAIKU = "migrated_haiku_default"
     }
 }

@@ -1,6 +1,7 @@
 package com.teklif.tercuman.speech
 
 import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.LangPair
 
 /** Mikrofondan konuşmayı yazıya çeviren kaynak (telefonun tanıyıcısı veya Whisper). */
 interface VoiceInput {
@@ -16,8 +17,11 @@ interface VoiceInput {
         fun onIdle()
     }
 
-    /** @param forced null ise dil otomatik algılanır. */
-    fun start(forced: Lang?)
+    /**
+     * @param forced null ise dil [pair] içinden otomatik algılanır
+     * @param pair konuşan iki tarafın dilleri
+     */
+    fun start(forced: Lang?, pair: LangPair)
 
     /** Dinlemeyi bitir; o ana kadar konuşma varsa yazıya çevrilir. */
     fun stop()

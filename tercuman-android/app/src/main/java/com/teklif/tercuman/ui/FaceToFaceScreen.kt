@@ -52,9 +52,9 @@ fun FaceToFaceScreen(
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
         Column(Modifier.fillMaxSize()) {
             PersonPane(
-                lang = Lang.ZH,
+                lang = state.settings.pair.b,
                 state = state,
-                onMicPress = { onMicPress(Lang.ZH) },
+                onMicPress = { onMicPress(state.settings.pair.b) },
                 onMicRelease = onMicRelease,
                 modifier = Modifier.weight(1f).fillMaxWidth().rotate(180f),
             )
@@ -79,9 +79,9 @@ fun FaceToFaceScreen(
                 }
             }
             PersonPane(
-                lang = Lang.TR,
+                lang = state.settings.pair.a,
                 state = state,
-                onMicPress = { onMicPress(Lang.TR) },
+                onMicPress = { onMicPress(state.settings.pair.a) },
                 onMicRelease = onMicRelease,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
@@ -107,7 +107,7 @@ private fun PersonPane(
 
     Column(modifier.background(lang.color().copy(alpha = 0.06f))) {
         Text(
-            text = if (lang == Lang.TR) "🇹🇷 Türkçe" else "🇨🇳 中文",
+            text = "${lang.flag} ${lang.displayName}",
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.labelLarge,
@@ -135,11 +135,11 @@ private fun PersonPane(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     u.error != null -> Text(
-                        if (lang == Lang.TR) "Çeviri hatası" else "翻译失败",
+                        lang.errorWord(),
                         color = MaterialTheme.colorScheme.error,
                     )
                     else -> Text(
-                        if (lang == Lang.TR) "Çevriliyor…" else "翻译中…",
+                        lang.translatingWord(),
                         color = Color.Gray,
                     )
                 }
@@ -160,10 +160,24 @@ private fun PersonPane(
                 size = 72.dp,
                 color = lang.color(),
                 contentColor = lang.onColor(),
-                label = if (lang == Lang.TR) "Türkçe" else "中文",
+                label = lang.displayName,
                 onPress = onMicPress,
                 onRelease = onMicRelease,
             )
         }
     }
+}
+
+private fun Lang.translatingWord() = when (this) {
+    Lang.TR -> "Çevriliyor…"
+    Lang.ZH -> "翻译中…"
+    Lang.EN -> "Translating…"
+    Lang.RU -> "Перевод…"
+}
+
+private fun Lang.errorWord() = when (this) {
+    Lang.TR -> "Çeviri hatası"
+    Lang.ZH -> "翻译失败"
+    Lang.EN -> "Translation failed"
+    Lang.RU -> "Ошибка перевода"
 }

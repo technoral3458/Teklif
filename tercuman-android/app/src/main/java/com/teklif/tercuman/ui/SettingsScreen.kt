@@ -146,9 +146,9 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 value = s.glossary,
                 onValueChange = { v -> vm.updateSettings { it.copy(glossary = v) } },
                 label = { Text("Terim sözlüğü") },
-                placeholder = { Text("membran kapak = membrane cover = 薄膜盖板\nteklif = quotation = 报价") },
+                placeholder = { Text("membran kapak = membrane cover = 薄膜盖板\nteklif = quotation = 报价 = коммерческое предложение") },
                 minLines = 3,
-                supportingText = { Text("Her satıra bir terim: Türkçe = English = 中文") },
+                supportingText = { Text("Her satıra bir terim, dillerin karşılıkları '=' ile ayrılır") },
                 modifier = Modifier.fillMaxWidth(),
             )
 

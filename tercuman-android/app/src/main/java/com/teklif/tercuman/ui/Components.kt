@@ -2,6 +2,11 @@ package com.teklif.tercuman.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -44,20 +49,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teklif.tercuman.R
 import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.translate.LangPair
 
-/** Türkçe tuşu mavi, Çince tuşu sarı. */
-val TurkeyBlue = Color(0xFF1565C0)
-val ChinaGold = Color(0xFFF9A825)
-
-fun Lang.color(): Color = if (this == Lang.TR) TurkeyBlue else ChinaGold
+/** Her dilin tuş/balon rengi: Türkçe mavi, Çince sarı, İngilizce yeşil, Rusça kırmızı. */
+fun Lang.color(): Color = when (this) {
+    Lang.TR -> Color(0xFF1565C0)
+    Lang.ZH -> Color(0xFFF9A825)
+    Lang.EN -> Color(0xFF2E7D32)
+    Lang.RU -> Color(0xFFC62828)
+}
 
 /** Sarı zemin üzerinde beyaz okunmaz; Çince tuşunda koyu simge/yazı kullanılır. */
-fun Lang.onColor(): Color = if (this == Lang.TR) Color.White else Color(0xFF212121)
+fun Lang.onColor(): Color = if (this == Lang.ZH) Color(0xFF212121) else Color.White
 
 /** Açık zemin üzerinde okunur dil rengi (balon başlığı için). */
-fun Lang.textColor(): Color = if (this == Lang.TR) TurkeyBlue else Color(0xFFB26A00)
-
-fun Lang.flag(): String = if (this == Lang.TR) "🇹🇷" else "🇨🇳"
+fun Lang.textColor(): Color = if (this == Lang.ZH) Color(0xFFB26A00) else color()
 
 /**
  * Ses seviyesine göre büyüyüp küçülen yuvarlak mikrofon tuşu.
@@ -138,13 +144,27 @@ private const val HOLD_MS = 350L
 @Composable
 fun UtteranceCard(
     utterance: Utterance,
+    pair: LangPair,
     onSpeak: () -> Unit,
     onRetry: () -> Unit,
+    onEdit: (String) -> Unit,
 ) {
     val source = utterance.source
     val result = utterance.result
-    // WhatsApp düzeni: Türkçe konuşan solda mavi balon, Çince konuşan sağda sarı balon.
-    val alignEnd = source == Lang.ZH
+    // WhatsApp düzeni: soldaki dilin (a) konuşanı solda, sağdaki dilin (b) konuşanı sağda.
+    val alignEnd = source == pair.b
+    var editing by remember { mutableStateOf(false) }
+    if (editing) {
+        EditDialog(
+            initial = result?.cleanedSource ?: utterance.rawText,
+            lang = source,
+            onDismiss = { editing = false },
+            onConfirm = { text ->
+                editing = false
+                onEdit(text)
+            },
+        )
+    }
     val accent = source?.color() ?: MaterialTheme.colorScheme.outline
     val bubbleShape = RoundedCornerShape(
         topStart = 18.dp,
@@ -165,17 +185,30 @@ fun UtteranceCard(
         ) {
             Column(Modifier.padding(14.dp)) {
                 Text(
-                    text = source?.let { "${it.flag()} ${it.displayName}" } ?: "…",
+                    text = source?.let { "${it.flag} ${it.displayName}" } ?: "…",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = source?.textColor() ?: MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
                 )
-                Text(
-                    text = result?.cleanedSource ?: utterance.rawText,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                // Tanınan metin: dokununca klavyeyle düzeltilip yeniden çevrilir.
+                Row(
+                    Modifier.fillMaxWidth().clickable { editing = true },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = result?.cleanedSource ?: utterance.rawText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Düzelt",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(8.dp))
@@ -184,7 +217,7 @@ fun UtteranceCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    text = "${result.target.flag()} ${result.translation}",
+                                    text = "${result.target.flag} ${result.translation}",
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     lineHeight = 30.sp,
@@ -239,4 +272,31 @@ fun UtteranceCard(
             }
         }
     }
+}
+
+/** Tanınan metni düzeltme penceresi. */
+@Composable
+private fun EditDialog(
+    initial: String,
+    lang: Lang?,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(lang?.let { "${it.flag} ${it.displayName}" } ?: "Düzelt") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Çevir") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Vazgeç") } },
+    )
 }
