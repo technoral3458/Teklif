@@ -1,5 +1,6 @@
 package com.teklif.tercuman.speech
 
+import com.teklif.tercuman.ui.L
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
@@ -14,7 +15,7 @@ class Speaker(context: Context, private val onProblem: (String) -> Unit) {
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         ready = status == TextToSpeech.SUCCESS
         if (!ready) {
-            onProblem("Sesli okuma motoru başlatılamadı.")
+            onProblem(L.current.errTtsInit)
         } else {
             queued?.let { (text, lang) -> speak(text, lang) }
         }
@@ -29,9 +30,7 @@ class Speaker(context: Context, private val onProblem: (String) -> Unit) {
         }
         val result = tts.setLanguage(lang.locale)
         if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-            onProblem(
-                "Telefonda ${lang.displayName} ses paketi yok. Ayarlar > Metin okuma çıkışı bölümünden indirin."
-            )
+            onProblem(L.current.errVoiceMissing(lang))
             return
         }
         bestVoice(lang)?.let { tts.voice = it }

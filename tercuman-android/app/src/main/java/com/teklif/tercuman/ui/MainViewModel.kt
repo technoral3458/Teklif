@@ -79,6 +79,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
     private val _state = MutableStateFlow(UiState(settings = store.load()))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+    init {
+        L.current = _state.value.settings.uiLang.strings()
+    }
+
     private val phoneInput = PhoneSpeechInput(app, this) { _state.value.settings.silenceMs }
     private val whisperInput = WhisperSpeechInput(
         scope = viewModelScope,
@@ -106,6 +110,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
 
     fun updateSettings(transform: (AppSettings) -> AppSettings) {
         val updated = transform(_state.value.settings)
+        L.current = updated.uiLang.strings()
         store.save(updated)
         _state.update { it.copy(settings = updated) }
     }
@@ -166,7 +171,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
         }
         stopOnRelease = false
         if (_state.value.settings.apiKey.isBlank()) {
-            showMessage("Önce Ayarlar'dan Claude API anahtarını girin.")
+            showMessage(L.current.enterApiKeyFirst)
             _state.update { it.copy(screen = Screen.SETTINGS) }
             return
         }
@@ -279,7 +284,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app), VoiceInput.Listen
                     spoken = true
                 }
                 .onFailure { e ->
-                    val msg = (e as? TranslationException)?.message ?: "Çeviri başarısız: ${e.message}"
+                    val msg = (e as? TranslationException)?.message ?: L.current.translationFailed(e.message)
                     replace(id) { it.copy(error = msg) }
                 }
         }

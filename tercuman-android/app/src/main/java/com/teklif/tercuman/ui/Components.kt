@@ -204,7 +204,7 @@ fun UtteranceCard(
                     )
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Düzelt",
+                        contentDescription = L.current.edit,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 6.dp).size(18.dp),
                     )
@@ -231,20 +231,20 @@ fun UtteranceCard(
                                 }
                             }
                             IconButton(onClick = onSpeak) {
-                                Icon(painterResource(R.drawable.ic_volume), contentDescription = "Seslendir")
+                                Icon(painterResource(R.drawable.ic_volume), contentDescription = L.current.speak)
                             }
                         }
                         if (result.english.isNotBlank()) {
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = "EN köprü: ${result.english}",
+                                text = "${L.current.enBridge}: ${result.english}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         if (result.note.isNotBlank()) {
                             Text(
-                                text = "Not: ${result.note}",
+                                text = "${L.current.note}: ${result.note}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.tertiary,
                             )
@@ -252,7 +252,7 @@ fun UtteranceCard(
                     }
                     utterance.error != null -> {
                         Text(utterance.error, color = MaterialTheme.colorScheme.error)
-                        TextButton(onClick = onRetry) { Text("Tekrar dene") }
+                        TextButton(onClick = onRetry) { Text(L.current.retry) }
                     }
                     else -> Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -265,7 +265,7 @@ fun UtteranceCard(
                                 lineHeight = 30.sp,
                             )
                         } else {
-                            Text("Çevriliyor… / 翻译中…", style = MaterialTheme.typography.bodyMedium)
+                            Text(L.current.translating, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
@@ -285,7 +285,7 @@ private fun EditDialog(
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(lang?.let { "${it.flag} ${it.displayName}" } ?: "Düzelt") },
+        title = { Text(lang?.let { "${it.flag} ${it.displayName}" } ?: L.current.edit) },
         text = {
             OutlinedTextField(
                 value = text,
@@ -295,8 +295,8 @@ private fun EditDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Çevir") }
+            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(L.current.translate) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Vazgeç") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(L.current.cancel) } },
     )
 }

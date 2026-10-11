@@ -31,25 +31,26 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
-private val EFFORTS = listOf("low" to "Hızlı", "medium" to "Dengeli", "high" to "En iyi")
-private val SILENCES = listOf(0L to "Dokununca", 1000L to "1 sn", 2000L to "2 sn", 3000L to "3 sn", 4000L to "4 sn", 5000L to "5 sn")
+private val SILENCES = listOf(0L, 1000L, 2000L, 3000L, 4000L, 5000L)
 private val MODELS = listOf(
-    "claude-opus-5-5" to "Opus",
-    "claude-sonnet-5-5" to "Sonnet",
     "claude-haiku-5-5" to "Haiku",
+    "claude-sonnet-5-5" to "Sonnet",
+    "claude-opus-5-5" to "Opus",
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(state: UiState, vm: MainViewModel) {
     val s = state.settings
+    val t = s.uiLang.strings()
+    val efforts = listOf("low" to t.qualityFast, "medium" to t.qualityBalanced, "high" to t.qualityBest)
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ayarlar") },
+                title = { Text(t.settings) },
                 navigationIcon = {
                     IconButton(onClick = { vm.navigate(Screen.CHAT) }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t.back)
                     }
                 },
             )
@@ -64,61 +65,57 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Text(t.uiLangTitle, style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                UiLang.entries.forEach { ul ->
+                    FilterChip(
+                        selected = s.uiLang == ul,
+                        onClick = { vm.updateSettings { it.copy(uiLang = ul) } },
+                        label = { Text("${ul.flag} ${ul.label}") },
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = s.apiKey,
                 onValueChange = { v -> vm.updateSettings { it.copy(apiKey = v.trim()) } },
-                label = { Text("Claude API anahtarı") },
+                label = { Text(t.apiKeyLabel) },
                 placeholder = { Text("sk-ant-…") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                supportingText = { Text("console.anthropic.com → API Keys. Sadece bu telefonda saklanır.") },
+                supportingText = { Text(t.apiKeyHelp) },
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Text("Ses tanıma ve otomatik dil algılama", style = MaterialTheme.typography.titleSmall)
+            Text(t.speechSection, style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(
                 value = s.openAiKey,
                 onValueChange = { v -> vm.updateSettings { it.copy(openAiKey = v.trim()) } },
-                label = { Text("OpenAI API anahtarı (isteğe bağlı, önerilir)") },
+                label = { Text(t.openAiLabel) },
                 placeholder = { Text("sk-…") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                supportingText = {
-                    Text(
-                        if (s.openAiKey.isBlank()) {
-                            "Boşsa telefonun kendi ses tanıması kullanılır. Doldurursanız Whisper konuşulan dili " +
-                                "sesten algılar: aynı kişi art arda konuşsa da doğru dil seçilir. " +
-                                "platform.openai.com → API keys."
-                        } else {
-                            "Whisper etkin: konuşulan dil sesten otomatik algılanır."
-                        }
-                    )
-                },
+                supportingText = { Text(if (s.openAiKey.isBlank()) t.openAiHelpEmpty else t.openAiHelpSet) },
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Text("Mikrofon ne zaman kapansın?", style = MaterialTheme.typography.titleSmall)
+            Text(t.micCloseTitle, style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SILENCES.forEach { (value, label) ->
+                SILENCES.forEach { value ->
                     FilterChip(
                         selected = s.silenceMs == value,
                         onClick = { vm.updateSettings { it.copy(silenceMs = value) } },
-                        label = { Text(label) },
+                        label = { Text(if (value == 0L) t.onTap else t.seconds((value / 1000).toInt())) },
                     )
                 }
             }
-            Text(
-                "Dokununca: bitirince tuşa tekrar dokunun ya da basılı tutup bırakın. " +
-                    "Saniye seçeneklerinde konuşma bittikten o kadar sessizlik sonra mikrofon kendiliğinden kapanır.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Help(t.micCloseHelp)
 
-            Text("Çeviri kalitesi / hız", style = MaterialTheme.typography.titleSmall)
+            Text(t.qualityTitle, style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EFFORTS.forEach { (value, label) ->
+                efforts.forEach { (value, label) ->
                     FilterChip(
                         selected = s.effort == value,
                         onClick = { vm.updateSettings { it.copy(effort = value) } },
@@ -126,70 +123,33 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                     )
                 }
             }
-            Text(
-                "Hızlı: yüz yüze sohbet için önerilir. En iyi: daha yavaş ama daha özenli.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Help(t.qualityHelp)
 
             OutlinedTextField(
                 value = s.topic,
                 onValueChange = { v -> vm.updateSettings { it.copy(topic = v) } },
-                label = { Text("Görüşmenin konusu (anlam yükleme)") },
-                placeholder = { Text("Örn: CNC membran kapak üretimi, fiyat teklifi ve teslim süresi görüşmesi") },
+                label = { Text(t.topicLabel) },
+                placeholder = { Text(t.topicPlaceholder) },
                 minLines = 2,
-                supportingText = { Text("Yapay zekâ terimleri bu bağlama göre seçer.") },
+                supportingText = { Text(t.topicHelp) },
                 modifier = Modifier.fillMaxWidth(),
             )
 
             OutlinedTextField(
                 value = s.glossary,
                 onValueChange = { v -> vm.updateSettings { it.copy(glossary = v) } },
-                label = { Text("Terim sözlüğü") },
-                placeholder = { Text("membran kapak = membrane cover = 薄膜盖板\nteklif = quotation = 报价 = коммерческое предложение") },
+                label = { Text(t.glossaryLabel) },
+                placeholder = { Text(t.glossaryPlaceholder) },
                 minLines = 3,
-                supportingText = { Text("Her satıra bir terim, dillerin karşılıkları '=' ile ayrılır") },
+                supportingText = { Text(t.glossaryHelp) },
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Çeviriyi sesli oku", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Her çeviri karşı tarafın dilinde otomatik okunur.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = s.autoSpeak, onCheckedChange = { v -> vm.updateSettings { it.copy(autoSpeak = v) } })
-            }
+            SwitchRow(t.autoSpeakTitle, t.autoSpeakHelp, s.autoSpeak) { v -> vm.updateSettings { it.copy(autoSpeak = v) } }
+            SwitchRow(t.pinyinTitle, t.pinyinHelp, s.pinyin) { v -> vm.updateSettings { it.copy(pinyin = v) } }
+            SwitchRow(t.economyTitle, t.economyHelp, s.economy) { v -> vm.updateSettings { it.copy(economy = v) } }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Çince altında pinyin okunuşu", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Kapalıyken çeviri daha hızlı biter.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = s.pinyin, onCheckedChange = { v -> vm.updateSettings { it.copy(pinyin = v) } })
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Ekonomik mod", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Yalnızca çeviri üretilir; İngilizce köprü, düzeltilmiş metin ve not yazılmaz, " +
-                            "daha az geçmiş gönderilir. Token kullanımı yaklaşık yarıya iner, çeviri daha hızlı biter.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = s.economy, onCheckedChange = { v -> vm.updateSettings { it.copy(economy = v) } })
-            }
-
-            Text("Yapay zekâ modeli", style = MaterialTheme.typography.titleSmall)
+            Text(t.modelTitle, style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MODELS.forEach { (value, label) ->
                     FilterChip(
@@ -199,11 +159,23 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                     )
                 }
             }
-            Text(
-                "Haiku: en hızlı ve en ucuz (önerilir). Sonnet: 20 kat pahalı, daha nüanslı. Opus: 40 kat pahalı, en doğru.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Help(t.modelHelp)
         }
+    }
+}
+
+@Composable
+private fun Help(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun SwitchRow(title: String, help: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Help(help)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

@@ -54,6 +54,7 @@ fun ChatScreen(
     onMicPress: (Lang?) -> Unit,
     onMicRelease: (Boolean) -> Unit,
 ) {
+    val t = state.settings.uiLang.strings()
     val listState = rememberLazyListState()
     LaunchedEffect(state.utterances.size, state.utterances.lastOrNull()?.pending) {
         if (state.utterances.isNotEmpty()) listState.animateScrollToItem(state.utterances.lastIndex)
@@ -62,16 +63,16 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tercüman  TR ⇄ 中文") },
+                title = { Text("${t.appTitle}  ${state.settings.pair.a.flag} ⇄ ${state.settings.pair.b.flag}") },
                 actions = {
                     IconButton(onClick = { vm.navigate(Screen.FACE_TO_FACE) }) {
-                        Icon(painterResource(R.drawable.ic_face_to_face), contentDescription = "Yüz yüze mod")
+                        Icon(painterResource(R.drawable.ic_face_to_face), contentDescription = t.faceToFace)
                     }
                     IconButton(onClick = vm::clearConversation) {
-                        Icon(Icons.Default.Delete, contentDescription = "Konuşmayı temizle")
+                        Icon(Icons.Default.Delete, contentDescription = t.clearChat)
                     }
                     IconButton(onClick = { vm.navigate(Screen.SETTINGS) }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Ayarlar")
+                        Icon(Icons.Default.Settings, contentDescription = t.settings)
                     }
                 },
             )

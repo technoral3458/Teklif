@@ -1,5 +1,6 @@
 package com.teklif.tercuman.data
 
+import com.teklif.tercuman.ui.UiLang
 import android.content.Context
 import com.teklif.tercuman.translate.EngineConfig
 import com.teklif.tercuman.translate.Lang
@@ -23,6 +24,8 @@ data class AppSettings(
     val economy: Boolean = true,
     /** Soldaki (kullanıcı) ve sağdaki (misafir) tuşların dilleri. */
     val pair: LangPair = LangPair.DEFAULT,
+    /** Uygulama arayüz dili. */
+    val uiLang: UiLang = UiLang.TR,
 ) {
     fun toEngineConfig() = EngineConfig(
         apiKey = apiKey.trim(),
@@ -55,6 +58,7 @@ class SettingsStore(context: Context) {
             a = Lang.fromCode(prefs.getString(KEY_LANG_A, null)) ?: LangPair.DEFAULT.a,
             b = Lang.fromCode(prefs.getString(KEY_LANG_B, null)) ?: LangPair.DEFAULT.b,
         ),
+        uiLang = UiLang.fromCode(prefs.getString(KEY_UI_LANG, null)) ?: UiLang.TR,
     )
 
     /**
@@ -86,6 +90,7 @@ class SettingsStore(context: Context) {
             .putBoolean(KEY_ECONOMY, s.economy)
             .putString(KEY_LANG_A, s.pair.a.code)
             .putString(KEY_LANG_B, s.pair.b.code)
+            .putString(KEY_UI_LANG, s.uiLang.code)
             .apply()
     }
 
@@ -102,6 +107,7 @@ class SettingsStore(context: Context) {
         const val KEY_ECONOMY = "economy"
         const val KEY_LANG_A = "lang_a"
         const val KEY_LANG_B = "lang_b"
+        const val KEY_UI_LANG = "ui_lang"
         const val KEY_MIGRATED_HAIKU = "migrated_haiku_default"
     }
 }

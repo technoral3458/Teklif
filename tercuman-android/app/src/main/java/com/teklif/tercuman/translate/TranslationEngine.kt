@@ -1,5 +1,6 @@
 package com.teklif.tercuman.translate
 
+import com.teklif.tercuman.ui.L
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.core.JsonValue
@@ -100,13 +101,13 @@ class TranslationEngine(private val config: EngineConfig) {
                 stream(buildParams(text, pair, forcedSource, scriptHint, history, withFallback = false), forcedSource, onProgress)
             }
         } catch (e: UnauthorizedException) {
-            throw TranslationException("API anahtarı geçersiz. Ayarlardan kontrol edin.", e)
+            throw TranslationException(L.current.errApiKey, e)
         } catch (e: RateLimitException) {
-            throw TranslationException("Çok fazla istek. Birkaç saniye sonra tekrar deneyin.", e)
+            throw TranslationException(L.current.errRateLimit, e)
         } catch (e: AnthropicServiceException) {
-            throw TranslationException("Çeviri servisi hatası (${e.statusCode()}): ${e.message}", e)
+            throw TranslationException(L.current.errService(e.statusCode(), e.message), e)
         } catch (e: AnthropicIoException) {
-            throw TranslationException("İnternet bağlantısı yok veya zayıf.", e)
+            throw TranslationException(L.current.errNetwork, e)
         }
         return parse(response, text, pair, forcedSource, scriptHint)
     }
@@ -179,18 +180,18 @@ class TranslationEngine(private val config: EngineConfig) {
         scriptHint: Lang?,
     ): TranslationResult {
         if (response.stopReason().orElse(null) == StopReason.REFUSAL) {
-            throw TranslationException("Bu cümle çevrilemedi. Lütfen farklı ifade edin.")
+            throw TranslationException(L.current.errRefused)
         }
 
         val json = response.content()
             .mapNotNull { block -> block.text().orElse(null)?.text() }
             .joinToString("")
-        if (json.isBlank()) throw TranslationException("Boş yanıt alındı, tekrar deneyin.")
+        if (json.isBlank()) throw TranslationException(L.current.errEmpty)
 
         val node = try {
             mapper.readTree(json)
         } catch (e: Exception) {
-            throw TranslationException("Yanıt okunamadı, tekrar deneyin.", e)
+            throw TranslationException(L.current.errParse, e)
         }
 
         val source = forcedSource

@@ -1,5 +1,6 @@
 package com.teklif.tercuman.speech
 
+import com.teklif.tercuman.ui.L
 import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -62,27 +63,27 @@ class WhisperSpeechInput(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: SecurityException) {
-                listener.onSpeechError("Mikrofon izni verilmedi.")
+                listener.onSpeechError(L.current.errMicPermission)
                 return@launch
             } catch (e: Exception) {
-                listener.onSpeechError("Mikrofon kullanılamıyor.")
+                listener.onSpeechError(L.current.errMic)
                 return@launch
             }
             when (audio) {
                 null -> if (stopRequested) listener.onIdle()
-                else listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.")
+                else listener.onSpeechError(L.current.errNoSpeech)
                 else -> {
                     listener.onPartial("…")
                     val outcome = withContext(Dispatchers.IO) { runCatching { transcribe(audio, forced, pair) } }
                     outcome
                         .onSuccess { (text, lang) ->
                             if (text.isBlank() || isHallucination(text)) {
-                                listener.onSpeechError("Ses anlaşılamadı, tekrar deneyin.")
+                                listener.onSpeechError(L.current.errNotUnderstood)
                             } else {
                                 listener.onFinal(text, forced ?: lang)
                             }
                         }
-                        .onFailure { e -> listener.onSpeechError(e.message ?: "Ses tanıma hatası.") }
+                        .onFailure { e -> listener.onSpeechError(e.message ?: L.current.errSpeechCode(0)) }
                 }
             }
         }
@@ -216,16 +217,16 @@ class WhisperSpeechInput(
         val response = try {
             http.newCall(request).execute()
         } catch (e: IOException) {
-            throw IOException("Ses tanıma için internet bağlantısı gerekli.", e)
+            throw IOException(L.current.errSpeechInternet, e)
         }
         response.use { r ->
             val text = r.body?.string().orEmpty()
             if (!r.isSuccessful) {
                 throw IOException(
                     when (r.code) {
-                        401 -> "OpenAI anahtarı geçersiz. Ayarlardan kontrol edin."
-                        429 -> "OpenAI kotası/bakiyesi yetersiz veya çok fazla istek."
-                        else -> "Ses tanıma hatası (${r.code})."
+                        401 -> L.current.errOpenAiKey
+                        429 -> L.current.errOpenAiQuota
+                        else -> L.current.errSpeechCode(r.code)
                     }
                 )
             }

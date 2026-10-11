@@ -11,6 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import com.teklif.tercuman.translate.Lang
+import com.teklif.tercuman.ui.L
 import com.teklif.tercuman.translate.LangPair
 
 /**
@@ -30,12 +31,7 @@ class PhoneSpeechInput(
     private val silenceMs: () -> Long,
 ) : VoiceInput {
 
-    private val recognizer: SpeechRecognizer? =
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
-        } else {
-            null
-        }
+    private val recognizer: SpeechRecognizer? = createRecognizer(context)
     private val handler = Handler(Looper.getMainLooper())
     private val muter = SystemSoundMuter(context)
 
@@ -119,7 +115,7 @@ class PhoneSpeechInput(
 
     override fun start(forced: Lang?, pair: LangPair) {
         if (recognizer == null) {
-            listener.onSpeechError("Bu telefonda konuşma tanıma servisi yok. Google uygulamasını yükleyin/güncelleyin.")
+            listener.onSpeechError(L.current.errNoRecognizer)
             return
         }
         this.forced = forced
@@ -176,7 +172,7 @@ class PhoneSpeechInput(
             userStopped -> finishWithWhatWeHave()
             silence > 0 && segments.isNotEmpty() && now - lastTextAt >= silence -> finishWithWhatWeHave()
             segments.isEmpty() && !speechHeardAny && now - startedAt > VoiceInput.MAX_WAIT_FOR_SPEECH_MS ->
-                finish { listener.onSpeechError("Uzun süre ses gelmedi. Tekrar dokunun.") }
+                finish { listener.onSpeechError(L.current.errNoSpeech) }
             now - startedAt > MAX_SESSION_MS -> finishWithWhatWeHave()
             else -> begin()
         }
@@ -186,7 +182,7 @@ class PhoneSpeechInput(
         val text = accumulated()
         when {
             text.isNotBlank() -> finish { listener.onFinal(text, detectedOverall) }
-            speechHeardAny -> finish { listener.onSpeechError("Anlaşılamadı. Dil tuşuyla tekrar deneyin · 请再说一遍") }
+            speechHeardAny -> finish { listener.onSpeechError(L.current.errNotUnderstood) }
             else -> finish { listener.onIdle() }
         }
     }
@@ -242,15 +238,28 @@ class PhoneSpeechInput(
         this?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
 
     private fun errorText(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Konuşma tanıma için internet gerekli."
-        SpeechRecognizer.ERROR_AUDIO -> "Mikrofon kullanılamıyor."
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mikrofon izni verilmedi."
-        ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE ->
-            "Bu dil telefonda desteklenmiyor. Google uygulamasında ilgili dil paketini indirin."
-        else -> "Konuşma tanıma hatası ($error)."
+        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> L.current.errSpeechInternet
+        SpeechRecognizer.ERROR_AUDIO -> L.current.errMic
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> L.current.errMicPermission
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> L.current.errRecognizerBusy
+        ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE -> L.current.errLangUnsupported
+        else -> L.current.errSpeechCode(error)
     }
 
     private companion object {
+        /**
+         * Önce varsayılan (Google) servis; o yoksa Android 12+ cihaz içi tanıyıcı. Bazı Samsung
+         * ve Google servisi olmayan telefonlarda yalnızca ikincisi bulunur.
+         */
+        fun createRecognizer(context: Context): SpeechRecognizer? = runCatching {
+            when {
+                SpeechRecognizer.isRecognitionAvailable(context) -> SpeechRecognizer.createSpeechRecognizer(context)
+                Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context) ->
+                    SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                else -> null
+            }
+        }.getOrNull()
+
         // SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED / ERROR_LANGUAGE_UNAVAILABLE (API 31)
         const val ERROR_LANGUAGE_NOT_SUPPORTED = 12
         const val ERROR_LANGUAGE_UNAVAILABLE = 13

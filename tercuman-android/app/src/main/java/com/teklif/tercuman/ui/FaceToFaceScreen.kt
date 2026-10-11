@@ -65,7 +65,7 @@ fun FaceToFaceScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     IconButton(onClick = { vm.navigate(Screen.CHAT) }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Sohbete dön")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = L.current.back)
                     }
                     MicButton(
                         listening = state.listening && state.listeningFor == null,
