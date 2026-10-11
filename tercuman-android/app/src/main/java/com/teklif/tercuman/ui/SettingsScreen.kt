@@ -2,6 +2,8 @@ package com.teklif.tercuman.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,14 +32,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 private val EFFORTS = listOf("low" to "Hızlı", "medium" to "Dengeli", "high" to "En iyi")
-private val SILENCES = listOf(0L to "Dokununca", 3000L to "3 sn sessizlik", 5000L to "5 sn sessizlik")
+private val SILENCES = listOf(0L to "Dokununca", 1000L to "1 sn", 2000L to "2 sn", 3000L to "3 sn", 4000L to "4 sn", 5000L to "5 sn")
 private val MODELS = listOf(
     "claude-opus-5-5" to "Opus",
     "claude-sonnet-5-5" to "Sonnet",
     "claude-haiku-5-5" to "Haiku",
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(state: UiState, vm: MainViewModel) {
     val s = state.settings
@@ -98,7 +100,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             )
 
             Text("Mikrofon ne zaman kapansın?", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SILENCES.forEach { (value, label) ->
                     FilterChip(
                         selected = s.silenceMs == value,
@@ -108,8 +110,8 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 }
             }
             Text(
-                "Dokununca: istediğiniz kadar uzun konuşun, bitirince tuşa tekrar dokunun (önerilir). " +
-                    "Sessizlik seçeneklerinde mikrofon kendiliğinden kapanır; telefonun kendi tanımasında bu süre yaklaşıktır.",
+                "Dokununca: bitirince tuşa tekrar dokunun ya da basılı tutup bırakın. " +
+                    "Saniye seçeneklerinde konuşma bittikten o kadar sessizlik sonra mikrofon kendiliğinden kapanır.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

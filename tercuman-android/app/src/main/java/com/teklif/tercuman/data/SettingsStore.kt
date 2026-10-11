@@ -43,8 +43,8 @@ class SettingsStore(context: Context) {
         glossary = prefs.getString(KEY_GLOSSARY, "") ?: "",
         autoSpeak = prefs.getBoolean(KEY_AUTO_SPEAK, true),
         openAiKey = prefs.getString(KEY_OPENAI, "") ?: "",
-        // Eski sürümlerin kısa süreleri (1-2,5 sn) konuşmayı erken kesiyordu: dokununca-bitir'e taşı.
-        silenceMs = prefs.getLong(KEY_SILENCE, 0L).let { if (it in 1 until 3000) 0L else it },
+        // Eski sürümlerden kalan ara değerler (1,5 / 2,5 sn) 1-5 sn seçeneklerine yuvarlanır.
+        silenceMs = prefs.getLong(KEY_SILENCE, 0L).let { if (it <= 0) 0L else ((it + 500) / 1000).coerceIn(1, 5) * 1000 },
         pinyin = prefs.getBoolean(KEY_PINYIN, false),
         economy = prefs.getBoolean(KEY_ECONOMY, true),
     )

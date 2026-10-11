@@ -1,6 +1,7 @@
 package com.teklif.tercuman.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,8 +35,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +53,9 @@ fun Lang.color(): Color = if (this == Lang.TR) TurkeyBlue else ChinaGold
 
 /** Sarı zemin üzerinde beyaz okunmaz; Çince tuşunda koyu simge/yazı kullanılır. */
 fun Lang.onColor(): Color = if (this == Lang.TR) Color.White else Color(0xFF212121)
+
+/** Açık zemin üzerinde okunur dil rengi (balon başlığı için). */
+fun Lang.textColor(): Color = if (this == Lang.TR) TurkeyBlue else Color(0xFFB26A00)
 
 fun Lang.flag(): String = if (this == Lang.TR) "🇹🇷" else "🇨🇳"
 
@@ -136,23 +143,34 @@ fun UtteranceCard(
 ) {
     val source = utterance.source
     val result = utterance.result
+    // WhatsApp düzeni: Türkçe konuşan solda mavi balon, Çince konuşan sağda sarı balon.
     val alignEnd = source == Lang.ZH
+    val accent = source?.color() ?: MaterialTheme.colorScheme.outline
+    val bubbleShape = RoundedCornerShape(
+        topStart = 18.dp,
+        topEnd = 18.dp,
+        bottomStart = if (alignEnd) 18.dp else 4.dp,
+        bottomEnd = if (alignEnd) 4.dp else 18.dp,
+    )
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().padding(start = if (alignEnd) 36.dp else 0.dp, end = if (alignEnd) 0.dp else 36.dp),
         horizontalArrangement = if (alignEnd) Arrangement.End else Arrangement.Start,
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(0.92f),
+            shape = bubbleShape,
             colors = CardDefaults.cardColors(
-                containerColor = if (alignEnd) MaterialTheme.colorScheme.secondaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant
+                containerColor = accent.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surface),
             ),
+            border = BorderStroke(1.5.dp, accent.copy(alpha = 0.6f)),
         ) {
             Column(Modifier.padding(14.dp)) {
                 Text(
                     text = source?.let { "${it.flag()} ${it.displayName}" } ?: "…",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = source?.textColor() ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
                 )
                 Text(
                     text = result?.cleanedSource ?: utterance.rawText,

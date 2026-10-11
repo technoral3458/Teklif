@@ -6,7 +6,7 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 1. **Mikrofon** → Mavi tuş Türkçe, sarı tuş Çince. **Basılı tutup** konuşursunuz, bırakınca
    çeviri başlar. Kısa dokunuşta mikrofon açık kalır, ikinci dokunuş bitirir; kelime aralarındaki
-   duraklamalar konuşmayı kesmez (Ayarlar'dan 3 / 5 sn sessizlikte kendiliğinden kapanma da seçilebilir). Ortadaki küçük
+   duraklamalar konuşmayı kesmez (Ayarlar'dan 1–5 sn sessizlikte kendiliğinden kapanma da seçilebilir). Ortadaki küçük
    *Otomatik* tuş dili kendisi algılamaya çalışır. Ses tanıma için iki yol vardır:
    - **OpenAI Whisper** (Ayarlar'a OpenAI anahtarı girilirse, önerilir): Dil sesten algılanır, her telefonda güvenilir.
    - **Telefonun ses tanıması** (anahtar yoksa): Türkçe + Çince birlikte dinlenir; Android 14+ telefonlarda
@@ -25,7 +25,7 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
 
 ## Ekranlar
 
-- **Sohbet**: Altta iki büyük tuş: 🇹🇷 **Türkçe** (mavi) ve 🇨🇳 **中文** (sarı); aralarında küçük *Otomatik* tuş.
+- **Sohbet**: WhatsApp düzeni: Türkçe konuşan solda mavi balon, Çince konuşan sağda sarı balon. Altta iki büyük tuş: 🇹🇷 **Türkçe** (mavi) ve 🇨🇳 **中文** (sarı); aralarında küçük *Otomatik* tuş.
   Basılı tut-konuş-bırak, ya da dokun-konuş-tekrar dokun.
 - **Yüz yüze mod** (üstteki iki kişi simgesi): Telefonu masaya koyun. Üst yarı Çinli misafire dönük
   (ters çevrili), alt yarı size. Herkesin kendi mikrofon tuşu var; ortadaki küçük tuş otomatik algılar.
@@ -34,7 +34,7 @@ Türkçe ile Çince arasında, yapay zekâ (Claude) destekli, sesli çeviri uygu
   - *Claude API anahtarı* (zorunlu)
   - *OpenAI API anahtarı* (isteğe bağlı): https://platform.openai.com → *API keys*. Ses tanıma
     dakikası yaklaşık 0,6 sent.
-  - *Mikrofon ne zaman kapansın*: Dokununca (önerilir) / 3 sn / 5 sn sessizlik
+  - *Mikrofon ne zaman kapansın*: Dokununca / 1, 2, 3, 4, 5 sn sessizlik
   - *Görüşmenin konusu*: örn. "CNC membran kapak üretimi, fiyat teklifi". Terimler buna göre seçilir.
   - *Terim sözlüğü*: Her satıra `Türkçe = English = 中文`. Bu terimler her zaman aynen kullanılır.
   - *Ekonomik mod* (varsayılan açık): yalnızca çeviri, az geçmiş; maliyet ve süre yarıya iner
