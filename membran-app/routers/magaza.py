@@ -10,6 +10,7 @@ Admin tarafından tamamen ayrıdır:
 """
 import json
 import os
+import uuid
 
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -24,11 +25,12 @@ from config import BASE_DIR
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-CUST_COOKIE = "csession"
+CUST_COOKIE = "csession"   # giriş yapmış müşteri
+GUEST_COOKIE = "gcart"     # misafir sepet anahtarı
 
 
 # --------------------------------------------------------------------------
-# Müşteri oturumu
+# Müşteri / misafir oturumu
 # --------------------------------------------------------------------------
 def current_customer(request: Request):
     """Geçerli müşteri satırını döner (role='customer'), yoksa None."""
@@ -39,18 +41,50 @@ def current_customer(request: Request):
     return u
 
 
-def _cart(username):
-    return db.query("SELECT * FROM shop_cart WHERE customer_user=? ORDER BY id", (username,))
+def _owner(request: Request):
+    """Sepet sahibi anahtarı. (key, is_guest, cust)
+    Giriş yapmışsa kullanıcı adı; değilse misafir çerez anahtarı (yoksa None)."""
+    cust = current_customer(request)
+    if cust:
+        return cust["username"], False, cust
+    token = request.cookies.get(GUEST_COOKIE, "")
+    return (f"guest:{token}" if token else None), True, None
 
 
-def _cart_count(username):
-    r = db.one("SELECT COUNT(*) c FROM shop_cart WHERE customer_user=?", (username,))
+def _ensure_guest_token(request: Request):
+    """Misafir için sepet anahtarı üretir; (owner_key, yeni_token_or_None)."""
+    token = request.cookies.get(GUEST_COOKIE, "")
+    new = None
+    if not token:
+        token = uuid.uuid4().hex
+        new = token
+    return f"guest:{token}", new
+
+
+def _absorb_guest_cart(request: Request, username: str):
+    """Misafirken eklenen sepet ürünlerini giriş yapan kullanıcıya aktar."""
+    token = request.cookies.get(GUEST_COOKIE, "")
+    if token:
+        db.execute("UPDATE shop_cart SET customer_user=? WHERE customer_user=?",
+                   (username, f"guest:{token}"))
+
+
+def _cart(owner):
+    if not owner:
+        return []
+    return db.query("SELECT * FROM shop_cart WHERE customer_user=? ORDER BY id", (owner,))
+
+
+def _cart_count(owner):
+    if not owner:
+        return 0
+    r = db.one("SELECT COUNT(*) c FROM shop_cart WHERE customer_user=?", (owner,))
     return r["c"] if r else 0
 
 
 def _ctx(request, cust, **extra):
-    base = {"request": request, "cust": cust,
-            "cart_count": _cart_count(cust["username"]) if cust else 0}
+    owner, _is_guest, _c = _owner(request)
+    base = {"request": request, "cust": cust, "cart_count": _cart_count(owner)}
     base.update(extra)
     return base
 
@@ -59,59 +93,88 @@ def _ctx(request, cust, **extra):
 # Kayıt / Giriş / Çıkış
 # --------------------------------------------------------------------------
 @router.get("/magaza/kayit", response_class=HTMLResponse)
-async def kayit_page(request: Request):
+async def kayit_page(request: Request, next: str = "/magaza"):
     if current_customer(request):
         return RedirectResponse("/magaza", status_code=303)
     return templates.TemplateResponse(request, "magaza_kayit.html",
-                                      _ctx(request, None, error=""))
+                                      _ctx(request, None, error="", next=next))
 
 
 @router.post("/magaza/kayit", response_class=HTMLResponse)
 async def kayit_submit(request: Request, full_name: str = Form(...), phone: str = Form(""),
-                       username: str = Form(...), password: str = Form(...)):
+                       username: str = Form(...), password: str = Form(...),
+                       next: str = Form("/magaza")):
     username = username.strip().lower()
     if not username or not password:
         return templates.TemplateResponse(request, "magaza_kayit.html",
-                                          _ctx(request, None, error="E-posta ve şifre zorunlu."))
+                                          _ctx(request, None, error="E-posta ve şifre zorunlu.", next=next))
     exists = db.one("SELECT id FROM membrane_users WHERE username=?", (username,))
     if exists:
         return templates.TemplateResponse(request, "magaza_kayit.html",
-                                          _ctx(request, None, error="Bu e-posta zaten kayıtlı. Giriş yapın."))
+                                          _ctx(request, None, error="Bu e-posta zaten kayıtlı. Giriş yapın.", next=next))
     db.execute(
         "INSERT INTO membrane_users (username, password_hash, role, full_name, email, phone) "
         "VALUES (?,?, 'customer', ?, ?, ?)",
         (username, hash_password(password), full_name.strip(), username, phone.strip()))
-    resp = RedirectResponse("/magaza", status_code=303)
+    _absorb_guest_cart(request, username)
+    resp = RedirectResponse(next if next.startswith("/magaza") else "/magaza", status_code=303)
     resp.set_cookie(CUST_COOKIE, sign_session(username), httponly=True,
                     samesite="lax", max_age=60 * 60 * 24 * 30)
+    resp.delete_cookie(GUEST_COOKIE)
     return resp
 
 
 @router.get("/magaza/giris", response_class=HTMLResponse)
-async def giris_page(request: Request):
+async def giris_page(request: Request, next: str = "/magaza"):
     if current_customer(request):
         return RedirectResponse("/magaza", status_code=303)
     return templates.TemplateResponse(request, "magaza_giris.html",
-                                      _ctx(request, None, error=""))
+                                      _ctx(request, None, error="", next=next))
 
 
 @router.post("/magaza/giris", response_class=HTMLResponse)
-async def giris_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+async def giris_submit(request: Request, username: str = Form(...), password: str = Form(...),
+                       next: str = Form("/magaza")):
     username = username.strip().lower()
     u = db.one("SELECT * FROM membrane_users WHERE username=? AND role='customer'", (username,))
     if u and verify_password(password, u["password_hash"]):
-        resp = RedirectResponse("/magaza", status_code=303)
+        _absorb_guest_cart(request, username)
+        resp = RedirectResponse(next if next.startswith("/magaza") else "/magaza", status_code=303)
         resp.set_cookie(CUST_COOKIE, sign_session(username), httponly=True,
                         samesite="lax", max_age=60 * 60 * 24 * 30)
+        resp.delete_cookie(GUEST_COOKIE)
         return resp
     return templates.TemplateResponse(request, "magaza_giris.html",
-                                      _ctx(request, None, error="E-posta veya şifre hatalı."))
+                                      _ctx(request, None, error="E-posta veya şifre hatalı.", next=next))
 
 
 @router.get("/magaza/cikis")
 async def cikis():
     resp = RedirectResponse("/magaza", status_code=303)
     resp.delete_cookie(CUST_COOKIE)
+    return resp
+
+
+@router.post("/magaza/sosyal")
+async def sosyal(request: Request, provider: str = Form(...), email: str = Form(...),
+                 full_name: str = Form(""), next: str = Form("/magaza/odeme")):
+    """Google / Apple ile devam.
+    NOT: Gerçek OAuth için sağlayıcı anahtarları (GOOGLE_CLIENT_ID / APPLE_*) gerekir — Faz 2.
+    Şu an TEST modunda: verilen e-posta ile müşteri hesabı açar/giriş yapar."""
+    email = email.strip().lower()
+    if not email or "@" not in email:
+        return RedirectResponse("/magaza/odeme", status_code=303)
+    u = db.one("SELECT * FROM membrane_users WHERE username=?", (email,))
+    if not u:
+        db.execute(
+            "INSERT INTO membrane_users (username, password_hash, role, full_name, email) "
+            "VALUES (?,?, 'customer', ?, ?)",
+            (email, hash_password(uuid.uuid4().hex), full_name.strip() or email.split("@")[0], email))
+    _absorb_guest_cart(request, email)
+    resp = RedirectResponse(next if next.startswith("/magaza") else "/magaza/odeme", status_code=303)
+    resp.set_cookie(CUST_COOKIE, sign_session(email), httponly=True,
+                    samesite="lax", max_age=60 * 60 * 24 * 30)
+    resp.delete_cookie(GUEST_COOKIE)
     return resp
 
 
@@ -128,9 +191,8 @@ async def magaza_home(request: Request):
 
 @router.get("/magaza/urun/{pid}", response_class=HTMLResponse)
 async def urun_config(request: Request, pid: str):
+    # Misafir de tasarlayabilir — giriş yalnızca ödeme aşamasında istenir.
     cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris", status_code=303)
     prod = products_lib.get(pid)
     if not prod:
         return RedirectResponse("/magaza", status_code=303)
@@ -147,9 +209,13 @@ async def magaza_fiyat(request: Request):
 
 @router.post("/magaza/sepet/ekle")
 async def sepet_ekle(request: Request):
+    # Misafir de sepete ekleyebilir; giriş yoksa misafir çerezi atanır.
     cust = current_customer(request)
-    if not cust:
-        return JSONResponse({"ok": False, "error": "giris"}, status_code=401)
+    new_token = None
+    if cust:
+        owner = cust["username"]
+    else:
+        owner, new_token = _ensure_guest_token(request)
     body = await request.json()
     pid = body.get("product", "")
     params = body.get("params", {})
@@ -159,9 +225,12 @@ async def sepet_ekle(request: Request):
     db.execute(
         "INSERT INTO shop_cart (customer_user, product_id, product_name, params_json, price, qty) "
         "VALUES (?,?,?,?,?,1)",
-        (cust["username"], pid, pname, json.dumps(params), pricing["total"]))
-    return JSONResponse({"ok": True, "count": _cart_count(cust["username"]),
-                         "price": pricing["total"]})
+        (owner, pid, pname, json.dumps(params), pricing["total"]))
+    resp = JSONResponse({"ok": True, "count": _cart_count(owner), "price": pricing["total"]})
+    if new_token:
+        resp.set_cookie(GUEST_COOKIE, new_token, httponly=True, samesite="lax",
+                        max_age=60 * 60 * 24 * 7)
+    return resp
 
 
 # --------------------------------------------------------------------------
@@ -169,10 +238,8 @@ async def sepet_ekle(request: Request):
 # --------------------------------------------------------------------------
 @router.get("/magaza/sepet", response_class=HTMLResponse)
 async def sepet(request: Request):
-    cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris", status_code=303)
-    items = _cart(cust["username"])
+    owner, _g, cust = _owner(request)
+    items = _cart(owner)
     for it in items:
         it["params"] = json.loads(it["params_json"] or "{}")
     total = sum((it["price"] or 0) * (it["qty"] or 1) for it in items)
@@ -182,9 +249,9 @@ async def sepet(request: Request):
 
 @router.post("/magaza/sepet/sil")
 async def sepet_sil(request: Request, id: int = Form(...)):
-    cust = current_customer(request)
-    if cust:
-        db.execute("DELETE FROM shop_cart WHERE id=? AND customer_user=?", (id, cust["username"]))
+    owner, _g, _c = _owner(request)
+    if owner:
+        db.execute("DELETE FROM shop_cart WHERE id=? AND customer_user=?", (id, owner))
     return RedirectResponse("/magaza/sepet", status_code=303)
 
 
@@ -192,31 +259,41 @@ async def sepet_sil(request: Request, id: int = Form(...)):
 # Ödeme (mock) → Vardar sipariş havuzuna düşür
 # --------------------------------------------------------------------------
 @router.get("/magaza/odeme", response_class=HTMLResponse)
-async def odeme_page(request: Request):
-    cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris", status_code=303)
-    items = _cart(cust["username"])
+async def odeme_page(request: Request, misafir: int = 0):
+    owner, is_guest, cust = _owner(request)
+    items = _cart(owner)
     if not items:
         return RedirectResponse("/magaza/sepet", status_code=303)
-    total = sum((it["price"] or 0) * (it["qty"] or 1) for it in items)
+    total = round(sum((it["price"] or 0) * (it["qty"] or 1) for it in items), 2)
+    # Giriş ekranı ÖDEME aşamasında çıkar: misafir ve "misafir devam" seçilmediyse.
+    if cust is None and not misafir:
+        return templates.TemplateResponse(request, "magaza_hesap.html",
+                                          _ctx(request, None, items=items, total=total))
     return templates.TemplateResponse(request, "magaza_odeme.html",
-                                      _ctx(request, cust, items=items, total=round(total, 2)))
+                                      _ctx(request, cust, items=items, total=total, guest=(cust is None)))
 
 
 @router.post("/magaza/odeme")
-async def odeme_submit(request: Request, city: str = Form(""), address: str = Form(""),
-                       phone: str = Form("")):
-    cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris", status_code=303)
-    items = _cart(cust["username"])
+async def odeme_submit(request: Request, full_name: str = Form(""), email: str = Form(""),
+                       city: str = Form(""), address: str = Form(""), phone: str = Form("")):
+    owner, is_guest, cust = _owner(request)
+    items = _cart(owner)
     if not items:
         return RedirectResponse("/magaza/sepet", status_code=303)
 
     # --- MOCK ÖDEME --- (gerçek sağlayıcı sonra bağlanacak: iyzico/PayTR)
     # Burada kart her zaman "onaylandı" kabul edilir.
-    phone = phone.strip() or (cust["phone"] or "")
+    if cust:
+        buyer_name = cust["full_name"] or cust["username"]
+        buyer_user = cust["username"]
+        buyer_email = cust["email"] or cust["username"]
+        buyer_phone = phone.strip() or (cust["phone"] or "")
+    else:
+        buyer_name = full_name.strip() or "Misafir Müşteri"
+        buyer_user = ""           # misafir (hesapsız)
+        buyer_email = email.strip().lower()
+        buyer_phone = phone.strip()
+
     first_sn = ""
     for it in items:
         params = json.loads(it["params_json"] or "{}")
@@ -229,17 +306,20 @@ async def odeme_submit(request: Request, city: str = Form(""), address: str = Fo
             "INSERT INTO vardar_orders (customer, customer_user, phone, city, area, model, "
             "material, entered_by, amount, source, config_json, paid, stage) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,'havuz')",
-            (cust["full_name"] or cust["username"], cust["username"], phone, city,
-             area, it["product_name"], "MOBİLYA", "MAĞAZA (online)",
-             it["price"] or 0, "magaza", json.dumps({"product": it["product_id"],
-                                                      "params": params, "address": address})))
+            (buyer_name, buyer_user, buyer_phone, city, area, it["product_name"],
+             "MOBİLYA", "MAĞAZA (online)", it["price"] or 0, "magaza",
+             json.dumps({"product": it["product_id"], "params": params,
+                         "email": buyer_email, "address": address, "guest": is_guest})))
         sn = f"MG {5000 + nid}"
         db.execute("UPDATE vardar_orders SET sn=? WHERE id=?", (sn, nid))
         if not first_sn:
             first_sn = sn
 
-    db.execute("DELETE FROM shop_cart WHERE customer_user=?", (cust["username"],))
-    return RedirectResponse(f"/magaza/tamam?sn={first_sn}", status_code=303)
+    db.execute("DELETE FROM shop_cart WHERE customer_user=?", (owner,))
+    resp = RedirectResponse(f"/magaza/tamam?sn={first_sn}", status_code=303)
+    if is_guest:
+        resp.delete_cookie(GUEST_COOKIE)
+    return resp
 
 
 @router.get("/magaza/tamam", response_class=HTMLResponse)

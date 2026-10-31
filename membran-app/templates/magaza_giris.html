@@ -5,6 +5,7 @@
   <h1 class="text-xl font-bold mb-4">Giriş Yap</h1>
   {% if error %}<div class="bg-red-50 text-red-700 text-sm rounded-lg px-3 py-2 mb-3">{{ error }}</div>{% endif %}
   <form method="post" class="space-y-3">
+    <input type="hidden" name="next" value="{{ next }}">
     <label class="block text-sm">E-posta
       <input name="username" type="email" required class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="ornek@mail.com">
     </label>
@@ -13,6 +14,6 @@
     </label>
     <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-2.5 hover:bg-emerald-700">Giriş</button>
   </form>
-  <p class="text-sm text-slate-500 mt-4 text-center">Hesabınız yok mu? <a href="/magaza/kayit" class="text-emerald-700 font-medium">Üye olun</a></p>
+  <p class="text-sm text-slate-500 mt-4 text-center">Hesabınız yok mu? <a href="/magaza/kayit?next={{ next }}" class="text-emerald-700 font-medium">Üye olun</a></p>
 </div>
 {% endblock %}

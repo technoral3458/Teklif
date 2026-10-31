@@ -6,6 +6,7 @@
   <p class="text-sm text-slate-500 mb-4">Sipariş verebilmek için hesap oluşturun.</p>
   {% if error %}<div class="bg-red-50 text-red-700 text-sm rounded-lg px-3 py-2 mb-3">{{ error }}</div>{% endif %}
   <form method="post" class="space-y-3">
+    <input type="hidden" name="next" value="{{ next }}">
     <label class="block text-sm">Ad Soyad
       <input name="full_name" required class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="Adınız Soyadınız">
     </label>
@@ -20,6 +21,6 @@
     </label>
     <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-2.5 hover:bg-emerald-700">Hesabı Oluştur</button>
   </form>
-  <p class="text-sm text-slate-500 mt-4 text-center">Zaten üye misiniz? <a href="/magaza/giris" class="text-emerald-700 font-medium">Giriş yapın</a></p>
+  <p class="text-sm text-slate-500 mt-4 text-center">Zaten üye misiniz? <a href="/magaza/giris?next={{ next }}" class="text-emerald-700 font-medium">Giriş yapın</a></p>
 </div>
 {% endblock %}

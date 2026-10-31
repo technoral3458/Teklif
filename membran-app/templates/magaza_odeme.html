@@ -6,10 +6,15 @@
   <div class="lg:col-span-2 space-y-5">
     <!-- Teslimat -->
     <div class="bg-white rounded-2xl border p-5">
-      <h2 class="font-semibold mb-3">Teslimat Bilgileri</h2>
+      <h2 class="font-semibold mb-3">Teslimat Bilgileri {% if guest %}<span class="text-xs font-normal text-slate-400">(misafir)</span>{% endif %}</h2>
       <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        {% if guest %}
+        <label>Ad Soyad<input name="full_name" required class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="Adınız Soyadınız"></label>
+        <label>E-posta<input name="email" type="email" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="ornek@mail.com"></label>
+        {% else %}
         <label>Ad Soyad<input value="{{ cust.full_name or cust.username }}" disabled class="mt-1 border rounded-lg px-3 py-2 w-full bg-slate-50"></label>
-        <label>Telefon<input name="phone" value="{{ cust.phone or '' }}" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="05xx xxx xx xx"></label>
+        {% endif %}
+        <label>Telefon<input name="phone" value="{{ (cust.phone if cust else '') or '' }}" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="05xx xxx xx xx"></label>
         <label>Şehir<input name="city" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="İstanbul"></label>
         <label class="sm:col-span-2">Adres<textarea name="address" rows="2" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="Mahalle, sokak, no…"></textarea></label>
       </div>
