@@ -1,0 +1,25 @@
+{% extends "magaza_base.html" %}
+{% block title %}Üye Ol — Ersan Mobilya{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border p-6 mt-4">
+  <h1 class="text-xl font-bold mb-1">Üye Ol</h1>
+  <p class="text-sm text-slate-500 mb-4">Sipariş verebilmek için hesap oluşturun.</p>
+  {% if error %}<div class="bg-red-50 text-red-700 text-sm rounded-lg px-3 py-2 mb-3">{{ error }}</div>{% endif %}
+  <form method="post" class="space-y-3">
+    <label class="block text-sm">Ad Soyad
+      <input name="full_name" required class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="Adınız Soyadınız">
+    </label>
+    <label class="block text-sm">Telefon
+      <input name="phone" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="05xx xxx xx xx">
+    </label>
+    <label class="block text-sm">E-posta (kullanıcı adı)
+      <input name="username" type="email" required class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="ornek@mail.com">
+    </label>
+    <label class="block text-sm">Şifre
+      <input name="password" type="password" required class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="••••••••">
+    </label>
+    <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-2.5 hover:bg-emerald-700">Hesabı Oluştur</button>
+  </form>
+  <p class="text-sm text-slate-500 mt-4 text-center">Zaten üye misiniz? <a href="/magaza/giris" class="text-emerald-700 font-medium">Giriş yapın</a></p>
+</div>
+{% endblock %}

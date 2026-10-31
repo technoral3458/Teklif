@@ -1,0 +1,48 @@
+{% extends "magaza_base.html" %}
+{% block title %}Ödeme — Ersan Mobilya{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Ödeme</h1>
+<form method="post" class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 space-y-5">
+    <!-- Teslimat -->
+    <div class="bg-white rounded-2xl border p-5">
+      <h2 class="font-semibold mb-3">Teslimat Bilgileri</h2>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label>Ad Soyad<input value="{{ cust.full_name or cust.username }}" disabled class="mt-1 border rounded-lg px-3 py-2 w-full bg-slate-50"></label>
+        <label>Telefon<input name="phone" value="{{ cust.phone or '' }}" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="05xx xxx xx xx"></label>
+        <label>Şehir<input name="city" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="İstanbul"></label>
+        <label class="sm:col-span-2">Adres<textarea name="address" rows="2" class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="Mahalle, sokak, no…"></textarea></label>
+      </div>
+    </div>
+
+    <!-- MOCK kart -->
+    <div class="bg-white rounded-2xl border p-5">
+      <h2 class="font-semibold mb-1">Kart Bilgileri</h2>
+      <div class="inline-flex items-center gap-2 text-xs bg-amber-50 text-amber-700 rounded-full px-3 py-1 mb-3">
+        ⚠️ TEST MODU — gerçek ödeme alınmaz, kart bilgisi kaydedilmez
+      </div>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label class="sm:col-span-2">Kart üzerindeki isim<input class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="AD SOYAD" value="TEST KART"></label>
+        <label class="sm:col-span-2">Kart numarası<input class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="0000 0000 0000 0000" value="4242 4242 4242 4242"></label>
+        <label>Son kullanma<input class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="AA/YY" value="12/30"></label>
+        <label>CVV<input class="mt-1 border rounded-lg px-3 py-2 w-full" placeholder="123" value="123"></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Özet -->
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl border p-5 sticky top-20">
+      <h2 class="font-semibold mb-3">Sipariş Özeti</h2>
+      <div class="space-y-1 text-sm mb-3">
+        {% for it in items %}
+        <div class="flex justify-between"><span class="text-slate-500 truncate pr-2">{{ it.product_name }}</span><span>{{ "{:,.0f}".format(it.price).replace(',','.') }} ₺</span></div>
+        {% endfor %}
+      </div>
+      <div class="flex justify-between font-bold text-lg border-t pt-2 mb-4"><span>Toplam</span><span class="text-emerald-700">{{ "{:,.0f}".format(total).replace(',','.') }} ₺</span></div>
+      <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-3 hover:bg-emerald-700">Ödemeyi Tamamla</button>
+      <a href="/magaza/sepet" class="block text-center text-sm text-slate-500 mt-3 hover:text-slate-700">← Sepete dön</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Mağaza — Ersan Mobilya{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+  {% set nav = request.url.path %}
+  <header class="bg-white border-b sticky top-0 z-40 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+      <a href="/magaza" class="font-extrabold text-xl text-slate-900 whitespace-nowrap">
+        🪵 Ersan <span class="text-emerald-600">Mobilya</span>
+      </a>
+      <nav class="flex items-center gap-1 sm:gap-2 text-sm">
+        <a href="/magaza" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav == '/magaza' %}font-semibold text-emerald-700{% endif %}">Ürünler</a>
+        {% if cust %}
+          <a href="/magaza/siparislerim" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav.startswith('/magaza/siparis') %}font-semibold text-emerald-700{% endif %}">Siparişlerim</a>
+        {% endif %}
+        <a href="/magaza/sepet" class="relative px-3 py-2 rounded-lg hover:bg-slate-100">
+          🛒 Sepet
+          {% if cart_count %}<span class="absolute -top-1 -right-1 bg-emerald-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{{ cart_count }}</span>{% endif %}
+        </a>
+        {% if cust %}
+          <span class="hidden sm:inline text-slate-400 mx-1">|</span>
+          <span class="hidden sm:inline text-slate-600">{{ cust.full_name or cust.username }}</span>
+          <a href="/magaza/cikis" class="px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100">Çıkış</a>
+        {% else %}
+          <a href="/magaza/giris" class="px-3 py-2 rounded-lg hover:bg-slate-100">Giriş</a>
+          <a href="/magaza/kayit" class="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Üye Ol</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t bg-white text-center text-xs text-slate-400 py-4">
+    Ersan Mobilya · Online Kabin Tasarım & Sipariş · kapak.ersanmakina.net
+  </footer>
+</body>
+</html>

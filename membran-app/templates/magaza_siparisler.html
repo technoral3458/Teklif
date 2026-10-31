@@ -1,0 +1,25 @@
+{% extends "magaza_base.html" %}
+{% block title %}Siparişlerim — Ersan Mobilya{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Siparişlerim</h1>
+{% if not orders %}
+  <div class="bg-white rounded-2xl border p-8 text-center text-slate-500">
+    Henüz siparişiniz yok. <a href="/magaza" class="text-emerald-700 font-medium">Ürünlere göz atın →</a>
+  </div>
+{% else %}
+<div class="space-y-3">
+  {% for o in orders %}
+  <div class="bg-white rounded-2xl border p-4 flex items-center justify-between gap-4">
+    <div class="text-sm">
+      <div class="font-semibold text-slate-900">{{ o.model }} <span class="font-mono text-xs text-slate-400">· {{ o.sn }}</span></div>
+      <div class="text-slate-500 mt-0.5">{{ o.order_date[:10] }} · {{ "{:,.0f}".format(o.amount).replace(',','.') }} ₺</div>
+    </div>
+    <span class="text-xs font-medium rounded-full px-3 py-1
+      {% if o.stage == 'teslim' %}bg-emerald-100 text-emerald-700{% elif o.stage == 'havuz' %}bg-slate-100 text-slate-600{% else %}bg-amber-100 text-amber-700{% endif %}">
+      {{ o.stage_label }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

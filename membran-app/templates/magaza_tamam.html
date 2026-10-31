@@ -1,0 +1,14 @@
+{% extends "magaza_base.html" %}
+{% block title %}Sipariş Alındı — Ersan Mobilya{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto bg-white rounded-2xl border p-8 text-center mt-6">
+  <div class="text-6xl mb-3">✅</div>
+  <h1 class="text-2xl font-bold mb-2">Siparişiniz alındı!</h1>
+  <p class="text-slate-500 mb-1">Ödemeniz onaylandı <span class="text-xs">(test modu)</span> ve siparişiniz üretim havuzuna düştü.</p>
+  {% if sn %}<p class="text-sm text-slate-600 mb-4">Sipariş no: <span class="font-mono font-semibold">{{ sn }}</span></p>{% endif %}
+  <div class="flex gap-3 justify-center">
+    <a href="/magaza/siparislerim" class="bg-emerald-600 text-white font-semibold rounded-lg px-5 py-2.5 hover:bg-emerald-700">Siparişlerim</a>
+    <a href="/magaza" class="border rounded-lg px-5 py-2.5 hover:bg-slate-50">Alışverişe devam</a>
+  </div>
+</div>
+{% endblock %}

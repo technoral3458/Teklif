@@ -1,0 +1,127 @@
+{% extends "magaza_base.html" %}
+{% block title %}{{ prod.name }} — Tasarla{% endblock %}
+{% block content %}
+<a href="/magaza" class="text-sm text-slate-500 hover:text-slate-700">← Ürünler</a>
+<h1 class="text-2xl font-bold mt-1 mb-4">{{ prod.name }} <span class="text-slate-400 font-normal text-base">— ölçüye özel tasarla</span></h1>
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <!-- Form -->
+  <form id="cfg" class="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-5 space-y-5">
+    <div>
+      <h2 class="font-semibold mb-3">Ölçüler (mm)</h2>
+      <div class="grid grid-cols-3 gap-3 text-sm">
+        {% for k, lbl in [('W','Genişlik'),('H','Yükseklik'),('D','Derinlik')] %}
+        {% set r = prod.dims[k] %}
+        <label>{{ lbl }}
+          <input data-k="{{ k }}" type="number" value="{{ r[2] }}" min="{{ r[0] }}" max="{{ r[1] }}"
+                 class="p mt-1 border rounded-lg px-2 py-1.5 w-full">
+          <span class="text-xs text-slate-400">{{ r[0] }}–{{ r[1] }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div>
+      <h2 class="font-semibold mb-3">Seçenekler</h2>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        {% for k, lbl in [('doors','Kapak adedi'),('shelves','Raf adedi'),('drawers','Çekmece adedi')] %}
+        {% if prod.opt[k] %}
+        <label>{{ lbl }}
+          <input data-k="{{ k }}" type="number" value="{{ prod.opt[k][2] }}" min="{{ prod.opt[k][0] }}" max="{{ prod.opt[k][1] }}"
+                 class="p mt-1 border rounded-lg px-2 py-1.5 w-full">
+        </label>
+        {% endif %}
+        {% endfor %}
+
+        {% if prod.opt.door_type %}
+        <label>Kapak tipi
+          <select data-k="door_type" class="p mt-1 border rounded-lg px-2 py-1.5 w-full">
+            <option value="duz">Düz</option>
+            <option value="camli">Camlı</option>
+            <option value="desenli">Desenli</option>
+            <option value="surgu">Sürgü</option>
+            <option value="kapaksiz">Kapaksız</option>
+          </select>
+        </label>
+        {% endif %}
+
+        {% if prod.opt.base %}
+        <label>Gövde tipi
+          <select data-k="base_type" class="p mt-1 border rounded-lg px-2 py-1.5 w-full">
+            <option value="bazali">Bazalı</option>
+            <option value="ayakli">Ayaklı</option>
+            <option value="yok">Bazasız</option>
+          </select>
+        </label>
+        {% endif %}
+      </div>
+
+      <div class="flex flex-wrap gap-4 mt-4 text-sm">
+        {% if prod.opt.back %}<label class="flex items-center gap-2"><input data-k="back" type="checkbox" class="p" checked> Arkalık</label>{% endif %}
+        {% if prod.opt.hanging %}<label class="flex items-center gap-2"><input data-k="hanging" type="checkbox" class="p"> Askı borusu</label>{% endif %}
+        {% if prod.opt.handles %}<label class="flex items-center gap-2"><input data-k="handles" type="checkbox" class="p" checked> Kulp</label>{% endif %}
+        {% if prod.opt.two_tone %}<label class="flex items-center gap-2"><input data-k="two_tone" type="checkbox" class="p"> Çift renk</label>{% endif %}
+      </div>
+    </div>
+
+    <div>
+      <h2 class="font-semibold mb-3">Renk</h2>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label>Gövde rengi
+          <select data-k="body_color" class="p mt-1 border rounded-lg px-2 py-1.5 w-full">
+            {% for c in colors %}<option value="{{ c.id }}">{{ c.name }}{% if c.premium_pct %} (+%{{ c.premium_pct }}){% endif %}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Kapak rengi
+          <select data-k="door_color" class="p mt-1 border rounded-lg px-2 py-1.5 w-full">
+            {% for c in colors %}<option value="{{ c.id }}">{{ c.name }}{% if c.premium_pct %} (+%{{ c.premium_pct }}){% endif %}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+    </div>
+  </form>
+
+  <!-- Fiyat paneli -->
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl shadow-sm border p-5 sticky top-20">
+      <div class="text-sm text-slate-500">Tahmini fiyat</div>
+      <div id="total" class="text-3xl font-extrabold text-emerald-700 my-1">—</div>
+      <div class="text-xs text-slate-400 mb-4">ölçüye göre anlık hesaplanır</div>
+      <div id="breakdown" class="text-sm space-y-1 border-t pt-3 mb-4"></div>
+      <button id="add" type="button" class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-3 hover:bg-emerald-700">🛒 Sepete Ekle</button>
+      <a href="/magaza/sepet" class="block text-center text-sm text-slate-500 mt-3 hover:text-slate-700">Sepete git →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const PID = {{ prod.id|tojson }};
+function gather() {
+  const p = {};
+  document.querySelectorAll('.p').forEach(el => {
+    const k = el.dataset.k;
+    if (el.type === 'checkbox') p[k] = el.checked ? 1 : 0;
+    else p[k] = el.value;
+  });
+  return p;
+}
+const fmt = n => new Intl.NumberFormat('tr-TR', {style:'currency', currency:'TRY', maximumFractionDigits:0}).format(n);
+async function refresh() {
+  const r = await fetch('/magaza/fiyat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({params:gather()})});
+  const d = await r.json();
+  document.getElementById('total').textContent = fmt(d.total);
+  document.getElementById('breakdown').innerHTML = d.items.filter(i=>i.value>0)
+    .map(i=>`<div class="flex justify-between"><span class="text-slate-500">${i.label}</span><span>${fmt(i.value)}</span></div>`).join('');
+}
+document.getElementById('cfg').addEventListener('input', refresh);
+document.getElementById('cfg').addEventListener('change', refresh);
+document.getElementById('add').addEventListener('click', async () => {
+  const btn = document.getElementById('add');
+  btn.disabled = true; btn.textContent = 'Ekleniyor…';
+  const r = await fetch('/magaza/sepet/ekle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({product:PID, params:gather()})});
+  if (r.status === 401) { window.location = '/magaza/giris'; return; }
+  window.location = '/magaza/sepet';
+});
+refresh();
+</script>
+{% endblock %}

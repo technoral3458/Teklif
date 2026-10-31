@@ -206,7 +206,39 @@ CREATE TABLE IF NOT EXISTS vardar_doors (
     def_json TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ===== MAĞAZA: müşteri sepeti (online sipariş akışı) =====
+CREATE TABLE IF NOT EXISTS shop_cart (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_user TEXT NOT NULL,
+    product_id TEXT DEFAULT '',
+    product_name TEXT DEFAULT '',
+    params_json TEXT DEFAULT '{}',
+    price REAL DEFAULT 0,
+    qty INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
+
+# Mevcut veritabanlarına sonradan eklenen kolonlar (idempotent).
+MIGRATIONS = [
+    ("membrane_users", "full_name", "TEXT DEFAULT ''"),
+    ("membrane_users", "email", "TEXT DEFAULT ''"),
+    ("membrane_users", "phone", "TEXT DEFAULT ''"),
+    ("vardar_orders", "customer_user", "TEXT DEFAULT ''"),
+    ("vardar_orders", "phone", "TEXT DEFAULT ''"),
+    ("vardar_orders", "config_json", "TEXT DEFAULT '{}'"),
+    ("vardar_orders", "source", "TEXT DEFAULT ''"),
+    ("vardar_orders", "paid", "INTEGER DEFAULT 0"),
+]
+
+
+def _migrate(conn):
+    for table, col, decl in MIGRATIONS:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass  # kolon zaten var
 
 DEMO_ORDERS = [
     ("ÇELİK MOBİLYA", "İSTANBUL - Zeytinburnu", 0.27, "ÖZEL-5", "VR1001-SOFT İNCİ", "*1000*SOFT", "EMRE ŞENVARDAR", 3918, "havuz"),
@@ -276,6 +308,7 @@ def get_conn():
 def init():
     conn = get_conn()
     conn.executescript(SCHEMA)
+    _migrate(conn)
     for code, rate in DEFAULT_RATES:
         conn.execute(
             "INSERT OR IGNORE INTO membrane_rates (currency, rate_to_try) VALUES (?, ?)",
