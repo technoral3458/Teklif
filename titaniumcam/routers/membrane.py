@@ -660,8 +660,7 @@ async def admin_colors_delete(id: int = Form(...)):
 # ==========================================================================
 @router.get("/titaniumcam/gardirop")
 async def gardirop():
-    # Faz 2 ile çok-ürünlü konfigüratöre taşındı
-    return RedirectResponse("/titaniumcam/urunler", status_code=307)
+    return RedirectResponse("/titaniumcam/kabin", status_code=303)      # eski sistem kaldırıldı
 
 
 @router.post("/titaniumcam/gardirop/price")
@@ -695,6 +694,7 @@ async def gardirop_delete(id: int = Form(...)):
 # ==========================================================================
 @router.get("/titaniumcam/urunler", response_class=HTMLResponse)
 async def urunler(request: Request):
+    return RedirectResponse("/titaniumcam/kabin", status_code=303)      # eski Ürünler sayfası kaldırıldı
     prods = products_lib.list_products(only_enabled=True)
     valid_ids = {p["id"] for p in prods} | {"gardirop_pro"}
     quotes = []

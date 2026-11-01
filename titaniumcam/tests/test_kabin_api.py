@@ -268,12 +268,12 @@ def test_onay_sekli(o):
     c.post(url + "/sepet", json={"adet": 1})
     oid2 = int(c.post("/kabin/siparis", data={}, follow_redirects=False).headers["location"].rsplit("/", 1)[1])
     assert db.one("SELECT status FROM cabinet_orders WHERE id=?", (oid2,))["status"] == "bekliyor"
-    # mağaza siparişi seçilen Vardar aşamasına düşer
+    # eski ürün grupları kaldırıldı: sepete eklenemez, sayfası ana sayfaya döner
     m = _musteri(o, "magaza@test.com")
-    m.post("/magaza/sepet/ekle", json={"product": "gardirop", "params": {"W": 1500, "H": 2200, "D": 600}})
-    m.post("/magaza/odeme", data={"city": "X", "address": "Y", "phone": "0"})
-    v = db.one("SELECT stage, approve_date FROM vardar_orders WHERE customer_user='magaza@test.com'")
-    assert v["stage"] == "planlama" and v["approve_date"]
+    assert m.post("/magaza/sepet/ekle", json={"product": "gardirop", "params": {"W": 1500}}).status_code == 410
+    assert m.get("/magaza/urun/gardirop", follow_redirects=False).headers["location"] == "/"
+    assert "Ürün Grupları" not in m.get("/").text
+    assert o["admin"].get("/titaniumcam/urunler", follow_redirects=False).headers["location"] == "/titaniumcam/kabin"
     a.post("/titaniumcam/ayarlar/akis", data={"kabin_onay": "yonetici", "magaza_asama": "havuz"})
 
 

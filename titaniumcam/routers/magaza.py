@@ -252,7 +252,6 @@ async def sosyal(request: Request, provider: str = Form(...), email: str = Form(
 @router.get("/magaza", response_class=HTMLResponse)
 async def magaza_home(request: Request):
     cust = current_customer(request)
-    prods = products_lib.list_products(only_enabled=True)
     dolap_hata = ""
     try:                                  # Online Kabin şablonları motor servisinden gelir
         import kabin_istemci as KI
@@ -265,19 +264,13 @@ async def magaza_home(request: Request):
     owner, _g, _c = _owner(request)
     r = db.one("SELECT COUNT(*) c FROM kabin_taslak WHERE musteri=?", (owner,)) if owner else None
     return templates.TemplateResponse(request, "magaza_home.html",
-                                      _ctx(request, cust, products=prods, dolaplar=dolaplar, modeller=modeller,
+                                      _ctx(request, cust, dolaplar=dolaplar, modeller=modeller,
                                            dolap_hata=dolap_hata, taslak_sayisi=r["c"] if r else 0))
 
 
 @router.get("/magaza/urun/{pid}", response_class=HTMLResponse)
 async def urun_config(request: Request, pid: str):
-    # Misafir de tasarlayabilir — giriş yalnızca ödeme aşamasında istenir.
-    cust = current_customer(request)
-    prod = products_lib.get(pid)
-    if not prod:
-        return RedirectResponse("/magaza", status_code=303)
-    return templates.TemplateResponse(request, "magaza_urun.html",
-                                      _ctx(request, cust, prod=prod, colors=cfg.get_colors()))
+    return RedirectResponse("/", status_code=303)       # eski ürün grupları kaldırıldı; dolap tasarımı ana sayfada
 
 
 @router.post("/magaza/fiyat")
@@ -289,6 +282,7 @@ async def magaza_fiyat(request: Request):
 
 @router.post("/magaza/sepet/ekle")
 async def sepet_ekle(request: Request):
+    return JSONResponse({"error": "Bu ürünler artık satılmıyor"}, status_code=410)     # eski sistem
     # Misafir de sepete ekleyebilir; giriş yoksa misafir çerezi atanır.
     cust = current_customer(request)
     new_token = None

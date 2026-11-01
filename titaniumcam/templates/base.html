@@ -11,7 +11,6 @@
   {% set nav = request.url.path %}
   {% set items = [
       ('/titaniumcam/kabin', '🧰 Kabin Siparişleri', nav.startswith('/titaniumcam/kabin')),
-      ('/titaniumcam/urunler', '🗄️ Ürünler', nav.startswith('/titaniumcam/urunler') or nav.startswith('/titaniumcam/gardirop')),
       ('/titaniumcam/admin', '⚙️ Yönetici', nav.startswith('/titaniumcam/admin')),
       ('/titaniumcam/acil-lisans', '🛟 Acil Lisans', nav.startswith('/titaniumcam/acil-lisans')),
       ('/titaniumcam/ayarlar', '🔧 Ayarlar', nav.startswith('/titaniumcam/ayarlar')),
