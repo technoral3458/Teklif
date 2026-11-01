@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Kabin Siparişleri{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <h1 class="text-2xl font-bold">🧰 Kabin Siparişleri</h1>
+  <div class="flex gap-2">
+    <a href="/titaniumcam/kabin/modeller" class="bg-emerald-600 text-white rounded-lg px-3 py-2 text-sm">🏷️ Hazır modeller</a>
+    <a href="/titaniumcam/kabin/tanimlar" class="bg-blue-600 text-white rounded-lg px-3 py-2 text-sm">💰 Tanımlar ve fiyatlar</a>
+    <a href="/titaniumcam/api" class="border rounded-lg px-3 py-2 bg-white hover:bg-slate-50 text-sm">🔑 TitaniumCam API</a>
+  </div>
+</div>
+<div class="flex flex-wrap gap-2 mb-3 text-sm">
+  <a href="/titaniumcam/kabin" class="px-3 py-1 rounded-full border {% if not durum %}bg-slate-800 text-white{% else %}bg-white{% endif %}">Tümü</a>
+  {% for k, v in DURUM_AD.items() %}
+  <a href="/titaniumcam/kabin?durum={{ k }}" class="px-3 py-1 rounded-full border {% if durum == k %}bg-slate-800 text-white{% else %}bg-white{% endif %}">{{ v }}</a>
+  {% endfor %}
+</div>
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500"><tr>
+      <th class="text-left p-3">Sipariş no</th><th class="text-left p-3">Müşteri</th><th class="text-left p-3">Proje</th>
+      <th class="text-right p-3">Dolap</th><th class="text-left p-3">Durum</th><th class="text-left p-3">Üretim</th><th class="text-left p-3">Tarih</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+    <tr class="border-t hover:bg-slate-50">
+      <td class="p-3"><a href="/titaniumcam/kabin/siparis/{{ o.id }}" class="text-blue-700 font-medium">{{ o.order_no }}</a>
+        {% if o.degisti %}<span title="Havuza alındıktan sonra değişti" class="ml-1 text-xs bg-red-100 text-red-700 rounded px-1">değişti</span>{% endif %}</td>
+      <td class="p-3">{{ o.musteri_ad }}</td><td class="p-3">{{ o.proje }}</td>
+      <td class="p-3 text-right">{{ o.dolap }} <span class="text-slate-400">({{ o.satir }} satır)</span></td>
+      <td class="p-3"><span class="text-xs rounded-full px-2 py-0.5 {% if o.status == 'onayli' %}bg-emerald-100 text-emerald-700{% elif o.status == 'reddedildi' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{{ DURUM_AD[o.status] }}</span></td>
+      <td class="p-3 text-xs">{{ o.claimed_by }} {{ o.production_status }}</td>
+      <td class="p-3 text-xs text-slate-500">{{ o.created_at[:16] }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="p-6 text-center text-slate-500">Sipariş yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

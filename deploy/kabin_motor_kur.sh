@@ -4,20 +4,20 @@
 #
 # Motor kodu GİZLİDİR ve bu (herkese açık) repoda TUTULMAZ. Zip'i sunucuya
 # kendin kopyalarsın, bu betik onu repo DIŞINDAKİ /opt/kabin_motor'a açar
-# (setup_membran.sh /opt/membran'ı silse de motor kalır).
+# (setup_titaniumcam.sh /opt/titaniumcam'ı silse de motor kalır).
 #
 # Kullanım (sunucuda, root):
-#   bash /opt/membran/Teklif/deploy/kabin_motor_kur.sh /root/aaa_2.zip
+#   bash /opt/titaniumcam/Teklif/deploy/kabin_motor_kur.sh /root/aaa_2.zip
 #
 set -euo pipefail
 
 ZIP="${1:-}"
 MOTOR=/opt/kabin_motor
-APP_SUB=/opt/membran/Teklif/membran-app
+APP_SUB=/opt/titaniumcam/Teklif/titaniumcam
 PORT=8210
 
 [ -n "$ZIP" ] && [ -f "$ZIP" ] || { echo "Kullanım: bash $0 /yol/motor.zip"; exit 1; }
-[ -x "$APP_SUB/venv/bin/uvicorn" ] || { echo "Önce siteyi kur (setup_membran.sh)"; exit 1; }
+[ -x "$APP_SUB/venv/bin/uvicorn" ] || { echo "Önce siteyi kur (setup_titaniumcam.sh)"; exit 1; }
 command -v unzip >/dev/null || apt-get install -y unzip
 
 echo ">>> [1/4] Motor açılıyor: $MOTOR"
@@ -39,7 +39,7 @@ rm -rf "$TMP"
 echo ">>> [2/4] Motor servisi (yalnız 127.0.0.1:$PORT)"
 TANIM=""
 [ -f "$MOTOR/kabin_tanimlar.json" ] && TANIM="Environment=KABIN_TANIM_DIR=$MOTOR"
-cat > /etc/systemd/system/membran-kabin.service <<EOF
+cat > /etc/systemd/system/titaniumcam-kabin.service <<EOF
 [Unit]
 Description=Online Kabin - TitaniumCam motor servisi (ic ag)
 After=network.target
@@ -56,9 +56,9 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now membran-kabin
-systemctl restart membran-kabin
-systemctl restart membran
+systemctl enable --now titaniumcam-kabin
+systemctl restart titaniumcam-kabin
+systemctl restart titaniumcam
 
 echo ">>> [3/4] Kontrol"
 for i in $(seq 1 15); do curl -sf "http://127.0.0.1:$PORT/bilgi" >/dev/null && break; sleep 1; done
@@ -85,4 +85,4 @@ print("sonuç:", v["ozet"], "· doktor hata:", len(h), *h, sep=" ")
 print("(beklenen varsayılan tanımlarla: 25 parça, 3.895 m², 9.36 m, 0 hata)")
 PY
 echo ""
-echo "Kurulum bitti. Müşteri ekranı: https://kapak.ersanmakina.net/kabin · Yönetici: /membrane/kabin"
+echo "Kurulum bitti. Müşteri ekranı: https://kapak.ersanmakina.net/kabin · Yönetici: /titaniumcam/kabin"

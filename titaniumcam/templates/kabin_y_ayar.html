@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Kabin ayarları{% endblock %}
+{% block content %}
+<a href="/titaniumcam/kabin" class="text-blue-600 text-sm">← Kabin Siparişleri</a>
+<h1 class="text-2xl font-bold mt-1 mb-4">Kabin ayarları</h1>
+{% if kayit %}<div class="bg-emerald-50 text-emerald-700 rounded-lg px-4 py-2 mb-3 text-sm">Kaydedildi.</div>{% endif %}
+<form method="post" class="grid lg:grid-cols-2 gap-6">
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-1">Alan yetkileri</h2>
+    <p class="text-xs text-slate-500 mb-3">M: müşteri ve yönetici · Y: yalnız yönetici</p>
+    <div class="grid sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+      {% for k, v in yetki.items() %}
+      <label class="flex items-center justify-between border-b py-1"><span class="font-mono text-xs">{{ k }}</span>
+        <select name="y:{{ k }}" class="border rounded px-1 py-0.5"><option {% if v=='M' %}selected{% endif %}>M</option><option {% if v=='Y' %}selected{% endif %}>Y</option></select></label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="bg-white rounded-xl shadow p-4 h-fit">
+    <h2 class="font-semibold mb-1">Müşteri ölçü aralıkları (mm)</h2>
+    <p class="text-xs text-slate-500 mb-3">Motor 50–10000 kabul eder; burada şablon başına daraltılır.</p>
+    {% for s in sablonlar %}
+    <div class="mb-3"><div class="font-medium text-sm mb-1">{{ s }}</div>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+      {% for alan, ad in [('boy','Boy'),('en','En'),('derinlik','Derinlik')] %}
+        <label>{{ ad }}<div class="flex gap-1"><input name="s:{{ s }}:{{ alan }}:min" value="{{ '%g'|format(sinirlar[s][alan][0]) }}" class="border rounded px-1 w-full"><input name="s:{{ s }}:{{ alan }}:max" value="{{ '%g'|format(sinirlar[s][alan][1]) }}" class="border rounded px-1 w-full"></div></label>
+      {% endfor %}
+      </div></div>
+    {% else %}<p class="text-sm text-red-600">Kabin motoru çalışmıyor; şablonlar okunamadı.</p>{% endfor %}
+    <button class="bg-blue-600 text-white rounded-lg px-4 py-2 mt-2">Kaydet</button>
+  </div>
+</form>
+{% endblock %}

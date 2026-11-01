@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
 # DENEME ortamı: deneme.kapak.ersanmakina.net  (canlı siteye dokunmaz)
-#  - ayrı klasör (/opt/membran-deneme), ayrı veritabanı, ayrı port (8101)
-#  - ayrı acil lisans anahtarı (/etc/membran-deneme/acil_lisans)  ← programa GÖMÜLMEZ
+#  - ayrı klasör (/opt/titaniumcam-deneme), ayrı veritabanı, ayrı port (8101)
+#  - ayrı acil lisans anahtarı (/etc/titaniumcam-deneme/acil_lisans)  ← programa GÖMÜLMEZ
 #  - yerel GeoIP veritabanı (DB-IP Lite, ücretsiz; IP dışarı gönderilmez)
 #
 # Önce alan adına DNS kaydı: deneme.kapak  A  167.233.104.21
 # Sonra sunucuda root olarak:
-#   bash /opt/membran/Teklif/deploy/deneme_kur.sh
+#   bash /opt/titaniumcam/Teklif/deploy/deneme_kur.sh
 # Güncellemek için aynı komutu yeniden çalıştırın (veritabanı, .env ve anahtar korunur).
 #
 set -euo pipefail
@@ -15,16 +15,16 @@ set -euo pipefail
 DOMAIN="deneme.kapak.ersanmakina.net"
 REPO_URL="https://github.com/technoral3458/Teklif.git"
 BRANCH="claude/hexagonal-drill-glass-software-0a4fo5"
-APP_DIR="/opt/membran-deneme/Teklif"
-APP_SUB="$APP_DIR/membran-app"
-ANAHTAR_DIR="/etc/membran-deneme/acil_lisans"
+APP_DIR="/opt/titaniumcam-deneme/Teklif"
+APP_SUB="$APP_DIR/titaniumcam"
+ANAHTAR_DIR="/etc/titaniumcam-deneme/acil_lisans"
 PORT=8101
 
 echo ">>> [1/6] Kod ($BRANCH)"
 if [ -d "$APP_DIR/.git" ]; then
     git -C "$APP_DIR" pull --ff-only origin "$BRANCH"
 else
-    mkdir -p /opt/membran-deneme
+    mkdir -p /opt/titaniumcam-deneme
     git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$APP_DIR"
 fi
 
@@ -71,12 +71,12 @@ echo "GeoIP indirilemedi (konum boş kalır, lisans verilmeye devam eder)" >&2
 EOF
 chmod +x /usr/local/bin/geoip-guncelle
 /usr/local/bin/geoip-guncelle || true
-echo "17 4 3 * * root /usr/local/bin/geoip-guncelle && systemctl restart membran-deneme" > /etc/cron.d/geoip-guncelle
+echo "17 4 3 * * root /usr/local/bin/geoip-guncelle && systemctl restart titaniumcam-deneme" > /etc/cron.d/geoip-guncelle
 
 echo ">>> [5/6] Servis (port $PORT)"
-cat > /etc/systemd/system/membran-deneme.service <<EOF
+cat > /etc/systemd/system/titaniumcam-deneme.service <<EOF
 [Unit]
-Description=Membran DENEME (acil lisans denemesi)
+Description=TitaniumCam DENEME (acil lisans denemesi)
 After=network.target
 
 [Service]
@@ -89,12 +89,12 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now membran-deneme
-systemctl restart membran-deneme
+systemctl enable --now titaniumcam-deneme
+systemctl restart titaniumcam-deneme
 
 echo ">>> [6/6] nginx + HTTPS"
-if [ ! -f /etc/nginx/sites-available/membran-deneme ]; then
-cat > /etc/nginx/sites-available/membran-deneme <<EOF
+if [ ! -f /etc/nginx/sites-available/titaniumcam-deneme ]; then
+cat > /etc/nginx/sites-available/titaniumcam-deneme <<EOF
 server {
     listen 80;
     server_name $DOMAIN;
@@ -117,7 +117,7 @@ server {
     }
 }
 EOF
-ln -sf /etc/nginx/sites-available/membran-deneme /etc/nginx/sites-enabled/membran-deneme
+ln -sf /etc/nginx/sites-available/titaniumcam-deneme /etc/nginx/sites-enabled/titaniumcam-deneme
 fi
 nginx -t && systemctl reload nginx
 if command -v certbot >/dev/null && getent hosts "$DOMAIN" >/dev/null; then
@@ -129,4 +129,4 @@ fi
 
 sleep 2
 curl -fsS -o /dev/null -w "    Site: %{http_code}\n" "http://127.0.0.1:$PORT/login" || true
-echo ">>> Bitti: https://$DOMAIN/membrane/acil-lisans"
+echo ">>> Bitti: https://$DOMAIN/titaniumcam/acil-lisans"

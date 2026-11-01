@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ firma().ad }} — Yönetim{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  {% set nav = request.url.path %}
+  {% set items = [
+      ('/titaniumcam/kabin', '🧰 Kabin Siparişleri', nav.startswith('/titaniumcam/kabin')),
+      ('/titaniumcam/urunler', '🗄️ Ürünler', nav.startswith('/titaniumcam/urunler') or nav.startswith('/titaniumcam/gardirop')),
+      ('/titaniumcam/admin', '⚙️ Yönetici', nav.startswith('/titaniumcam/admin')),
+      ('/titaniumcam/acil-lisans', '🛟 Acil Lisans', nav.startswith('/titaniumcam/acil-lisans')),
+      ('/titaniumcam/ayarlar', '🔧 Ayarlar', nav.startswith('/titaniumcam/ayarlar')),
+  ] %}
+  <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex items-center justify-between h-14">
+        <a href="/titaniumcam/kabin" class="font-bold text-lg whitespace-nowrap truncate">{{ firma().ad }}</a>
+        <!-- Masaüstü menü -->
+        <div class="hidden md:flex items-center gap-1">
+          {% for url, label, active in items %}
+          <a href="{{ url }}" class="px-3 py-2 rounded hover:bg-slate-700 {% if active %}bg-slate-700{% endif %}">{{ label }}</a>
+          {% endfor %}
+          <span class="mx-2 text-slate-500 text-sm">{{ request.state.user }}</span>
+          <a href="/logout" class="px-3 py-2 rounded bg-slate-700 hover:bg-red-600 text-sm">Çıkış</a>
+        </div>
+        <!-- Mobil hamburger -->
+        <button class="md:hidden p-2 rounded hover:bg-slate-700" onclick="document.getElementById('mnav').classList.toggle('hidden')" aria-label="Menü">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+      <!-- Mobil açılır menü -->
+      <div id="mnav" class="md:hidden hidden pb-3 flex flex-col gap-1">
+        {% for url, label, active in items %}
+        <a href="{{ url }}" class="px-3 py-2 rounded hover:bg-slate-700 {% if active %}bg-slate-700{% endif %}">{{ label }}</a>
+        {% endfor %}
+        <a href="/logout" class="px-3 py-2 rounded bg-slate-700 hover:bg-red-600">Çıkış ({{ request.state.user }})</a>
+      </div>
+    </div>
+  </nav>
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
