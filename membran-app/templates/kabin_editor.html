@@ -121,6 +121,7 @@
   <!-- Alt: durum çubuğu -->
   <footer id="alt" class="flex items-center gap-2 px-2 border-t bg-slate-50 text-xs min-w-0">
     <button class="ac-kapa border rounded px-2 py-0.5 bg-white" data-ac="sol">Araçlar</button>
+    <button class="ac-kapa border border-emerald-500 text-emerald-700 font-semibold rounded px-2 py-0.5 bg-white" data-k="ozellik">📐 Ölçü</button>
     <button class="ac-kapa border rounded px-2 py-0.5 bg-white" data-ac="sag">Parçalar</button>
     <span id="durum" class="truncate flex-1">Yükleniyor…</span>
     <button id="kontrolBtn" class="rounded px-2 py-0.5 whitespace-nowrap"></button>
@@ -387,7 +388,11 @@ async function komut(k) {
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-k]'); if (b && !b.disabled) { komut(b.dataset.k); $('dosyaMenu').classList.add('hidden'); }
   const a = e.target.closest('[data-ac]'); if (a) { $(a.dataset.ac).classList.toggle('acik'); $(a.dataset.ac === 'sol' ? 'sag' : 'sol').classList.remove('acik'); }
-  const kp = e.target.closest('[data-kapat]'); if (kp) $(kp.dataset.kapat).classList.remove('acik');
+  const kp = e.target.closest('[data-kapat]');
+  if (kp) {
+    $(kp.dataset.kapat).classList.remove('acik');
+    if (kp.dataset.kapat === 'sag' && S.panel) $('panelTamam').click();   // ✕ = Tamam (tek geri alma adımı)
+  }
   const gr = e.target.closest('[data-gor]'); if (gr) gorunum(gr.dataset.gor);
 });
 $('dosyaBtn').addEventListener('click', () => $('dosyaMenu').classList.toggle('hidden'));
@@ -498,7 +503,11 @@ $('ekleDugmeleri').addEventListener('click', e => { const b = e.target.closest('
 
 function bolgeGerek(tur) {
   if (tur === 'usttabla') return true;
-  if (!S.secGoz.length) { durum('Önce bir göz seçin'); return false; }
+  if (!S.secGoz.length) {
+    if ($('orta').classList.contains('tek3b')) gorunum('2b');   // göz 2B'de seçilir
+    $('sol').classList.remove('acik');
+    durum('Önce 2B görünümde boş bir göze dokunun', 'hata'); return false;
+  }
   if (S.secGoz.length > 1 && !['kapak', 'cekmece', 'arkalik'].includes(tur)) durum('Yalnız son seçilen göze uygulanacak');
   return true;
 }
@@ -862,7 +871,8 @@ if ($('satirBtn')) $('satirBtn').addEventListener('click', async () => {
   ekleDugmeleri();
   gorunum(innerWidth >= 1280 ? 'ikisi' : '2b');
   const v = await istek('/veri', null, 'GET');
-  if (v) { uygula(v); durum('Boş bir göze tıklayıp soldan eleman ekleyin'); }
+  if (v) { uygula(v); durum(innerWidth < 1024 ? 'Ölçü için 📐 Ölçü · eklemek için göze dokunup Araçlar'
+                                             : 'Boş bir göze tıklayıp soldan eleman ekleyin'); }
 })();
 </script>
 </body>
