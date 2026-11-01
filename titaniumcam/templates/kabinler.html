@@ -20,6 +20,12 @@
 </nav>
 
 {% if sekme == 'katalog' %}
+{% if not modeller|selectattr('acik')|list %}
+<div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-5 py-4 mb-4 text-sm">
+  <b>Mağazada şu an satışta kabin yok.</b> Müşteriler ana sayfada yalnız satıştaki kabinleri görür ve onlardan başlar.
+  Bir kabin oluşturup kartındaki <b>Satışta</b> düğmesine basın.
+</div>
+{% endif %}
 <!-- Yeni kabin -->
 <details class="bg-white rounded-2xl shadow mb-6" {% if not modeller %}open{% endif %}>
   <summary class="cursor-pointer px-5 py-4 font-semibold flex items-center gap-2"><span class="w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center">+</span> Yeni kabin</summary>
@@ -80,16 +86,10 @@
 <div class="bg-white rounded-2xl shadow p-8 text-center text-slate-500">Henüz kabin yok. Yukarıdan ilk kabininizi oluşturun.</div>
 {% endfor %}
 
-<div class="grid lg:grid-cols-3 gap-4 mt-10">
-  <form method="post" action="/titaniumcam/kabinler/vitrin" class="bg-white rounded-2xl shadow p-5 text-sm">
-    <h2 class="font-semibold mb-1">Boş kabinden tasarım</h2>
-    <p class="text-slate-500 mb-3">Müşteri katalog dışında boş Alt / Üst / Boy dolaptan da başlayabilsin mi?</p>
-    <label class="flex items-center gap-2 mb-3"><input type="checkbox" name="bos_sablon" value="1" {% if vitrin.bos_sablon %}checked{% endif %}> Mağazada göster</label>
-    <button class="bg-slate-900 text-white rounded-lg px-4 py-2">Kaydet</button>
-  </form>
-  <form method="post" action="/titaniumcam/kabin/modeller/arkalik" class="lg:col-span-2 bg-white rounded-2xl shadow p-5 text-sm">
+<div class="grid gap-4 mt-10">
+  <form method="post" action="/titaniumcam/kabin/modeller/arkalik" class="bg-white rounded-2xl shadow p-5 text-sm">
     <h2 class="font-semibold mb-1">Otomatik arkalık</h2>
-    <p class="text-slate-500 mb-3">Müşteri arkalık seçmez; boş kabinden başlarsa buradaki arkalık eklenir.</p>
+    <p class="text-slate-500 mb-3">Yeni kabin oluştururken başlangıç şablonuna göre bu arkalık kendiliğinden eklenir.</p>
     <div class="grid sm:grid-cols-3 gap-3">
       {% for s in sablonlar %}
       <label>{{ s.ad }}<select name="ark:{{ s.ad }}" class="border rounded-lg px-2 py-2 w-full">

@@ -346,7 +346,9 @@ def test_misafir_tasarlar_sipariste_giris(ortam):
     db = ortam["db"]
     g = ortam["TestClient"](ortam["app"])
     r = g.get("/magaza")
-    assert r.status_code == 200 and "Dolap tasarla" in r.text and 'value="Alt Dolap"' in r.text
+    assert r.status_code == 200 and "Dolap tasarla" in r.text
+    assert 'name="sablon"' not in r.text                     # vitrinde boş şablon yok: yalnız yayınlanan kabinler
+    assert g.get("/kabin/yeni", follow_redirects=False).headers["location"] == "/#kabinler"
     assert "Kabin Tasarla" not in r.text                     # ayrı menü yok, Ürünler'de
     r = g.post("/kabin/yeni", data={"sablon": "Alt Dolap"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/kabin/t/")

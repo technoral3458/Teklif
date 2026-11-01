@@ -17,7 +17,7 @@ async function yerel(ctx) {
   const gozSec = async kosul => { const i = await t.evaluate(f => S.v.gozler.findIndex(new Function('z', 'return ' + f)), kosul);
                                   await t.tap(`#s2 rect.goz[data-goz="${i}"]`); };
   await t.goto(B + '/');
-  await Promise.all([t.waitForNavigation(), t.tap('button[value="Alt Dolap"]')]);
+  await t.goto(B + (await t.request.post(B + '/kabin/yeni', {form: {sablon: 'Alt Dolap'}, maxRedirects: 0})).headers()['location']);
   await t.waitForFunction(() => typeof S !== 'undefined' && S.v);
   ok(await t.evaluate(() => S.v.parcalar2b.some(p => p.tur === 'arkalik')), 'Arkalık otomatik geldi (müşteri seçmedi)');
   await t.waitForSelector('#sayfa.acik', {timeout: 5000});

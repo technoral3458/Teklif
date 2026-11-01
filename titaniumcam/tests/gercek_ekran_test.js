@@ -32,7 +32,7 @@ async function yerel(ctx) {
     const tik = sel => vp.hasTouch ? t.tap(sel) : t.click(sel);
     const gozSec = async kosul => { const i = await t.evaluate(f => S.v.gozler.findIndex(new Function('z', 'return ' + f)), kosul); if (i < 0) console.log(kosul, JSON.stringify(await t.evaluate(() => S.v.gozler.map(z => [z.x1, z.y1, z.x2, z.y2])))); await tik(`#s2 rect.goz[data-goz="${i}"]`); };
     await t.goto(B + '/');
-    await Promise.all([t.waitForNavigation(), tik('button[value="Boy Dolap"]')]);
+    await t.goto(B + (await t.request.post(B + '/kabin/yeni', {form: {sablon: 'Boy Dolap'}, maxRedirects: 0})).headers()['location']);
     await t.waitForFunction(() => typeof S !== 'undefined' && S.v);
     await t.waitForSelector('#sayfa.acik');
     await t.fill('#sayfaIc [name=en]', '900'); await yanit(); await t.waitForTimeout(150);

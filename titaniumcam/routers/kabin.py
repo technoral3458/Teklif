@@ -558,20 +558,14 @@ async def kabin_ana(request: Request, hata: str = ""):
         siparisler=siparisler, hata=hata))
 
 
-@router.get("/kabin/yeni", response_class=HTMLResponse)
-async def kabin_yeni_sayfa(request: Request):
-    cust = current_customer(request)
-    try:
-        bil = await KI.bilgi()
-    except KI.ServisHatasi as e:
-        return RedirectResponse(f"/kabin?hata={e.mesaj}", status_code=303)
-    return templates.TemplateResponse(request, "kabin_yeni.html", _musteri_ctx(
-        request, cust, sablonlar=bil["kabin_sablonlari"]))
+@router.get("/kabin/yeni")
+async def kabin_yeni_sayfa():
+    return RedirectResponse("/#kabinler", status_code=303)       # müşteri yalnız katalogdan başlar
 
 
 @router.post("/kabin/yeni")
 async def kabin_yeni(request: Request, sablon: str = Form(""), model: int = Form(0)):
-    """Müşteri dolabı: boş şablondan (otomatik arkalıkla) ya da yöneticinin hazır modelinden."""
+    """Müşteri dolabı: yöneticinin yayınladığı kabinden (vitrin). Boş şablon yalnız iç kullanım / testler içindir."""
     cust = current_customer(request)
     yeni_token = None
     if cust:
@@ -1183,11 +1177,6 @@ async def magaza_modelleri():
     return modeller
 
 
-def vitrin_ayar():
-    a = _ayar("vitrin", {}) or {}
-    return {"bos_sablon": a.get("bos_sablon", True)}
-
-
 @router.get("/titaniumcam/kabin/modeller")
 async def y_modeller_eski():
     return RedirectResponse(KATALOG, status_code=303)
@@ -1216,7 +1205,7 @@ async def y_kabinler(request: Request, sekme: str = "katalog", mesaj: str = ""):
     return templates.TemplateResponse(request, "kabinler.html", {
         "request": request, "sekme": sekme, "mesaj": mesaj, "modeller": modeller, "gruplar": _gruplar(modeller),
         "sablonlar": bil["kabin_sablonlari"], "arkaliklar": bil["arkaliklar"], "oto_ark": ark,
-        "gorunum": gorunumler(bil), "fiyat": fiyat_ayar(), "birim": birim, "fy": fy, "vitrin": vitrin_ayar(),
+        "gorunum": gorunumler(bil), "fiyat": fiyat_ayar(), "birim": birim, "fy": fy,
         "kategoriler": sorted({m["grup"] for m in modeller} | {x["ad"] for x in bil["kabin_sablonlari"]})})
 
 
@@ -1236,12 +1225,6 @@ async def y_kabin_fiyatlar(request: Request):
                    "ON CONFLICT(tur, kod) DO UPDATE SET fiyat=excluded.fiyat", (parca[1], parca[2][:80], v))
     _fiyat_ayar_yaz(f)
     return _git_katalog("Fiyatlar kaydedildi", "maliyet")
-
-
-@router.post(KATALOG + "/vitrin")
-async def y_kabin_vitrin(bos_sablon: str = Form("")):
-    _ayar_yaz("vitrin", {**(_ayar("vitrin", {}) or {}), "bos_sablon": bool(bos_sablon)})
-    return _git_katalog("Vitrin ayarı kaydedildi")
 
 
 @router.post("/titaniumcam/kabin/modeller/arkalik")

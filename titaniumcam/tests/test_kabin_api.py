@@ -164,7 +164,7 @@ def test_tanimlar_ve_fiyat(o):
     # vitrin: kapalı şablon görünmez
     g = o["TC"](o["app"])
     t = g.get("/").text
-    assert 'value="Alt Dolap"' in t and 'value="Ust Dolap"' not in t
+    assert 'name="sablon"' not in t                                                    # vitrinde boş şablon yok
     assert g.post("/kabin/yeni", data={"sablon": "Ust Dolap"}, follow_redirects=False).headers["location"].startswith("/kabin?hata")
     url = g.post("/kabin/yeni", data={"sablon": "Alt Dolap"}, follow_redirects=False).headers["location"]
     e = g.get(url).text

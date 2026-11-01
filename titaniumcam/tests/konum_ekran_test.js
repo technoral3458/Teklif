@@ -12,7 +12,7 @@ const ok = (c, m) => { if (!c) throw new Error('BAŞARISIZ: ' + m); console.log(
   const t = await m.newPage(); const hat = []; t.on('pageerror', e => hat.push(e.message));
   const yanit = () => t.waitForResponse(r => /\/(islem|panel\/)/.test(r.url()) && r.request().method() === 'POST');
   await t.goto(B + '/');
-  await Promise.all([t.waitForNavigation(), t.tap('button[value="Boy Dolap"]')]);
+  await t.goto(B + (await t.request.post(B + '/kabin/yeni', {form: {sablon: 'Boy Dolap'}, maxRedirects: 0})).headers()['location']);
   await t.waitForFunction(() => typeof S !== 'undefined' && S.v);
   await t.waitForSelector('#sayfa.acik'); await Promise.all([yanit(), t.tap('#uygula')]); await t.waitForTimeout(300);
   // dikey bölme + sol tarafa raf

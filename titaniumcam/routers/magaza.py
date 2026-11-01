@@ -235,20 +235,17 @@ async def magaza_home(request: Request):
     dolap_hata = ""
     try:                                  # Online Kabin şablonları motor servisinden gelir
         import kabin_istemci as KI
-        from routers.kabin import musteri_bilgisi, magaza_modelleri, vitrin_ayar, _gruplar, _kullanilan_gorunum
+        from routers.kabin import magaza_modelleri, _gruplar, _kullanilan_gorunum
         bil = await KI.bilgi()
-        dolaplar = musteri_bilgisi(bil)["kabin_sablonlari"]
-        modeller = await magaza_modelleri()
+        modeller = await magaza_modelleri()           # yalnız yöneticinin yayınladığı kabinler
         gruplar, gorunum = _gruplar(modeller), _kullanilan_gorunum(modeller, bil)
-        if not vitrin_ayar()["bos_sablon"] and modeller:
-            dolaplar = []                 # yönetici kapattıysa yalnız katalog (katalog boşsa şablonlar kalır)
     except Exception as e:
-        dolaplar, modeller, gruplar, gorunum = [], [], [], {}
+        modeller, gruplar, gorunum = [], [], {}
         dolap_hata = getattr(e, "mesaj", "") or "Kabin motoru şu an çalışmıyor"
     owner, _g, _c = _owner(request)
     r = db.one("SELECT COUNT(*) c FROM kabin_taslak WHERE musteri=?", (owner,)) if owner else None
     return templates.TemplateResponse(request, "magaza_home.html",
-                                      _ctx(request, cust, dolaplar=dolaplar, modeller=modeller, gruplar=gruplar,
+                                      _ctx(request, cust, modeller=modeller, gruplar=gruplar,
                                            gorunum=gorunum, dolap_hata=dolap_hata, taslak_sayisi=r["c"] if r else 0))
 
 

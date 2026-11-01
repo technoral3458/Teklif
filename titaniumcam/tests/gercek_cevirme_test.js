@@ -11,7 +11,7 @@ const S = process.argv[2], N = S + '/npm/', B = 'http://127.0.0.1:8100', O = S +
   const t = await m.newPage(); t.on('pageerror', e => console.log('HATA', e.message)); t.on('console', c => c.type() !== 'log' && console.log(c.type(), c.text()));
   const yanit = () => t.waitForResponse(r => /\/(islem|panel\/)/.test(r.url()) && r.request().method() === 'POST');
   await t.goto(B + '/');
-  await Promise.all([t.waitForNavigation(), t.tap('button[value="Boy Dolap"]')]);
+  await t.goto(B + (await t.request.post(B + '/kabin/yeni', {form: {sablon: 'Boy Dolap'}, maxRedirects: 0})).headers()['location']);
   await t.waitForFunction(() => typeof S !== 'undefined' && S.v);
   await t.waitForSelector('#sayfa.acik'); await Promise.all([yanit(), t.tap('#uygula')]); await t.waitForTimeout(300);
   await t.tap('#s2 rect.goz[data-goz="0"]'); await t.tap('#dockIc [data-k=raf]'); await t.waitForTimeout(250);
