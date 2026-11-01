@@ -190,16 +190,18 @@ async def sosyal(request: Request, provider: str = Form(...), email: str = Form(
 async def magaza_home(request: Request):
     cust = current_customer(request)
     prods = products_lib.list_products(only_enabled=True)
-    try:                                  # Online Kabin şablonları (motor servisi çalışmıyorsa gizlenir)
+    dolap_hata = ""
+    try:                                  # Online Kabin şablonları motor servisinden gelir
         import kabin_istemci as KI
         dolaplar = (await KI.bilgi())["kabin_sablonlari"]
-    except Exception:
+    except Exception as e:
         dolaplar = []
+        dolap_hata = getattr(e, "mesaj", "") or "Kabin motoru şu an çalışmıyor"
     owner, _g, _c = _owner(request)
     r = db.one("SELECT COUNT(*) c FROM kabin_taslak WHERE musteri=?", (owner,)) if owner else None
     return templates.TemplateResponse(request, "magaza_home.html",
                                       _ctx(request, cust, products=prods, dolaplar=dolaplar,
-                                           taslak_sayisi=r["c"] if r else 0))
+                                           dolap_hata=dolap_hata, taslak_sayisi=r["c"] if r else 0))
 
 
 @router.get("/magaza/urun/{pid}", response_class=HTMLResponse)

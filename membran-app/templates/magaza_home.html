@@ -4,11 +4,16 @@
 <section class="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-8 mb-8">
   <h1 class="text-3xl font-extrabold mb-2">Kendi mobilyanı tasarla</h1>
   <p class="opacity-90 max-w-xl">Ölçünü ve seçeneklerini gir, anında fiyatını gör, sipariş ver. Üretime biz alırız.</p>
-  <a href="{{ '#dolaplar' if dolaplar else '#urunler' }}" class="inline-block mt-4 bg-white text-emerald-700 font-semibold rounded-lg px-5 py-2.5 hover:bg-emerald-50">Hemen tasarla →</a>
+  <a href="#dolaplar" class="inline-block mt-4 bg-white text-emerald-700 font-semibold rounded-lg px-5 py-2.5 hover:bg-emerald-50">Hemen tasarla →</a>
   <div class="text-sm opacity-80 mt-2">Üyelik gerekmez · giriş yalnız siparişte</div>
 </section>
 
-{% if dolaplar %}
+{% if not dolaplar %}
+<h2 id="dolaplar" class="text-lg font-bold mb-2">Dolap tasarla</h2>
+<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 mb-10 text-sm">
+  Dolap tasarımı şu an kullanılamıyor: {{ dolap_hata }}. Lütfen biraz sonra tekrar deneyin.
+</div>
+{% else %}
 <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
   <h2 id="dolaplar" class="text-lg font-bold">Dolap tasarla</h2>
   {% if taslak_sayisi %}<a href="/kabin" class="text-sm text-emerald-700 font-medium">Kayıtlı dolaplarım ({{ taslak_sayisi }}) →</a>{% endif %}
