@@ -60,7 +60,7 @@
         <a href="/kabin" class="ar">Aç (dolaplarım)</a>
         <button class="ar" data-k="kaydet">Kaydet</button>
         <form method="post" action="/kabin/t/{{ t.id }}/kopyala"><button class="ar">Farklı kaydet (kopya)</button></form>
-        <a href="/kabin/yeni" class="ar">Yeni (şablon)</a>
+        <a href="/magaza#dolaplar" class="ar">Yeni (şablon)</a>
         {% else %}
         <a href="{{ geri_url }}" class="ar">Siparişe dön</a>
         {% endif %}
@@ -88,7 +88,7 @@
   <aside id="sol" class="border-r overflow-y-auto px-2 pb-4">
     <div class="flex justify-between items-center ac-kapa pt-2"><b class="text-sm">Araçlar</b><button class="px-2" data-kapat="sol">✕</button></div>
     <div class="bolum">KABİN</div>
-    <a href="{{ '/kabin/yeni' if rol == 'musteri' else geri_url }}" class="ar">▦ Yeni / Şablon</a>
+    <a href="{{ '/magaza#dolaplar' if rol == 'musteri' else geri_url }}" class="ar">▦ Yeni / Şablon</a>
     <button class="ar" data-k="ozellik">⚙ Kabin özellikleri</button>
     <div class="bolum">EKLE</div>
     <div id="ekleDugmeleri"></div>
@@ -844,8 +844,9 @@ if ($('sepetBtn')) $('sepetBtn').addEventListener('click', async () => {
                                                         body: JSON.stringify({adet: +formDeger($('dlgSol')).adet})});
     const v = await r.json();
     if (!r.ok) { $('dlgHata').textContent = v.error; return false; }
-    durum('Sepete eklendi — sipariş için "Dolaplarım" sayfasına gidin', 'ok');
+    durum('Sepete eklendi', 'ok');
     const g = await istek('/veri', null, 'GET'); if (g) uygula(g);
+    setTimeout(() => { if (confirm('Dolap sepete eklendi. Sepete gidip sipariş vermek ister misiniz?')) location.href = '/magaza/sepet'; }, 50);
     return true;
   });
 });

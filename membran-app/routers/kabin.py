@@ -21,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 import db
 import kabin_istemci as KI
 from config import BASE_DIR
-from routers.magaza import current_customer
+from routers.magaza import current_customer, GUEST_COOKIE, _ensure_guest_token
 
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -194,19 +194,26 @@ async def _goster(t, rol):
 # Editör uçları (müşteri: /kabin/t/..., yönetici: /membrane/kabin/t/...)
 # ══════════════════════════════════════════════════════════════════════════
 def _sahip(request, rol):
+    """Taslak sahibi: yönetici · giriş yapmış müşteri · misafir (çerez anahtarı).
+    Üye olmayan da tasarlar; giriş yalnız sipariş verirken istenir."""
     if rol == "yonetici":
         return YONETICI if getattr(request.state, "user", None) else None
+    return musteri_sahip(request)
+
+
+def musteri_sahip(request):
     c = current_customer(request)
-    return c["username"] if c else None
+    if c:
+        return c["username"]
+    token = request.cookies.get(GUEST_COOKIE, "")
+    return f"guest:{token}" if token else None
 
 
 async def _editor_sayfa(request, tid, rol, taban):
     sahip = _sahip(request, rol)
-    if not sahip:
-        return RedirectResponse("/magaza/giris?next=/kabin", status_code=303)
-    t = _taslak(tid, sahip)
+    t = _taslak(tid, sahip) if sahip else None
     if not t:
-        return RedirectResponse("/membrane/kabin" if rol == "yonetici" else "/kabin", status_code=303)
+        return RedirectResponse("/membrane/kabin" if rol == "yonetici" else "/magaza", status_code=303)
     try:
         bil = await KI.bilgi()
     except KI.ServisHatasi as e:
@@ -220,7 +227,7 @@ async def _editor_sayfa(request, tid, rol, taban):
         "request": request, "t": t, "rol": rol, "taban": taban, "bilgi": bil,
         "izinler": sorted(izinler(rol)), "sinir": sinirlar(t["sablon"]), "satir": satir,
         "geri_url": (f"/membrane/kabin/siparis/{satir['order_id']}" if satir else "/membrane/kabin")
-        if rol == "yonetici" else "/kabin",
+        if rol == "yonetici" else "/magaza",
     })
 
 
@@ -384,14 +391,12 @@ def _musteri_ctx(request, cust, **kw):
 @router.get("/kabin", response_class=HTMLResponse)
 async def kabin_ana(request: Request, hata: str = ""):
     cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris?next=/kabin", status_code=303)
-    u = cust["username"]
+    u = musteri_sahip(request) or "-"
     taslaklar = db.query("SELECT * FROM kabin_taslak WHERE musteri=? ORDER BY updated_at DESC", (u,))
     for t in taslaklar:
         t["ozet"] = json.loads(t["ozet_json"] or "{}")
     siparisler = db.query("SELECT o.*, (SELECT COUNT(*) FROM cabinet_order_lines l WHERE l.order_id=o.id) satir "
-                          "FROM cabinet_orders o WHERE musteri=? ORDER BY id DESC", (u,))
+                          "FROM cabinet_orders o WHERE musteri=? ORDER BY id DESC", (u,)) if cust else []
     return templates.TemplateResponse(request, "kabin_ana.html", _musteri_ctx(
         request, cust, taslaklar=taslaklar, sepet=[t for t in taslaklar if t["sepette"]],
         siparisler=siparisler, hata=hata))
@@ -400,8 +405,6 @@ async def kabin_ana(request: Request, hata: str = ""):
 @router.get("/kabin/yeni", response_class=HTMLResponse)
 async def kabin_yeni_sayfa(request: Request):
     cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris?next=/kabin/yeni", status_code=303)
     try:
         bil = await KI.bilgi()
     except KI.ServisHatasi as e:
@@ -413,8 +416,11 @@ async def kabin_yeni_sayfa(request: Request):
 @router.post("/kabin/yeni")
 async def kabin_yeni(request: Request, sablon: str = Form(...)):
     cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris?next=/kabin/yeni", status_code=303)
+    yeni_token = None
+    if cust:
+        sahip = cust["username"]
+    else:                                 # misafir: sepet çereziyle tanınır
+        sahip, yeni_token = _ensure_guest_token(request)
     try:
         bil = await KI.bilgi()
         sab = next((s for s in bil["kabin_sablonlari"] if s["ad"] == sablon), None)
@@ -426,18 +432,21 @@ async def kabin_yeni(request: Request, sablon: str = Form(...)):
     except KI.ServisHatasi as e:
         return RedirectResponse(f"/kabin?hata={e.mesaj}", status_code=303)
     tid = db.execute("INSERT INTO kabin_taslak (musteri, ad, sablon, kabin_json) VALUES (?,?,?,?)",
-                     (cust["username"], sablon, sablon, json.dumps(view["kabin"], ensure_ascii=False)))
+                     (sahip, sablon, sablon, json.dumps(view["kabin"], ensure_ascii=False)))
     t = db.one("SELECT * FROM kabin_taslak WHERE id=?", (tid,))
     db.execute("INSERT INTO kabin_taslak_surum (taslak_id, sira, kabin_json) VALUES (?,?,?)",
                (tid, 0, t["kabin_json"]))
     _kaydet(t, view, surum=False)
-    return RedirectResponse(f"/kabin/t/{tid}", status_code=303)
+    resp = RedirectResponse(f"/kabin/t/{tid}", status_code=303)
+    if yeni_token:
+        resp.set_cookie(GUEST_COOKIE, yeni_token, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+    return resp
 
 
 @router.post("/kabin/t/{tid}/kopyala")
 async def kabin_kopyala(request: Request, tid: int):
-    cust = current_customer(request)
-    t = _taslak(tid, cust["username"]) if cust else None
+    sahip = musteri_sahip(request)
+    t = _taslak(tid, sahip) if sahip else None
     if not t:
         return RedirectResponse("/kabin", status_code=303)
     try:                                  # kopyada uid yenilenir
@@ -456,8 +465,8 @@ async def kabin_kopyala(request: Request, tid: int):
 
 @router.post("/kabin/t/{tid}/sil")
 async def kabin_sil(request: Request, tid: int):
-    cust = current_customer(request)
-    t = _taslak(tid, cust["username"]) if cust else None
+    sahip = musteri_sahip(request)
+    t = _taslak(tid, sahip) if sahip else None
     if t:
         db.execute("DELETE FROM kabin_taslak_surum WHERE taslak_id=?", (tid,))
         db.execute("DELETE FROM kabin_taslak WHERE id=?", (tid,))
@@ -467,8 +476,8 @@ async def kabin_sil(request: Request, tid: int):
 @router.post("/kabin/t/{tid}/sepet")
 async def kabin_sepete(request: Request, tid: int):
     """Sepete ekle: adet uygulanır, doktor hatası varsa reddedilir."""
-    cust = current_customer(request)
-    t = _taslak(tid, cust["username"]) if cust else None
+    sahip = musteri_sahip(request)
+    t = _taslak(tid, sahip) if sahip else None
     if not t:
         return JSONResponse({"error": "Taslak bulunamadı"}, status_code=404)
     try:
@@ -488,16 +497,16 @@ async def kabin_sepete(request: Request, tid: int):
                              "; ".join(b["mesaj"] for b in view["doktor"] if b["seviye"] == "hata")},
                             status_code=422)
     db.execute("UPDATE kabin_taslak SET sepette=1 WHERE id=?", (tid,))
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "sepet": "/magaza/sepet"})
 
 
 @router.post("/kabin/t/{tid}/sepetten")
 async def kabin_sepetten(request: Request, tid: int):
-    cust = current_customer(request)
-    t = _taslak(tid, cust["username"]) if cust else None
+    sahip = musteri_sahip(request)
+    t = _taslak(tid, sahip) if sahip else None
     if t:
         db.execute("UPDATE kabin_taslak SET sepette=0 WHERE id=?", (tid,))
-    return RedirectResponse("/kabin", status_code=303)
+    return RedirectResponse(request.headers.get("referer") or "/magaza/sepet", status_code=303)
 
 
 def _tkabin(kabin):
@@ -516,11 +525,11 @@ def _satir_alanlari(view):
 @router.post("/kabin/siparis")
 async def kabin_siparis(request: Request, proje: str = Form(""), note: str = Form("")):
     cust = current_customer(request)
-    if not cust:
-        return RedirectResponse("/magaza/giris?next=/kabin", status_code=303)
+    if not cust:                          # tasarım serbest; sipariş verirken giriş / üyelik
+        return RedirectResponse("/magaza/giris?next=/magaza/sepet", status_code=303)
     sepet = db.query("SELECT * FROM kabin_taslak WHERE musteri=? AND sepette=1 ORDER BY id", (cust["username"],))
     if not sepet:
-        return RedirectResponse("/kabin?hata=Sepet boş", status_code=303)
+        return RedirectResponse("/magaza/sepet", status_code=303)
     satirlar = []
     try:
         for t in sepet:                   # her dolap motordan yeniden geçer; satır başına yeni uid

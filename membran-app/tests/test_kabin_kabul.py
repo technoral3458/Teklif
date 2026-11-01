@@ -334,6 +334,40 @@ def test_web_akisi(ortam):
     assert c2.get(f"/kabin/siparis/{oid}", follow_redirects=False).status_code == 303
 
 
+def test_misafir_tasarlar_sipariste_giris(ortam):
+    """Üye olmayan Ürünler'den dolap tasarlar; giriş yalnız sipariş verirken istenir."""
+    db = ortam["db"]
+    g = ortam["TestClient"](ortam["app"])
+    r = g.get("/magaza")
+    assert r.status_code == 200 and "Dolap tasarla" in r.text and 'value="Alt Dolap"' in r.text
+    assert "Kabin Tasarla" not in r.text                     # ayrı menü yok, Ürünler'de
+    r = g.post("/kabin/yeni", data={"sablon": "Alt Dolap"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/kabin/t/")
+    url = r.headers["location"]
+    assert g.get(url).status_code == 200                      # editör girişsiz açılır
+    for a in ADIMLAR[:2]:
+        assert g.post(url + "/islem", json={"islem": a}).status_code == 200
+    assert g.post(url + "/sepet", json={"adet": 1}).status_code == 200
+    r = g.get("/magaza/sepet")
+    assert "Sipariş için giriş yapın" in r.text and "/magaza/kayit?next=/magaza/sepet" in r.text
+    r = g.post("/kabin/siparis", data={"proje": ""}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/magaza/giris?next=/magaza/sepet"
+    baska = ortam["TestClient"](ortam["app"])                # başka misafir göremez
+    baska.get("/magaza")
+    assert baska.get(url + "/veri").status_code == 404
+    # üye olunca dolap hesaba geçer, sepet korunur, sipariş verilir
+    r = g.post("/magaza/kayit", data={"full_name": "Misafir Sonra Üye", "phone": "", "username": "m@test.com",
+                                      "password": "1234", "next": "/magaza/sepet"}, follow_redirects=False)
+    assert r.headers["location"] == "/magaza/sepet"
+    tid = int(url.rsplit("/", 1)[1])
+    t = db.one("SELECT musteri, sepette FROM kabin_taslak WHERE id=?", (tid,))
+    assert t["musteri"] == "m@test.com" and t["sepette"] == 1
+    assert "Dolap siparişini ver" in g.get("/magaza/sepet").text
+    r = g.post("/kabin/siparis", data={"proje": "Misafir"}, follow_redirects=False)
+    assert r.status_code == 303 and "/kabin/siparis/" in r.headers["location"]
+    assert "Dolap siparişlerim" in g.get("/magaza/siparislerim").text
+
+
 def test_hatali_dolap_siparis_olmaz(ortam):
     c = _musteri(ortam, "c@test.com")
     url = _yeni_taslak(c)

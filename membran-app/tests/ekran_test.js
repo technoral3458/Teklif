@@ -23,12 +23,12 @@ async function gozBul(p, f) {   // ölçüye göre göz indeksi (motorun döndü
   await yerel(ctx);
   const p = await ctx.newPage();
   const hatalar = []; p.on('pageerror', e => hatalar.push(e.message));
-  await p.goto(B + '/magaza/kayit');
-  await p.fill('[name=full_name]', 'Deneme Müşteri'); await p.fill('[name=username]', EP); await p.fill('[name=password]', '1234');
-  await Promise.all([p.waitForNavigation(), p.click('button:has-text("Hesabı Oluştur")')]);
-  await p.goto(B + '/kabin/yeni');
-  await p.screenshot({path: OUT + '1_sablon_sec.png'});
+  // üye olmadan: Ürünler sayfasından dolap şablonu seç
+  await p.goto(B + '/magaza');
+  await p.screenshot({path: OUT + '1_urunler.png', fullPage: true});
+  ok(!(await p.textContent('header')).includes('Kabin Tasarla'), 'Ayrı "Kabin Tasarla" menüsü yok');
   await Promise.all([p.waitForNavigation(), p.click('button[value="Alt Dolap"]')]);
+  ok(p.url().includes('/kabin/t/'), 'Misafir editöre girdi (giriş istenmedi)');
   await p.waitForFunction(() => typeof S !== 'undefined' && S.v);
   // 1) kabin özellikleri: en 800 (canlı, Tamam)
   await p.click('[data-k=ozellik]');
@@ -80,11 +80,18 @@ async function gozBul(p, f) {   // ölçüye göre göz indeksi (motorun döndü
   ok(await p.evaluate(() => { const b = S.v.parcalar2b.find(x => x.tur === 'dikeybolme').kutu; return Math.abs(b.x1 - 468) <= 1 && !S.v.gozler.some(z => z.kilit.x); }), 'Sürükleme: bölme ~X 468, kilit yok');
   await p.click('[data-k=geri]'); await p.waitForTimeout(600);
   ok(await p.evaluate(() => S.v.parcalar2b.find(x => x.tur === 'dikeybolme').kutu.x1 === 418), 'Geri al: bölme X 418');
-  // sepete ekle → sipariş
-  await p.click('#sepetBtn'); await p.click('#dlgTamam'); await p.waitForTimeout(800);
-  await p.goto(B + '/kabin');
+  // sepete ekle → sepet → (misafir) üye ol → sipariş
+  p.once('dialog', d => d.accept());
+  await p.click('#sepetBtn'); await Promise.all([p.waitForNavigation(), p.click('#dlgTamam')]);
+  ok(p.url().endsWith('/magaza/sepet'), 'Sepete eklendi, sepete gidildi');
+  ok((await p.textContent('body')).includes('Sipariş için giriş yapın'), 'Siparişte giriş isteniyor');
+  await p.screenshot({path: OUT + '6a_sepet_misafir.png', fullPage: true});
+  await Promise.all([p.waitForNavigation(), p.click('a:has-text("Üye ol") >> nth=-1')]);
+  await p.fill('[name=full_name]', 'Deneme Müşteri'); await p.fill('[name=username]', EP); await p.fill('[name=password]', '1234');
+  await Promise.all([p.waitForNavigation(), p.click('button:has-text("Hesabı Oluştur")')]);
+  ok(p.url().endsWith('/magaza/sepet') && (await p.textContent('body')).includes('Alt Dolap'), 'Üye olunca dolap sepette, hesaba geçti');
   await p.fill('[name=proje]', 'Mutfak deneme');
-  await Promise.all([p.waitForNavigation(), p.click('button:has-text("Sipariş ver")')]);
+  await Promise.all([p.waitForNavigation(), p.click('button:has-text("Dolap siparişini ver")')]);
   const oid = p.url().split('/').pop();
   ok(/\/kabin\/siparis\/\d+$/.test(p.url()), 'Sipariş verildi: ' + p.url());
   await p.screenshot({path: OUT + '6_musteri_siparis.png'});
@@ -107,8 +114,9 @@ async function gozBul(p, f) {   // ölçüye göre göz indeksi (motorun döndü
   const t = await m.newPage(); t.on('pageerror', e => hatalar.push('mobil: ' + e.message));
   await t.goto(B + '/magaza/giris'); await t.fill('[name=username]', EP); await t.fill('[name=password]', '1234');
   await Promise.all([t.waitForNavigation(), t.click('button:has-text("Giriş")')]);
-  await t.goto(B + '/kabin'); await t.screenshot({path: OUT + '8_mobil_dolaplarim.png', fullPage: true});
-  ok(await t.evaluate(() => document.documentElement.scrollWidth <= 375), 'Mobil /kabin: yatay kaydırma yok');
+  await t.goto(B + '/magaza'); await t.screenshot({path: OUT + '8_mobil_urunler.png', fullPage: true});
+  ok(await t.evaluate(() => document.documentElement.scrollWidth <= 375), 'Mobil Ürünler: yatay kaydırma yok');
+  await t.goto(B + '/kabin');
   await Promise.all([t.waitForNavigation(), t.click('a:has-text("Aç")')]);
   await t.waitForFunction(() => typeof S !== 'undefined' && S.v);
   ok(await t.evaluate(() => document.documentElement.scrollWidth <= 375), 'Mobil editör: yatay kaydırma yok');

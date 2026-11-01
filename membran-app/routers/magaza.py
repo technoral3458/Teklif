@@ -67,6 +67,9 @@ def _absorb_guest_cart(request: Request, username: str):
     if token:
         db.execute("UPDATE shop_cart SET customer_user=? WHERE customer_user=?",
                    (username, f"guest:{token}"))
+        # misafirken tasarlanan dolaplar (Online Kabin) da hesaba geçer
+        db.execute("UPDATE kabin_taslak SET musteri=? WHERE musteri=?",
+                   (username, f"guest:{token}"))
 
 
 def _cart(owner):
@@ -84,7 +87,9 @@ def _cart_count(owner):
 
 def _ctx(request, cust, **extra):
     owner, _is_guest, _c = _owner(request)
-    base = {"request": request, "cust": cust, "cart_count": _cart_count(owner)}
+    dolap = db.one("SELECT COUNT(*) c FROM kabin_taslak WHERE musteri=? AND sepette=1", (owner,)) if owner else None
+    base = {"request": request, "cust": cust,
+            "cart_count": _cart_count(owner) + (dolap["c"] if dolap else 0)}
     base.update(extra)
     return base
 
@@ -185,8 +190,16 @@ async def sosyal(request: Request, provider: str = Form(...), email: str = Form(
 async def magaza_home(request: Request):
     cust = current_customer(request)
     prods = products_lib.list_products(only_enabled=True)
+    try:                                  # Online Kabin şablonları (motor servisi çalışmıyorsa gizlenir)
+        import kabin_istemci as KI
+        dolaplar = (await KI.bilgi())["kabin_sablonlari"]
+    except Exception:
+        dolaplar = []
+    owner, _g, _c = _owner(request)
+    r = db.one("SELECT COUNT(*) c FROM kabin_taslak WHERE musteri=?", (owner,)) if owner else None
     return templates.TemplateResponse(request, "magaza_home.html",
-                                      _ctx(request, cust, products=prods))
+                                      _ctx(request, cust, products=prods, dolaplar=dolaplar,
+                                           taslak_sayisi=r["c"] if r else 0))
 
 
 @router.get("/magaza/urun/{pid}", response_class=HTMLResponse)
@@ -243,8 +256,13 @@ async def sepet(request: Request):
     for it in items:
         it["params"] = json.loads(it["params_json"] or "{}")
     total = sum((it["price"] or 0) * (it["qty"] or 1) for it in items)
+    dolaplar = db.query("SELECT * FROM kabin_taslak WHERE musteri=? AND sepette=1 ORDER BY id",
+                        (owner,)) if owner else []
+    for d in dolaplar:
+        d["ozet"] = json.loads(d["ozet_json"] or "{}")
     return templates.TemplateResponse(request, "magaza_sepet.html",
-                                      _ctx(request, cust, items=items, total=round(total, 2)))
+                                      _ctx(request, cust, items=items, total=round(total, 2),
+                                           dolaplar=dolaplar))
 
 
 @router.post("/magaza/sepet/sil")
@@ -342,5 +360,8 @@ async def siparislerim(request: Request):
                       (cust["username"],))
     for o in orders:
         o["stage_label"] = STAGE_LABEL.get(o["stage"], o["stage"])
+    kabin = db.query("SELECT o.*, (SELECT COALESCE(SUM(qty),0) FROM cabinet_order_lines l "
+                     "WHERE l.order_id=o.id) dolap FROM cabinet_orders o WHERE musteri=? ORDER BY id DESC",
+                     (cust["username"],))
     return templates.TemplateResponse(request, "magaza_siparisler.html",
-                                      _ctx(request, cust, orders=orders))
+                                      _ctx(request, cust, orders=orders, kabin=kabin))
