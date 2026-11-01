@@ -234,3 +234,63 @@ def test_sosyal_test_girisi_kapali(o):
     r = c.post("/magaza/sosyal", data={"provider": "google", "email": "kurban@test.com"}, follow_redirects=False)
     assert r.headers["location"] == "/magaza/giris" and not c.cookies.get("csession")
     assert o["db"].one("SELECT 1 FROM membrane_users WHERE username='kurban@test.com'") is None
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Ayarlar: onay şekli (genel + müşteri istisnası), mağaza aşaması, hesap
+# ══════════════════════════════════════════════════════════════════════════
+def _siparis_ver(o, eposta):
+    c = _musteri(o, eposta)
+    url = c.post("/kabin/yeni", data={"sablon": "Alt Dolap"}, follow_redirects=False).headers["location"]
+    c.post(url + "/islem", json={"islem": {"tip": "olcu", "en": 800}})
+    c.post(url + "/islem", json={"islem": ADIMLAR[0]})
+    assert c.post(url + "/sepet", json={"adet": 1}).status_code == 200
+    r = c.post("/kabin/siparis", data={"proje": "akış"}, follow_redirects=False)
+    return c, int(r.headers["location"].rsplit("/", 1)[1])
+
+
+def test_onay_sekli(o):
+    a, db = o["admin"], o["db"]
+    assert a.get("/membrane/ayarlar").status_code == 200
+    a.post("/membrane/ayarlar/akis", data={"kabin_onay": "otomatik", "magaza_asama": "planlama"})
+    _c, oid = _siparis_ver(o, "oto@test.com")
+    s = db.one("SELECT status, approved_by FROM cabinet_orders WHERE id=?", (oid,))
+    assert s["status"] == "onayli" and s["approved_by"] == "otomatik"
+    k = _anahtar(o)
+    ids = [x["id"] for x in o["TC"](o["app"]).get("/api/titanium/v1/cabinet-orders", headers=_h(k)).json()["orders"]]
+    assert f"K-{oid}" in ids                                                            # doğrudan API havuzunda
+    # müşteri istisnası: genel otomatik ama bu müşteri yönetici onaylı
+    uid = db.one("SELECT id FROM membrane_users WHERE username='oto@test.com'")["id"]
+    a.post(f"/membrane/ayarlar/musteri/{uid}", data={"onay_sekli": "yonetici"})
+    c = o["TC"](o["app"])
+    c.post("/magaza/giris", data={"username": "oto@test.com", "password": "1234"})
+    url = c.post("/kabin/yeni", data={"sablon": "Alt Dolap"}, follow_redirects=False).headers["location"]
+    c.post(url + "/sepet", json={"adet": 1})
+    oid2 = int(c.post("/kabin/siparis", data={}, follow_redirects=False).headers["location"].rsplit("/", 1)[1])
+    assert db.one("SELECT status FROM cabinet_orders WHERE id=?", (oid2,))["status"] == "bekliyor"
+    # mağaza siparişi seçilen Vardar aşamasına düşer
+    m = _musteri(o, "magaza@test.com")
+    m.post("/magaza/sepet/ekle", json={"product": "gardirop", "params": {"W": 1500, "H": 2200, "D": 600}})
+    m.post("/magaza/odeme", data={"city": "X", "address": "Y", "phone": "0"})
+    v = db.one("SELECT stage, approve_date FROM vardar_orders WHERE customer_user='magaza@test.com'")
+    assert v["stage"] == "planlama" and v["approve_date"]
+    a.post("/membrane/ayarlar/akis", data={"kabin_onay": "yonetici", "magaza_asama": "havuz"})
+
+
+def test_hesap_degistir(o):
+    a = o["admin"]
+    assert "Mevcut şifre yanlış" in a.post("/membrane/ayarlar/hesap", data={"mevcut": "yanlis", "yeni_sifre": "Yeni-Sifre-1",
+                                                                           "yeni_sifre2": "Yeni-Sifre-1"}).text
+    assert "en az 8" in a.post("/membrane/ayarlar/hesap", data={"mevcut": "admin123", "yeni_sifre": "kisa",
+                                                                 "yeni_sifre2": "kisa"}).text
+    r = a.post("/membrane/ayarlar/hesap", data={"mevcut": "admin123", "yeni_ad": "patron",
+                                                "yeni_sifre": "Yeni-Sifre-1", "yeni_sifre2": "Yeni-Sifre-1"},
+               follow_redirects=False)
+    assert r.status_code == 303 and a.get("/membrane/ayarlar").status_code == 200       # oturum yeni adla sürer
+    y = o["TC"](o["app"])
+    assert y.post("/login", data={"username": "admin", "password": "admin123"}, follow_redirects=False).status_code != 303
+    assert y.post("/login", data={"username": "patron", "password": "Yeni-Sifre-1"},
+                  follow_redirects=False).status_code == 303
+    assert y.get("/membrane/ayarlar").status_code == 200
+    m = _musteri(o, "hacker@test.com")                                                  # müşteri ayarlara giremez
+    assert m.get("/membrane/ayarlar", follow_redirects=False).status_code == 303

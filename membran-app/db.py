@@ -323,6 +323,7 @@ MIGRATIONS = [
     ("vardar_orders", "config_json", "TEXT DEFAULT '{}'"),
     ("vardar_orders", "source", "TEXT DEFAULT ''"),
     ("vardar_orders", "paid", "INTEGER DEFAULT 0"),
+    ("membrane_users", "onay_sekli", "TEXT DEFAULT ''"),   # müşteri bazlı onay şekli istisnası
 ]
 
 

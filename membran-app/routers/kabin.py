@@ -100,6 +100,22 @@ def sinirlar(sablon):
     return s
 
 
+# ── Sipariş akışı: onay şekli (yönetici: /membrane/ayarlar) ──
+def akis_ayar():
+    a = _ayar("siparis_akisi", {}) or {}
+    return {"kabin_onay": a.get("kabin_onay") if a.get("kabin_onay") in ("yonetici", "otomatik") else "yonetici",
+            "magaza_asama": a.get("magaza_asama") if a.get("magaza_asama") in ("havuz", "muhasebe", "planlama")
+            else "havuz"}
+
+
+def kabin_onay_sekli(musteri):
+    """Müşteri istisnası varsa o, yoksa genel ayar: 'yonetici' | 'otomatik'."""
+    u = db.one("SELECT onay_sekli FROM membrane_users WHERE username=?", (musteri,))
+    if u and u.get("onay_sekli") in ("yonetici", "otomatik"):
+        return u["onay_sekli"]
+    return akis_ayar()["kabin_onay"]
+
+
 # ── Kabin tanımları: birim fiyat + müşteriye açık (yönetici: /membrane/kabin/tanimlar) ──
 TANIM_TURLERI = ("sablon", "malzeme", "bant", "ray", "mentese", "arkalik", "kulp", "baglanti", "donati")
 DONATI = [("kanal", "Kanal", "m"), ("mentese", "Menteşe", "adet"), ("kulp", "Kulp", "adet"),
@@ -627,6 +643,11 @@ async def kabin_siparis(request: Request, proje: str = Form(""), note: str = For
                     a["height_mm"], a["depth_mm"], a["tkabin"], a["engine_version"],
                     a["definitions_version"], a["ozet_json"]))
         db.execute("UPDATE kabin_taslak SET sepette=0 WHERE id=?", (t["id"],))
+    if kabin_onay_sekli(cust["username"]) == "otomatik":   # onaylı → TitaniumCam havuzuna (API) düşer
+        db.execute("UPDATE cabinet_orders SET status='onayli', approved_at=datetime('now','localtime'), "
+                   "approved_by='otomatik' WHERE id=?", (oid,))
+        db.execute("INSERT INTO cabinet_order_log (order_id, station, olay, note) VALUES (?,?,?,?)",
+                   (oid, "", "otomatik_onay", "Onay şekli: otomatik"))
     return RedirectResponse(f"/kabin/siparis/{oid}", status_code=303)
 
 

@@ -47,6 +47,7 @@ from routers.membrane import router as membrane_router  # noqa: E402
 from routers.magaza import router as magaza_router  # noqa: E402
 from routers.kabin import router as kabin_router  # noqa: E402
 from routers.titanium_api import router as titanium_router  # noqa: E402
+from routers.ayarlar import router as ayarlar_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(public_router)
@@ -55,6 +56,7 @@ app.include_router(membrane_router)
 app.include_router(magaza_router)
 app.include_router(kabin_router)
 app.include_router(titanium_router)
+app.include_router(ayarlar_router)
 
 
 # Ana sayfa = mağaza (müşteri vitrini). Yönetici paneli: /login → /membrane

@@ -378,6 +378,9 @@ async def odeme_submit(request: Request, full_name: str = Form(""), email: str =
         buyer_email = email.strip().lower()
         buyer_phone = phone.strip()
 
+    from routers.kabin import akis_ayar
+    from datetime import datetime
+    asama = akis_ayar()["magaza_asama"]          # yönetici ayarı: siparişin düşeceği Vardar aşaması
     first_sn = ""
     for it in items:
         params = json.loads(it["params_json"] or "{}")
@@ -388,12 +391,13 @@ async def odeme_submit(request: Request, full_name: str = Form(""), email: str =
             area = 0
         nid = db.execute(
             "INSERT INTO vardar_orders (customer, customer_user, phone, city, area, model, "
-            "material, entered_by, amount, source, config_json, paid, stage) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,'havuz')",
+            "material, entered_by, amount, source, config_json, paid, stage, approve_date) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)",
             (buyer_name, buyer_user, buyer_phone, city, area, it["product_name"],
              "MOBİLYA", "MAĞAZA (online)", it["price"] or 0, "magaza",
              json.dumps({"product": it["product_id"], "params": params,
-                         "email": buyer_email, "address": address, "guest": is_guest})))
+                         "email": buyer_email, "address": address, "guest": is_guest}),
+             asama, datetime.now().strftime("%Y-%m-%d %H:%M:%S") if asama == "planlama" else ""))
         sn = f"MG {5000 + nid}"
         db.execute("UPDATE vardar_orders SET sn=? WHERE id=?", (sn, nid))
         if not first_sn:
