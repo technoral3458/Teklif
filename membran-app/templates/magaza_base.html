@@ -35,11 +35,10 @@
   </header>
 
   {% if google_client_id and not cust %}
-  {# Google ile giriş: telefonda/tarayıcıda kayıtlı hesap varsa One Tap çıkar; daha önce izin verdiyse otomatik girer #}
+  {# Google ile giriş yalnız kişi "Google ile devam et" düğmesine dokununca: otomatik pencere (One Tap) ve otomatik giriş KAPALI #}
   <script src="https://accounts.google.com/gsi/client" async></script>
   <div id="g_id_onload" data-client_id="{{ google_client_id }}" data-callback="googleGiris"
-       data-auto_select="{{ 'false' if request.query_params.get('cikis') else 'true' }}"
-       data-itp_support="true" data-use_fedcm_for_prompt="true" data-context="signin" data-ux_mode="popup"></div>
+       data-auto_prompt="false" data-auto_select="false" data-context="signin" data-ux_mode="popup"></div>
   <script>
     function googleGiris(r) {
       const sonraki = location.pathname === '/' ? '/' : location.pathname + location.search;

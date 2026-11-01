@@ -225,6 +225,8 @@ def test_google_giris(o, monkeypatch):
     # Google düğmesi ve One Tap sayfada
     g = o["TC"](o["app"]).get("/magaza/giris").text
     assert "accounts.google.com/gsi/client" in g and "test.apps.googleusercontent.com" in g
+    assert 'data-auto_prompt="false"' in g and 'data-auto_select="false"' in g          # otomatik giriş yok
+    assert "g_id_signin" in g                                                          # yalnız düğme
 
 
 def test_sosyal_test_girisi_kapali(o):
