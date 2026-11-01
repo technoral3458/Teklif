@@ -372,7 +372,7 @@ def test_misafir_tasarlar_sipariste_giris(ortam):
     assert "Dolap siparişini ver" in g.get("/magaza/sepet").text
     r = g.post("/kabin/siparis", data={"proje": "Misafir"}, follow_redirects=False)
     assert r.status_code == 303 and "/kabin/siparis/" in r.headers["location"]
-    assert "Dolap siparişlerim" in g.get("/magaza/siparislerim").text
+    assert r.headers["location"].replace("/kabin/siparis/", "") and "/kabin/siparis/" in g.get("/magaza/siparislerim").text
 
 
 def test_hatali_dolap_siparis_olmaz(ortam):
@@ -391,11 +391,14 @@ def test_hatali_dolap_siparis_olmaz(ortam):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. Kapak regresyonu  (7. API: tests/test_kabin_api.py)
+# 9. Yönetim sayfaları (eski sistem kaldırıldı)  (7. API: tests/test_kabin_api.py)
 # ══════════════════════════════════════════════════════════════════════════
-def test_kapak_regresyon(ortam):
+def test_yonetim_sayfalari(ortam):
     a = ortam["TestClient"](ortam["app"])
     a.post("/login", data={"username": "admin", "password": "admin123"})
-    for yol in ("/titaniumcam/kapak", "/titaniumcam/kapak/1", "/titaniumcam/kapak/1/gcode", "/titaniumcam/kapak/1/dxf",
-                "/titaniumcam/vardar/havuz/havuz", "/titaniumcam/urunler", "/titaniumcam/uretim", "/magaza"):
+    for yol in ("/titaniumcam/admin", "/titaniumcam/kabin", "/titaniumcam/kabin/modeller", "/titaniumcam/kabin/tanimlar",
+                "/titaniumcam/kabin/ayar", "/titaniumcam/api", "/titaniumcam/acil-lisans", "/titaniumcam/ayarlar", "/", "/magaza/sepet"):
         assert a.get(yol).status_code == 200, yol
+    for yol in ("/titaniumcam/kapak", "/titaniumcam/vardar/havuz/havuz", "/titaniumcam/urunler", "/titaniumcam/uretim",
+                "/titaniumcam/jobs", "/titaniumcam/admin/prices", "/teklif/1"):
+        assert a.get(yol, follow_redirects=False).status_code == 404, yol

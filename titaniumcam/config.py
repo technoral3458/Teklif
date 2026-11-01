@@ -21,8 +21,6 @@ def load_env():
 
 load_env()
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret")
 DB_PATH = os.path.join(BASE_DIR, "data", "titaniumcam.db")
 _ESKI_DB = os.path.join(BASE_DIR, "data", "membrane.db")

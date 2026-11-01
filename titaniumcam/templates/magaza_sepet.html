@@ -42,40 +42,9 @@
     </div>
   </div>
 </section>
-{% if items %}<h2 class="font-semibold mb-3">Diğer ürünler</h2>{% endif %}
-{% endif %}
-{% if not items and dolaplar %}
-{% elif not items %}
+{% else %}
   <div class="bg-white rounded-2xl border p-8 text-center text-slate-500">
     Sepetiniz boş. <a href="/" class="text-emerald-700 font-medium">Dolap tasarlayın →</a>
   </div>
-{% else %}
-<div class="grid lg:grid-cols-3 gap-6">
-  <div class="lg:col-span-2 space-y-3">
-    {% for it in items %}
-    <div class="bg-white rounded-2xl border p-4 flex items-start justify-between gap-4">
-      <div class="text-sm">
-        <div class="font-semibold text-slate-900">{{ it.product_name }}</div>
-        <div class="text-slate-500 mt-1">
-          {{ it.params.get('W','?') }}×{{ it.params.get('H','?') }}×{{ it.params.get('D','?') }} mm ·
-          {{ it.params.get('doors',0) }} kapak · {{ it.params.get('shelves',0) }} raf · {{ it.params.get('drawers',0) }} çekmece
-        </div>
-      </div>
-      <div class="text-right whitespace-nowrap">
-        <div class="font-bold text-emerald-700">{{ "{:,.0f}".format(it.price).replace(',','.') }} ₺</div>
-        <form method="post" action="/magaza/sepet/sil"><input type="hidden" name="id" value="{{ it.id }}">
-          <button class="text-xs text-red-500 hover:underline mt-1">Kaldır</button></form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  <div class="lg:col-span-1">
-    <div class="bg-white rounded-2xl border p-5 sticky top-20">
-      <div class="flex justify-between text-sm mb-2"><span class="text-slate-500">Ara toplam</span><span>{{ "{:,.0f}".format(total).replace(',','.') }} ₺</span></div>
-      <div class="flex justify-between font-bold text-lg border-t pt-2 mb-4"><span>Toplam</span><span class="text-emerald-700">{{ "{:,.0f}".format(total).replace(',','.') }} ₺</span></div>
-      <a href="/magaza/odeme" class="block text-center bg-emerald-600 text-white font-semibold rounded-lg py-3 hover:bg-emerald-700">Ödemeye geç →</a>
-    </div>
-  </div>
-</div>
 {% endif %}
 {% endblock %}

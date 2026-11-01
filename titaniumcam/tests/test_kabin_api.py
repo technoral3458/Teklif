@@ -268,12 +268,11 @@ def test_onay_sekli(o):
     c.post(url + "/sepet", json={"adet": 1})
     oid2 = int(c.post("/kabin/siparis", data={}, follow_redirects=False).headers["location"].rsplit("/", 1)[1])
     assert db.one("SELECT status FROM cabinet_orders WHERE id=?", (oid2,))["status"] == "bekliyor"
-    # eski ürün grupları kaldırıldı: sepete eklenemez, sayfası ana sayfaya döner
+    # eski ürün grupları kaldırıldı
     m = _musteri(o, "magaza@test.com")
-    assert m.post("/magaza/sepet/ekle", json={"product": "gardirop", "params": {"W": 1500}}).status_code == 410
+    assert m.post("/magaza/sepet/ekle", json={"product": "gardirop"}).status_code in (404, 405)
     assert m.get("/magaza/urun/gardirop", follow_redirects=False).headers["location"] == "/"
     assert "Ürün Grupları" not in m.get("/").text
-    assert o["admin"].get("/titaniumcam/urunler", follow_redirects=False).headers["location"] == "/titaniumcam/kabin"
     a.post("/titaniumcam/ayarlar/akis", data={"kabin_onay": "yonetici", "magaza_asama": "havuz"})
 
 

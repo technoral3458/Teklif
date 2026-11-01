@@ -40,13 +40,12 @@ python3 -m venv venv
 ./venv/bin/pip install --upgrade pip
 ./venv/bin/pip install -r requirements.txt
 
-echo ">>> [5/8] .env (ANTHROPIC anahtarını sonra ekleyebilirsin)..."
+echo ">>> [5/8] .env..."
 if [ ! -f .env ]; then
     SECRET=$(./venv/bin/python -c "import secrets; print(secrets.token_urlsafe(40))")
     cat > .env <<EOF
-ANTHROPIC_API_KEY=
 SECRET_KEY=$SECRET
-ANTHROPIC_MODEL=claude-sonnet-4-6
+ACIL_ANAHTAR_DIR=/etc/titaniumcam/acil_lisans
 EOF
 fi
 
@@ -97,8 +96,8 @@ systemctl restart titaniumcam-kabin 2>/dev/null || true
 echo ">>> [8/8] Test..."
 sleep 2
 echo -n "titaniumcam servisi: "; systemctl is-active titaniumcam
-curl -s -o /dev/null -w "uygulama (8100): %{http_code}\n" "http://127.0.0.1:$PORT/titaniumcam"
-curl -s -o /dev/null -w "site (80):       %{http_code}\n" "http://127.0.0.1/titaniumcam"
+curl -s -o /dev/null -w "uygulama (8100): %{http_code}\n" "http://127.0.0.1:$PORT/login"
+curl -s -o /dev/null -w "site (80):       %{http_code}\n" "http://127.0.0.1/login"
 
 echo ""
 echo "============================================================"
@@ -106,9 +105,7 @@ echo "  KURULUM TAMAMLANDI"
 echo "  Tarayıcı:  http://$DOMAIN/   (DNS bu sunucuya bakıyorsa)"
 echo "  ya da IP ile:  http://SUNUCU_IP/"
 echo ""
-echo "  Tarama (foto) modülü için:"
-echo "    nano $APP_SUB/.env   -> ANTHROPIC_API_KEY=sk-ant-...  (kaydet)"
-echo "    systemctl restart titaniumcam"
+echo "  Motor: bash $APP_DIR/deploy/kabin_motor_kur.sh /root/motor.zip"
 echo ""
 echo "  HTTPS için (DNS yönlendikten sonra):"
 echo "    apt-get install -y certbot python3-certbot-nginx"

@@ -23,6 +23,26 @@ def _sayfa(request, mesaj="", hata=""):
         "kullanici": request.state.user, "mesaj": mesaj, "hata": hata})
 
 
+@router.get("/titaniumcam", response_class=HTMLResponse)
+async def yonetim_kok():
+    return RedirectResponse("/titaniumcam/kabin", status_code=303)
+
+
+@router.get("/titaniumcam/admin", response_class=HTMLResponse)
+async def yonetici(request: Request):
+    """Yönetici merkezi: yeni sistemin bütün yönetim bölümleri tek sayfada."""
+    say = lambda sql, a=(): (db.one(sql, a) or {}).get("n", 0)  # noqa: E731
+    sayilar = {
+        "bekleyen": say("SELECT COUNT(*) n FROM cabinet_orders WHERE status='bekliyor'"),
+        "siparis": say("SELECT COUNT(*) n FROM cabinet_orders"),
+        "model": say("SELECT COUNT(*) n FROM kabin_model WHERE acik=1"),
+        "musteri": say("SELECT COUNT(*) n FROM membrane_users WHERE role='customer'"),
+        "anahtar": say("SELECT COUNT(*) n FROM api_keys WHERE revoked_at IS NULL OR revoked_at=''"),
+        "lisans": say("SELECT COUNT(*) n FROM acil_lisanslar"),
+    }
+    return templates.TemplateResponse(request, "yonetici.html", {"request": request, "s": sayilar, "akis": akis_ayar()})
+
+
 @router.get("/titaniumcam/ayarlar", response_class=HTMLResponse)
 async def ayarlar(request: Request, mesaj: str = ""):
     return _sayfa(request, mesaj=mesaj)

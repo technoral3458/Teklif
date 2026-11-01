@@ -11,9 +11,8 @@
   {% set nav = request.url.path %}
   {% set items = [
       ('/titaniumcam/kabin', '🧰 Kabin Siparişleri', nav.startswith('/titaniumcam/kabin')),
-      ('/titaniumcam/admin', '⚙️ Yönetici', nav.startswith('/titaniumcam/admin')),
       ('/titaniumcam/acil-lisans', '🛟 Acil Lisans', nav.startswith('/titaniumcam/acil-lisans')),
-      ('/titaniumcam/ayarlar', '🔧 Ayarlar', nav.startswith('/titaniumcam/ayarlar')),
+      ('/titaniumcam/admin', '⚙️ Yönetici', nav.startswith('/titaniumcam/admin') or nav.startswith('/titaniumcam/ayarlar') or nav.startswith('/titaniumcam/api')),
   ] %}
   <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
     <div class="max-w-7xl mx-auto px-4">
@@ -44,7 +43,6 @@
   <main class="max-w-7xl mx-auto px-4 py-6">
     {% block content %}{% endblock %}
   </main>
-  <script src="/static/app.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

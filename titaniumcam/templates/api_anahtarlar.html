@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}TitaniumCam API{% endblock %}
 {% block content %}
-<a href="/titaniumcam/kabin" class="text-blue-600 text-sm">← Kabin Siparişleri</a>
+<a href="/titaniumcam/admin" class="text-blue-600 text-sm">← Yönetici</a>
 <h1 class="text-2xl font-bold mt-1 mb-2">🔑 TitaniumCam API anahtarları</h1>
 <p class="text-sm text-slate-600 mb-4">TitaniumCam onaylı dolap siparişlerini bu anahtarla çeker. Anahtar yalnız oluşturulduğunda
   <b>bir kez</b> gösterilir; kaybolursa yenisini oluşturup eskisini iptal edin.</p>
@@ -20,8 +20,7 @@
   <form method="post" action="/titaniumcam/api/yeni" class="bg-white rounded-xl shadow p-4 space-y-3 h-fit">
     <h2 class="font-semibold">Yeni anahtar</h2>
     <label class="block text-sm">Ad<input name="ad" placeholder="Atölye CNC-1" class="border rounded px-2 py-1.5 w-full"></label>
-    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="kabin" value="1" checked> Kabin siparişleri</label>
-    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="kapak" value="1"> Kapak siparişleri</label>
+    <input type="hidden" name="kabin" value="1">
     <button class="bg-blue-600 text-white rounded-lg px-4 py-2 w-full">Oluştur</button>
   </form>
   <div class="lg:col-span-2 bg-white rounded-xl shadow overflow-x-auto">
@@ -31,7 +30,7 @@
       {% for k in keys %}
       <tr class="border-t {% if k.revoked_at %}text-slate-400{% endif %}">
         <td class="p-3">{{ k.ad }}</td><td class="p-3 font-mono text-xs">{{ k.onek }}…</td>
-        <td class="p-3 text-xs">{% if k.kabin %}kabin {% endif %}{% if k.kapak %}kapak{% endif %}</td>
+        <td class="p-3 text-xs">{% if k.kabin %}kabin siparişleri{% endif %}</td>
         <td class="p-3 text-xs">{{ k.last_used_at or '—' }}</td>
         <td class="p-3 text-right">{% if k.revoked_at %}<span class="text-xs">iptal {{ k.revoked_at[:10] }}</span>{% else %}
           <form method="post" action="/titaniumcam/api/{{ k.id }}/iptal" onsubmit="return confirm('Anahtar iptal edilsin mi? TitaniumCam bağlantısı kesilir.')"><button class="text-red-600 text-xs border border-red-200 rounded px-2 py-1">İptal et</button></form>{% endif %}</td>

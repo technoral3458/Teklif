@@ -13,20 +13,12 @@ build/
 .pytest_cache/
 .mypy_cache/
 
-# Django
-backend/db.sqlite3
-backend/media/
-backend/static/
-backend/venv/
 venv/
 .venv/
 *.log
 
-# Node / React
-frontend/node_modules/
-frontend/dist/
-frontend/.env
 .env
+node_modules/
 
 # IDE
 .vscode/

@@ -1,33 +1,39 @@
-# TitaniumCam
+# TitaniumCam — online dolap tasarım ve sipariş
 
-Bağımsız FastAPI + SQLite + Jinja2 uygulaması. 4 modül:
+FastAPI + SQLite + Jinja2. Müşteri tarayıcıda dolap tasarlar; hesap TitaniumCam motorunda yapılır
+(ayrı, kapalı servis); sipariş yönetici onayıyla (ya da otomatik) TitaniumCam programına API ile gider.
 
-1. **Maliyet Hesaplayıcı** — malzeme fiyatları, döviz (TCMB), m²/kapı maliyeti
-2. **Kapak Model Editörü** — parametrik NC (G-code) üretimi + simülasyon
-3. **Nesting** — MaxRects BSSF levha yerleşim optimizasyonu + 2-geçişli NC
-4. **El Yazısı Tarama** — Claude AI ile fotoğraftan ölçü çıkarma
+| Bölüm | Kod |
+|---|---|
+| Mağaza (ana sayfa, sepet, giriş / kayıt / Google, siparişlerim) | `routers/magaza.py` |
+| Dolap tasarımı, siparişler, hazır modeller, tanımlar ve fiyatlar | `routers/kabin.py`, `kabin_istemci.py` |
+| Motor servisi (yalnız 127.0.0.1:8210; motor kodu depoda değil) | `kabin_servis/servis.py` |
+| TitaniumCam API (`/api/titanium/v1`) | `routers/titanium_api.py`, `docs/titanium_api.md` |
+| Acil lisans | `routers/acil_lisans.py`, `acil_lisans.py`, `docs/acil_lisans.md` |
+| Yönetici merkezi ve ayarlar | `routers/ayarlar.py` |
 
-## Kurulum
+Yönetim: `/login` → `/titaniumcam/kabin` · Yönetici merkezi: `/titaniumcam/admin`
+
+## Yerel çalıştırma
 
 ```bash
 cd titaniumcam
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+python3 -m venv venv && . venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env               # ANTHROPIC_API_KEY girin (tarama için)
-uvicorn main:app --reload
+cp .env.example .env
+KABIN_MOTOR_DIR=/yol/kabin_motor uvicorn kabin_servis.servis:app --port 8210 &
+uvicorn main:app --port 8100
 ```
 
-Tarayıcı: http://127.0.0.1:8000/titaniumcam
+Veritabanı ilk açılışta `data/titaniumcam.db` olarak oluşur (ilk yönetici: `admin` / `admin123`, hemen değiştirin).
 
-## Notlar
+## Testler
 
-- Veritabanı ilk açılışta `data/titaniumcam.db` olarak otomatik oluşur.
-- Giriş/kullanıcı yok (tek kullanıcılı).
-- `ANTHROPIC_API_KEY` yoksa diğer 3 modül çalışır; sadece tarama devre dışı kalır.
-- DXF içe aktarma için `ezdxf` opsiyoneldir.
+```bash
+KABIN_MOTOR_DIR=/yol/kabin_motor python3 -m pytest -q tests
+```
 
-## NC formatı
+## Sunucu
 
-Fanuc/Haas uyumlu (G21 metrik, G90 mutlak, G54 iş koordinatı). Koordinatlar mm.
-İfadeler parametriktir: `LPX/2`, `LPY-10`, `sqrt(R*2)`, `-T` (W/H/T = LPX/LPY/LPZ).
+`deploy/setup_titaniumcam.sh` (sıfırdan kurulum), `deploy/kabin_motor_kur.sh` (motor),
+`deploy/deneme_kur.sh` (deneme ortamı), `deploy/gecis_titaniumcam.sh` (eski membran kurulumundan bir kerelik geçiş).

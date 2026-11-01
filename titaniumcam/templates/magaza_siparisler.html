@@ -2,28 +2,12 @@
 {% block title %}Siparişlerim — {{ firma().ad }}{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">Siparişlerim</h1>
-{% if not orders and not kabin %}
+{% if not kabin %}
   <div class="bg-white rounded-2xl border p-8 text-center text-slate-500">
     Henüz siparişiniz yok. <a href="/" class="text-emerald-700 font-medium">Dolap tasarlayın →</a>
   </div>
-{% else %}
-<div class="space-y-3">
-  {% for o in orders %}
-  <div class="bg-white rounded-2xl border p-4 flex items-center justify-between gap-4">
-    <div class="text-sm">
-      <div class="font-semibold text-slate-900">{{ o.model }} <span class="font-mono text-xs text-slate-400">· {{ o.sn }}</span></div>
-      <div class="text-slate-500 mt-0.5">{{ o.order_date[:10] }} · {{ "{:,.0f}".format(o.amount).replace(',','.') }} ₺</div>
-    </div>
-    <span class="text-xs font-medium rounded-full px-3 py-1
-      {% if o.stage == 'teslim' %}bg-emerald-100 text-emerald-700{% elif o.stage == 'havuz' %}bg-slate-100 text-slate-600{% else %}bg-amber-100 text-amber-700{% endif %}">
-      {{ o.stage_label }}
-    </span>
-  </div>
-  {% endfor %}
-</div>
 {% endif %}
 {% if kabin %}
-<h2 class="text-lg font-bold mt-8 mb-3">Dolap siparişlerim</h2>
 <div class="space-y-3">
   {% for o in kabin %}
   <a href="/kabin/siparis/{{ o.id }}" class="bg-white rounded-2xl border p-4 flex items-center justify-between gap-4 hover:border-emerald-400">

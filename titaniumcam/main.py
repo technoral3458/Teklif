@@ -1,4 +1,4 @@
-"""TitaniumCam - FastAPI uygulaması."""
+"""TitaniumCam: online dolap tasarım ve sipariş sistemi (FastAPI)."""
 import os
 from contextlib import asynccontextmanager
 
@@ -19,9 +19,8 @@ async def lifespan(app):
 
 app = FastAPI(title="Online Sipariş Sistemi", lifespan=lifespan)
 
-# Giriş gerektirmeyen yollar (müşteri mağazası + teklif sayfası dahil).
-# /magaza ve /kabin kendi müşteri oturumunu ('csession') içeride denetler.
-PUBLIC_PATHS = ("/login", "/logout", "/static", "/teklif", "/magaza", "/kabin",
+# Giriş gerektirmeyen yollar. /magaza ve /kabin kendi müşteri oturumunu ('csession') içeride denetler.
+PUBLIC_PATHS = ("/login", "/logout", "/static", "/magaza", "/kabin",
                 "/api/titanium", "/gizlilik", "/kosullar")   # API: oturum değil Bearer anahtarı (routers/titanium_api.py)
 
 
@@ -46,9 +45,6 @@ os.makedirs(os.path.join(BASE_DIR, "static"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 from routers.auth_routes import router as auth_router  # noqa: E402
-from routers.public_routes import router as public_router  # noqa: E402
-from routers.vardar import router as vardar_router  # noqa: E402
-from routers.membrane import router as membrane_router  # noqa: E402
 from routers.magaza import router as magaza_router  # noqa: E402
 from routers.kabin import router as kabin_router  # noqa: E402
 from routers.titanium_api import router as titanium_router  # noqa: E402
@@ -56,9 +52,6 @@ from routers.ayarlar import router as ayarlar_router  # noqa: E402
 from routers.acil_lisans import router as acil_router  # noqa: E402
 
 app.include_router(auth_router)
-app.include_router(public_router)
-app.include_router(vardar_router)
-app.include_router(membrane_router)
 app.include_router(magaza_router)
 app.include_router(kabin_router)
 app.include_router(titanium_router)
@@ -67,15 +60,14 @@ app.include_router(acil_router)
 
 
 # Firma adı (Ayarlar → Firma) tüm şablonlarda {{ firma().ad }} olarak kullanılır
-import routers.auth_routes, routers.public_routes, routers.vardar, routers.membrane  # noqa: E402,F401
+import routers.auth_routes  # noqa: E402,F401
 import routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans  # noqa: E402,F401
 from routers.kabin import firma_bilgisi  # noqa: E402
 
-for _m in (routers.auth_routes, routers.public_routes, routers.vardar, routers.membrane,
-           routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans):
+for _m in (routers.auth_routes, routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans):
     _m.templates.env.globals["firma"] = firma_bilgisi
 
-# Ana sayfa = mağaza (müşteri vitrini). Yönetici paneli: /login → /titaniumcam
+# Ana sayfa = mağaza (müşteri vitrini). Yönetim: /login → /titaniumcam/kabin
 from routers.magaza import magaza_home  # noqa: E402
 
 app.add_api_route("/", magaza_home, methods=["GET"], response_class=HTMLResponse)

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Yönetici — {{ firma().ad }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">⚙️ Yönetici</h1>
+<p class="text-sm text-slate-500 mb-5">Online dolap sisteminin bütün yönetimi buradan.</p>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+  <a href="/titaniumcam/kabin?durum=bekliyor" class="bg-white rounded-xl shadow p-4 {% if s.bekleyen %}ring-2 ring-amber-300{% endif %}">
+    <div class="text-2xl font-bold {% if s.bekleyen %}text-amber-600{% endif %}">{{ s.bekleyen }}</div><div class="text-xs text-slate-500">Onay bekleyen sipariş</div></a>
+  <a href="/titaniumcam/kabin" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.siparis }}</div><div class="text-xs text-slate-500">Toplam sipariş</div></a>
+  <a href="/titaniumcam/ayarlar#musteriler" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.musteri }}</div><div class="text-xs text-slate-500">Müşteri</div></a>
+  <a href="/titaniumcam/kabin/modeller" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.model }}</div><div class="text-xs text-slate-500">Satıştaki hazır model</div></a>
+</div>
+
+{% set bolumler = [
+  ('Satış', [
+    ('/titaniumcam/kabin', '🧰', 'Kabin siparişleri', 'Onay, düzeltme, .tkabin indirme'),
+    ('/titaniumcam/kabin/modeller', '🏷️', 'Hazır modeller', 'Tasarladığın dolapları mağazada sat; otomatik arkalık'),
+    ('/', '🛍️', 'Mağazayı aç', 'Müşterinin gördüğü sayfa'),
+  ]),
+  ('Ürün tanımları', [
+    ('/titaniumcam/kabin/tanimlar', '💰', 'Tanımlar ve fiyatlar', 'Malzeme, bant, donatı fiyatları; renk / doku; müşterinin neleri kullanabileceği'),
+    ('/titaniumcam/kabin/ayar', '🎛️', 'Gelişmiş alan yetkileri', 'Müşteri ve yönetici hangi alanı değiştirebilir'),
+  ]),
+  ('TitaniumCam bağlantısı', [
+    ('/titaniumcam/api', '🔑', 'TitaniumCam API', s.anahtar ~ ' etkin anahtar · siparişleri programa aktarır'),
+    ('/titaniumcam/acil-lisans', '🛟', 'Acil lisans', s.lisans ~ ' lisans · bozulan bilgisayar için geçici lisans'),
+  ]),
+  ('Sistem', [
+    ('/titaniumcam/ayarlar', '🔧', 'Ayarlar', 'Firma adı · sipariş onayı (' ~ ('otomatik' if akis.kabin_onay == 'otomatik' else 'yönetici onaylar') ~ ') · müşteriler · şifre'),
+  ]),
+] %}
+{% for baslik, kartlar in bolumler %}
+<h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2 mt-5">{{ baslik }}</h2>
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+  {% for url, ikon, ad, ac in kartlar %}
+  <a href="{{ url }}" class="bg-white rounded-xl shadow p-4 flex gap-3 items-start hover:ring-2 ring-blue-300">
+    <div class="text-2xl leading-none">{{ ikon }}</div>
+    <div><div class="font-semibold">{{ ad }}</div><div class="text-sm text-slate-500">{{ ac }}</div></div>
+  </a>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -102,4 +102,4 @@ for s in istek("/cabinet-orders?status=approved&unclaimed=1&station=CNC-1")["ord
             json.dump(satir["tkabin"], f, ensure_ascii=False, indent=1)   # Kabin → Dosya → Aç
 ```
 
-Kapak siparişleri için uçlar bu aşamada yok; anahtarın "kapak" izni ileride kullanılacak.
+API yalnız kabin (dolap) siparişlerini taşır.

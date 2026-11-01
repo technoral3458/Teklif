@@ -1,16 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Ayarlar{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold mb-4">🔧 Ayarlar</h1>
+<a href="/titaniumcam/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<h1 class="text-2xl font-bold mt-1 mb-4">🔧 Ayarlar</h1>
 {% if mesaj %}<div class="bg-emerald-50 text-emerald-700 rounded-lg px-4 py-2 mb-4 text-sm">{{ mesaj }}</div>{% endif %}
 {% if hata %}<div class="bg-red-50 text-red-700 rounded-lg px-4 py-2 mb-4 text-sm">{{ hata }}</div>{% endif %}
 
-<div class="grid lg:grid-cols-4 gap-4 mb-6 text-sm">
-  <a href="/titaniumcam/kabin/modeller" class="bg-white rounded-xl shadow p-4 hover:ring-2 ring-blue-300"><div class="font-semibold">🏷️ Hazır modeller</div><div class="text-slate-500">Tasarladığın dolapları mağazada sat; otomatik arkalık</div></a>
-  <a href="/titaniumcam/kabin/tanimlar" class="bg-white rounded-xl shadow p-4 hover:ring-2 ring-blue-300"><div class="font-semibold">💰 Kabin tanımları ve fiyatlar</div><div class="text-slate-500">Malzeme, bant, donatı fiyatları; müşterinin neleri kullanabileceği</div></a>
-  <a href="/titaniumcam/api" class="bg-white rounded-xl shadow p-4 hover:ring-2 ring-blue-300"><div class="font-semibold">🔑 TitaniumCam API</div><div class="text-slate-500">Programı siteye bağlayan anahtarlar</div></a>
-  <a href="/titaniumcam/kabin" class="bg-white rounded-xl shadow p-4 hover:ring-2 ring-blue-300"><div class="font-semibold">🧰 Kabin siparişleri</div><div class="text-slate-500">Onay, düzeltme, .tkabin indirme</div></a>
-</div>
 
 <form method="post" action="/titaniumcam/ayarlar/firma" class="bg-white rounded-xl shadow p-5 mb-6">
   <h2 class="font-semibold text-lg mb-1">Firma</h2>
