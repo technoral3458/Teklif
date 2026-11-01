@@ -54,6 +54,11 @@ async def bilgi(yenile=False):
     return _BILGI
 
 
+KAPALI_KODLAR = None      # rol -> {tur: [kod]} : müşteriye kapalı kodlar (routers.kabin ayarlar)
+
+
 async def islem(kabin, islemler, rol, izinler):
-    return await _istek("POST", "/islem", {"kabin": kabin, "islem": islemler, "rol": rol,
-                                           "izinler": sorted(izinler)})
+    govde = {"kabin": kabin, "islem": islemler, "rol": rol, "izinler": sorted(izinler)}
+    if rol != "yonetici" and KAPALI_KODLAR:
+        govde["kapali"] = KAPALI_KODLAR()
+    return await _istek("POST", "/islem", govde)

@@ -100,6 +100,72 @@ def sinirlar(sablon):
     return s
 
 
+# ── Kabin tanımları: birim fiyat + müşteriye açık (yönetici: /membrane/kabin/tanimlar) ──
+TANIM_TURLERI = ("sablon", "malzeme", "bant", "ray", "mentese", "arkalik", "kulp", "baglanti", "donati")
+DONATI = [("kanal", "Kanal", "m"), ("mentese", "Menteşe", "adet"), ("kulp", "Kulp", "adet"),
+          ("ray", "Çekmece rayı (çift)", "çift"), ("ayak", "Ayak", "adet")]
+
+
+def tanim_tablosu():
+    return {(r["tur"], r["kod"]): r for r in db.query("SELECT * FROM kabin_tanim")}
+
+
+def kapali_kodlar():
+    out = {}
+    for r in db.query("SELECT tur, kod FROM kabin_tanim WHERE acik=0"):
+        out.setdefault(r["tur"], []).append(r["kod"])
+    return out
+
+
+KI.KAPALI_KODLAR = kapali_kodlar          # müşteri isteklerinde motor servisi de denetler
+
+
+def fiyat_ayar():
+    a = _ayar("fiyat", {}) or {}
+    return {"kar": float(a.get("kar", 0) or 0), "goster": bool(a.get("goster", False))}
+
+
+def fiyat_hesapla(maliyet):
+    """Motorun maliyet miktarları × yöneticinin birim fiyatları. Fiyatı girilmemiş kalem
+    'eksik'e yazılır; eksik varken müşteriye toplam gösterilmez."""
+    T = tanim_tablosu()
+    kalemler, eksik = [], []
+    for m in maliyet or []:
+        tur, _, kod = m["anahtar"].partition(":")
+        bf = float((T.get((tur, kod)) or {}).get("fiyat") or 0)
+        if bf <= 0:
+            eksik.append(m["ad"])
+        kalemler.append({**m, "birim_fiyat": bf, "tutar": round(m["miktar"] * bf, 2)})
+    a = fiyat_ayar()
+    ara = round(sum(k["tutar"] for k in kalemler), 2)
+    return {"kalemler": kalemler, "ara_toplam": ara, "kar_orani": a["kar"],
+            "toplam": round(ara * (1 + a["kar"] / 100.0), 2), "eksik": eksik}
+
+
+def musteri_fiyati(fiyat):
+    """Müşteriye gösterilecek toplam (ayar kapalıysa ya da eksik fiyat varsa None)."""
+    if not fiyat_ayar()["goster"] or fiyat["eksik"] or fiyat["toplam"] <= 0:
+        return None
+    return fiyat["toplam"]
+
+
+def musteri_bilgisi(bil):
+    """Motor tanım listelerinden müşteriye kapalı olanları çıkarır (editör ve vitrin için)."""
+    k = {t: set(v) for t, v in kapali_kodlar().items()}
+    acik = lambda tur, kod: kod not in k.get(tur, ())  # noqa: E731
+    b = dict(bil)
+    b["kabin_sablonlari"] = [x for x in bil["kabin_sablonlari"] if acik("sablon", x["ad"])]
+    for alan, tur in (("malzemeler", "malzeme"), ("bantlar", "bant"), ("raylar", "ray"), ("menteseler", "mentese")):
+        b[alan] = [x for x in bil[alan] if acik(tur, x["kod"])]
+    b["arkaliklar"] = [x for x in bil["arkaliklar"] if acik("arkalik", x["ad"])]
+    b["kulplar"] = {ad: v for ad, v in bil["kulplar"].items() if acik("kulp", ad)}
+    es = dict(bil["eleman_sablonlari"])
+    for tur in ("arkalik", "kulp", "cekmece"):
+        es[tur] = [a for a in es.get(tur, []) if acik(tur, a)]
+    b["eleman_sablonlari"] = es
+    return b
+
+
 # ── basit hız sınırı (kullanıcı başına dakikada 240 işlem) ──
 _HIZ = defaultdict(deque)
 
@@ -137,7 +203,8 @@ def _surum_ekle(tid, imlec, kabin_json):
 def _kaydet(t, view, surum=True):
     kj = json.dumps(view["kabin"], ensure_ascii=False)
     ozet = json.dumps({**view["ozet"], "en": view["govde"]["en"], "boy": view["govde"]["boy"],
-                       "derinlik": view["govde"]["derinlik"], "adet": view["ozellik"]["adet"]})
+                       "derinlik": view["govde"]["derinlik"], "adet": view["ozellik"]["adet"],
+                       "fiyat": musteri_fiyati(fiyat_hesapla(view.get("maliyet")))})
     imlec = _surum_ekle(t["id"], t["imlec"], kj) if surum else t["imlec"]
     db.execute("UPDATE kabin_taslak SET kabin_json=?, imlec=?, hata_var=?, ozet_json=?, "
                "updated_at=datetime('now') WHERE id=?",
@@ -155,9 +222,13 @@ def _durum(t):
 
 
 def _cevap(view, t, rol):
-    out = {k: v for k, v in view.items() if k != "kabin"}
+    out = {k: v for k, v in view.items() if k not in ("kabin", "maliyet")}
+    f = fiyat_hesapla(view.get("maliyet"))
     if rol == "yonetici":
         out["kabin"] = view["kabin"]
+        out["fiyat"] = f                     # yönetici: kalem kalem, eksik fiyatlar
+    else:
+        out["fiyat"] = {"toplam": musteri_fiyati(f)}
     out["durum"] = _durum(t)
     return out
 
@@ -224,7 +295,8 @@ async def _editor_sayfa(request, tid, rol, taban):
         satir = db.one("SELECT l.*, o.order_no, o.status FROM cabinet_order_lines l "
                        "JOIN cabinet_orders o ON o.id=l.order_id WHERE l.id=?", (t["siparis_satir_id"],))
     return templates.TemplateResponse(request, "kabin_editor.html", {
-        "request": request, "t": t, "rol": rol, "taban": taban, "bilgi": bil,
+        "request": request, "t": t, "rol": rol, "taban": taban,
+        "bilgi": bil if rol == "yonetici" else musteri_bilgisi(bil),
         "izinler": sorted(izinler(rol)), "sinir": sinirlar(t["sablon"]), "satir": satir,
         "geri_url": (f"/membrane/kabin/siparis/{satir['order_id']}" if satir else "/membrane/kabin")
         if rol == "yonetici" else "/magaza",
@@ -423,7 +495,7 @@ async def kabin_yeni(request: Request, sablon: str = Form(...)):
         sahip, yeni_token = _ensure_guest_token(request)
     try:
         bil = await KI.bilgi()
-        sab = next((s for s in bil["kabin_sablonlari"] if s["ad"] == sablon), None)
+        sab = next((s for s in musteri_bilgisi(bil)["kabin_sablonlari"] if s["ad"] == sablon), None)
         if not sab:
             raise KI.ServisHatasi("Şablon bulunamadı")
         s = sinirlar(sablon)
@@ -519,7 +591,8 @@ def _satir_alanlari(view):
             "depth_mm": float(k["derinlik"]), "cabinet_no": k.get("kabinno", "") or "",
             "tkabin": json.dumps(_tkabin(k), ensure_ascii=False),
             "engine_version": view["motor_surumu"], "definitions_version": view["tanim_surumu"],
-            "ozet_json": json.dumps(view["ozet"])}
+            "ozet_json": json.dumps({**view["ozet"], "fiyat": fiyat_hesapla(view.get("maliyet"))["toplam"],
+                                     "fiyat_eksik": bool(fiyat_hesapla(view.get("maliyet"))["eksik"])})}
 
 
 @router.post("/kabin/siparis")
@@ -617,6 +690,7 @@ async def y_satir_veri(request: Request, lid: int):
     except KI.ServisHatasi as e:
         return _hata(e)
     view.pop("kabin", None)
+    view["fiyat"] = fiyat_hesapla(view.pop("maliyet", None))
     return JSONResponse(view)
 
 
@@ -742,3 +816,85 @@ async def y_ayar_kaydet(request: Request):
                 d[alan] = [lo, hi]
         _ayar_yaz(f"sinir.{s}", d)
     return RedirectResponse("/membrane/kabin/ayar?kayit=1", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Yönetici: kabin tanımları — birim fiyatlar ve müşterinin kullanabilecekleri
+# ══════════════════════════════════════════════════════════════════════════
+EKLE_TURLERI = [("dikeybolme", "Dikey bölme"), ("yataybolme", "Yatay bölme"), ("raf", "Raf"),
+                ("arkalik", "Arkalık"), ("dikeykayit", "Dikey kayıt"), ("yataykayit", "Yatay kayıt"),
+                ("kapak", "Kapak"), ("cekmece", "Çekmece"), ("usttabla", "Üst tabla")]
+
+
+@router.get("/membrane/kabin/tanimlar", response_class=HTMLResponse)
+async def y_tanimlar(request: Request, kayit: int = 0):
+    try:
+        bil = await KI.bilgi()
+    except KI.ServisHatasi as e:
+        return HTMLResponse(f"<p style='padding:2rem;font-family:sans-serif'>{e.mesaj}</p>", status_code=503)
+    T = tanim_tablosu()
+    v = lambda tur, kod: T.get((tur, kod)) or {"fiyat": 0, "acik": 1}  # noqa: E731
+    bolumler = [
+        ("sablon", "Dolap şablonları", "", [(x["ad"], x["ad"], f"{x['boy']:g}×{x['en']:g}×{x['derinlik']:g}")
+                                          for x in bil["kabin_sablonlari"]], False),
+        ("malzeme", "Malzemeler", "₺/m²", [(x["kod"], x["ad"], f"{x.get('kalinlik') or ''} mm")
+                                           for x in bil["malzemeler"]], True),
+        ("bant", "Kenar bantları", "₺/m", [(x["kod"], x["ad"], "") for x in bil["bantlar"]], True),
+        ("ray", "Çekmece rayları", "", [(x["kod"], x["ad"], f"kasa {x.get('kasa_derinlik') or ''}")
+                                         for x in bil["raylar"]], False),
+        ("mentese", "Menteşe tipleri", "", [(x["kod"], x["ad"], "") for x in bil["menteseler"]], False),
+        ("arkalik", "Arkalık şablonları", "", [(x["ad"], x["ad"], f"{x['tip']} {x['kalinlik']:g} mm")
+                                               for x in bil["arkaliklar"]], False),
+        ("kulp", "Kulp şablonları", "", [(a, a, "") for a in bil["kulplar"]], False),
+        ("baglanti", "Bağlantı elemanları", "₺/adet", [(x["kod"], x["ad"], "") for x in bil["baglantilar"]], True),
+    ]
+    yet = yetkiler()
+    return templates.TemplateResponse(request, "kabin_y_tanimlar.html", {
+        "request": request, "bolumler": bolumler, "v": v, "donati": DONATI, "kayit": kayit,
+        "fiyat": fiyat_ayar(), "ekle": [(t, ad, yet.get(f"ekle.{t}") == "M") for t, ad in EKLE_TURLERI],
+        "sinirlar": {x["ad"]: sinirlar(x["ad"]) for x in bil["kabin_sablonlari"]}})
+
+
+@router.post("/membrane/kabin/tanimlar")
+async def y_tanimlar_kaydet(request: Request):
+    f = await request.form()
+    satirlar = {}
+    for anahtar, deger in f.multi_items():
+        parca = anahtar.split(":", 2)                 # f:tur:kod (fiyat) · a:tur:kod (açık)
+        if len(parca) != 3 or parca[0] not in ("f", "a") or parca[1] not in TANIM_TURLERI:
+            continue
+        r = satirlar.setdefault((parca[1], parca[2]), {"fiyat": 0.0, "acik": 0})
+        if parca[0] == "f":
+            try:
+                r["fiyat"] = max(0.0, float(str(deger).replace(",", ".") or 0))
+            except ValueError:
+                pass
+        else:
+            r["acik"] = 1
+    for (tur, kod), r in satirlar.items():
+        if tur == "donati" or tur == "baglanti":
+            r["acik"] = 1                              # fiyat kalemi; müşteri seçmez
+        db.execute("INSERT INTO kabin_tanim (tur, kod, fiyat, acik) VALUES (?,?,?,?) "
+                   "ON CONFLICT(tur, kod) DO UPDATE SET fiyat=excluded.fiyat, acik=excluded.acik",
+                   (tur, kod[:80], r["fiyat"], r["acik"]))
+    try:
+        kar = max(-90.0, min(500.0, float(str(f.get("kar", "0")).replace(",", ".") or 0)))
+    except ValueError:
+        kar = 0.0
+    _ayar_yaz("fiyat", {"kar": kar, "goster": f.get("goster") == "1"})
+    y = _ayar("yetkiler", {}) or {}
+    for t, _ad in EKLE_TURLERI:
+        y[f"ekle.{t}"] = "M" if f.get(f"e:{t}") == "1" else "Y"
+    _ayar_yaz("yetkiler", y)
+    for sab in {k[1] for k in satirlar if k[0] == "sablon"}:
+        d = {}
+        for alan in ("en", "boy", "derinlik"):
+            try:
+                lo = max(50.0, float(f.get(f"s:{sab}:{alan}:min", 50)))
+                hi = min(10000.0, float(f.get(f"s:{sab}:{alan}:max", 10000)))
+            except ValueError:
+                continue
+            if lo <= hi:
+                d[alan] = [lo, hi]
+        _ayar_yaz(f"sinir.{sab}", d)
+    return RedirectResponse("/membrane/kabin/tanimlar?kayit=1", status_code=303)

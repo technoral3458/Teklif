@@ -248,6 +248,36 @@ CREATE TABLE IF NOT EXISTS kabin_ayar (
     anahtar TEXT PRIMARY KEY,
     deger TEXT NOT NULL
 );
+-- Kabin tanımları: tür + kod başına birim fiyat ve müşteriye açık mı (yönetici ekranı)
+-- tur: sablon | malzeme | bant | ray | mentese | arkalik | kulp | baglanti | donati
+CREATE TABLE IF NOT EXISTS kabin_tanim (
+    tur TEXT NOT NULL,
+    kod TEXT NOT NULL,
+    fiyat REAL DEFAULT 0,
+    acik INTEGER DEFAULT 1,
+    PRIMARY KEY (tur, kod)
+);
+-- TitaniumCam API anahtarları: yalnız SHA-256 özeti saklanır, anahtar bir kez gösterilir
+CREATE TABLE IF NOT EXISTS api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ad TEXT DEFAULT '',
+    onek TEXT DEFAULT '',              -- tanımak için ilk karakterler (gizli değil)
+    ozet TEXT UNIQUE NOT NULL,
+    kapak INTEGER DEFAULT 0,           -- kapak siparişleri izni
+    kabin INTEGER DEFAULT 1,           -- kabin siparişleri izni
+    created_at TEXT DEFAULT (datetime('now')),
+    last_used_at TEXT DEFAULT '',
+    revoked_at TEXT DEFAULT ''
+);
+-- Kabin siparişi üretim olayları (claim / durum)
+CREATE TABLE IF NOT EXISTS cabinet_order_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    station TEXT DEFAULT '',
+    olay TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+);
 -- Kapak siparişinin karşılığı
 CREATE TABLE IF NOT EXISTS cabinet_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

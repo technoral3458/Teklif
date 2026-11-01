@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}TitaniumCam API{% endblock %}
+{% block content %}
+<a href="/membrane/kabin" class="text-blue-600 text-sm">← Kabin Siparişleri</a>
+<h1 class="text-2xl font-bold mt-1 mb-2">🔑 TitaniumCam API anahtarları</h1>
+<p class="text-sm text-slate-600 mb-4">TitaniumCam onaylı dolap siparişlerini bu anahtarla çeker. Anahtar yalnız oluşturulduğunda
+  <b>bir kez</b> gösterilir; kaybolursa yenisini oluşturup eskisini iptal edin.</p>
+
+{% if yeni %}
+<div class="bg-emerald-50 border border-emerald-300 rounded-xl p-4 mb-5">
+  <div class="font-semibold text-emerald-800 mb-1">Yeni anahtar — şimdi kopyalayın, bir daha gösterilmeyecek</div>
+  <div class="flex flex-wrap gap-2 items-center">
+    <code id="anahtar" class="bg-white border rounded px-3 py-2 text-sm break-all">{{ yeni }}</code>
+    <button type="button" class="border rounded px-3 py-2 text-sm bg-white" onclick="navigator.clipboard.writeText(document.getElementById('anahtar').textContent);this.textContent='Kopyalandı'">Kopyala</button>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <form method="post" action="/membrane/api/yeni" class="bg-white rounded-xl shadow p-4 space-y-3 h-fit">
+    <h2 class="font-semibold">Yeni anahtar</h2>
+    <label class="block text-sm">Ad<input name="ad" placeholder="Atölye CNC-1" class="border rounded px-2 py-1.5 w-full"></label>
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="kabin" value="1" checked> Kabin siparişleri</label>
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="kapak" value="1"> Kapak siparişleri</label>
+    <button class="bg-blue-600 text-white rounded-lg px-4 py-2 w-full">Oluştur</button>
+  </form>
+  <div class="lg:col-span-2 bg-white rounded-xl shadow overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500"><tr><th class="text-left p-3">Ad</th><th class="text-left p-3">Anahtar</th><th class="text-left p-3">İzin</th><th class="text-left p-3">Son kullanım</th><th class="p-3"></th></tr></thead>
+      <tbody>
+      {% for k in keys %}
+      <tr class="border-t {% if k.revoked_at %}text-slate-400{% endif %}">
+        <td class="p-3">{{ k.ad }}</td><td class="p-3 font-mono text-xs">{{ k.onek }}…</td>
+        <td class="p-3 text-xs">{% if k.kabin %}kabin {% endif %}{% if k.kapak %}kapak{% endif %}</td>
+        <td class="p-3 text-xs">{{ k.last_used_at or '—' }}</td>
+        <td class="p-3 text-right">{% if k.revoked_at %}<span class="text-xs">iptal {{ k.revoked_at[:10] }}</span>{% else %}
+          <form method="post" action="/membrane/api/{{ k.id }}/iptal" onsubmit="return confirm('Anahtar iptal edilsin mi? TitaniumCam bağlantısı kesilir.')"><button class="text-red-600 text-xs border border-red-200 rounded px-2 py-1">İptal et</button></form>{% endif %}</td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="p-6 text-center text-slate-500">Anahtar yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="bg-white rounded-xl shadow p-4 mt-6 text-sm">
+  <h2 class="font-semibold mb-2">TitaniumCam tarafı için</h2>
+  <p class="text-slate-600 mb-2">Adres: <code>https://kapak.ersanmakina.net{{ onek }}</code> · Başlıklar: <code>Authorization: Bearer &lt;anahtar&gt;</code>, <code>X-Titanium-Station: CNC-1</code> · Dakikada en çok 120 istek · Yalnız HTTPS.</p>
+  <pre class="bg-slate-900 text-slate-100 rounded-lg p-3 overflow-x-auto text-xs">GET  {{ onek }}/cabinet-orders?status=approved&amp;unclaimed=1&amp;station=CNC-1
+POST {{ onek }}/cabinet-orders/K-1001/claim    {"station": "CNC-1", "app": "TitaniumCam", "version": "2.0"}
+POST {{ onek }}/cabinet-orders/K-1001/status   {"station": "CNC-1", "status": "in_production", "note": ""}
+     status: nested | in_production | done | released (released: havuza geri koyar)</pre>
+  <p class="text-slate-500 mt-2">Ayrıntı: repodaki <code>membran-app/docs/titanium_api.md</code>.</p>
+</div>
+{% endblock %}

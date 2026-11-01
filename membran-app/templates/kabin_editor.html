@@ -213,7 +213,11 @@ function uygula(v, {secimiKoru = false} = {}) {
 
 function ozetCiz() {
   const v = S.v, h = v.doktor.filter(b => b.seviye === 'hata').length, u = v.doktor.length - h + v.uyarilar.length;
-  $('ozet').textContent = `${v.ozet.parca} parça · ${v.ozet.m2.toLocaleString('tr-TR')} m² · ${v.ozet.bant_m.toLocaleString('tr-TR')} m bant`;
+  const tl = n => n.toLocaleString('tr-TR', {maximumFractionDigits: 0}) + ' ₺';
+  const f = v.fiyat || {};
+  const fiyatYazi = f.toplam ? ` · <b class="text-emerald-700">${tl(f.toplam)}</b>` + (f.eksik && f.eksik.length ? ' <span class="text-amber-600">(eksik fiyat)</span>' : '') : '';
+  $('ozet').innerHTML = `${v.ozet.parca} parça · ${v.ozet.m2.toLocaleString('tr-TR')} m² · ${v.ozet.bant_m.toLocaleString('tr-TR')} m bant${fiyatYazi}`;
+  $('ozet').classList.toggle('hidden', false);
   const kb = $('kontrolBtn');
   kb.textContent = h ? `⛔ ${h} hata` : u ? `⚠ ${u} uyarı` : '✓ Kontrol';
   kb.className = 'rounded px-2 py-0.5 whitespace-nowrap ' + (h ? 'bg-red-100 text-red-700' : u ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700');
@@ -237,6 +241,12 @@ function parcaListesi() {
         <input type="checkbox" title="Görünür" ${S.gizli.has(p.id) ? '' : 'checked'} data-gizle="${K.esc(p.id)}">
         <span class="flex-1 truncate">${K.esc(p.ad)}</span><span class="text-slate-500 whitespace-nowrap">${olc}</span></div>`;
     }
+  }
+  if (ROL === 'yonetici' && v.fiyat && v.fiyat.kalemler) {
+    const tl = n => n.toLocaleString('tr-TR', {maximumFractionDigits: 2});
+    h += `<div class="bolum">FİYAT (yönetici)</div>` + v.fiyat.kalemler.map(k =>
+      `<div class="text-xs flex justify-between px-1 ${k.birim_fiyat ? '' : 'text-amber-600'}"><span>${K.esc(k.ad)} · ${tl(k.miktar)} ${K.esc(k.birim)}</span><b>${k.birim_fiyat ? tl(k.tutar) + ' ₺' : 'fiyat yok'}</b></div>`).join('')
+      + `<div class="text-xs flex justify-between px-1 border-t mt-1 pt-1"><span>Ara toplam · kâr %${v.fiyat.kar_orani}</span><b>${tl(v.fiyat.toplam)} ₺</b></div>`;
   }
   if (v.donati.length) h += `<div class="bolum">DONATI</div>` + v.donati.map(d => `<div class="text-xs flex justify-between px-1"><span>${K.esc(d.ad)}</span><b>${d.adet}</b></div>`).join('');
   $('parcalar').innerHTML = h;

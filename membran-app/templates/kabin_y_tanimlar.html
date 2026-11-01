@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Kabin tanımları ve fiyatlar{% endblock %}
+{% block content %}
+<a href="/membrane/kabin" class="text-blue-600 text-sm">← Kabin Siparişleri</a>
+<div class="flex flex-wrap items-center justify-between gap-3 mt-1 mb-4">
+  <h1 class="text-2xl font-bold">Kabin tanımları ve fiyatlar</h1>
+  <a href="/membrane/kabin/ayar" class="text-sm text-slate-500 underline">Gelişmiş alan yetkileri</a>
+</div>
+{% if kayit %}<div class="bg-emerald-50 text-emerald-700 rounded-lg px-4 py-2 mb-4 text-sm">Kaydedildi.</div>{% endif %}
+<p class="text-sm text-slate-600 mb-4">
+  <b>Müşteriye açık</b> işaretli olmayanı müşteri göremez ve seçemez (sunucu da reddeder).
+  Dolap fiyatı = motorun hesapladığı miktarlar (m², metre, adet) × buradaki birim fiyatlar + kâr oranı.
+  Fiyatı girilmemiş kalem varsa müşteriye toplam gösterilmez.
+</p>
+
+<form method="post" class="space-y-6">
+  <div class="grid lg:grid-cols-2 gap-6">
+    <!-- Genel fiyat ayarları -->
+    <div class="bg-white rounded-xl shadow p-4">
+      <h2 class="font-semibold mb-3">Fiyat ayarları</h2>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <label>Kâr oranı (%)<input name="kar" type="number" step="0.1" value="{{ '%g'|format(fiyat.kar) }}" class="border rounded px-2 py-1 w-full"></label>
+        <label class="flex items-center gap-2 mt-5"><input type="checkbox" name="goster" value="1" {% if fiyat.goster %}checked{% endif %}> Müşteriye fiyat göster</label>
+      </div>
+      <h3 class="font-medium text-sm mt-4 mb-2">Donatı birim fiyatları</h3>
+      <table class="w-full text-sm">
+        {% for kod, ad, birim in donati %}
+        <tr class="border-t"><td class="py-1">{{ ad }}</td>
+          <td class="py-1 text-right"><input name="f:donati:{{ kod }}" type="number" step="0.01" min="0" value="{{ '%g'|format(v('donati', kod).fiyat or 0) }}" class="border rounded px-2 py-1 w-28 text-right"> <span class="text-slate-400 text-xs">₺/{{ birim }}</span></td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <!-- Müşterinin ekleyebileceği elemanlar -->
+    <div class="bg-white rounded-xl shadow p-4">
+      <h2 class="font-semibold mb-3">Müşterinin ekleyebileceği elemanlar</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+        {% for t, ad, acik in ekle %}
+        <label class="flex items-center gap-2 border rounded-lg px-2 py-1.5"><input type="checkbox" name="e:{{ t }}" value="1" {% if acik %}checked{% endif %}> {{ ad }}</label>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-slate-400 mt-2">İşaretsiz olanı yalnız yönetici ekleyebilir.</p>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-2 gap-6">
+  {% for tur, baslik, birim, satirlar, fiyatli in bolumler %}
+    <div class="bg-white rounded-xl shadow p-4">
+      <h2 class="font-semibold mb-2">{{ baslik }}</h2>
+      <table class="w-full text-sm">
+        <thead class="text-slate-400 text-xs"><tr>
+          <th class="text-left py-1">{% if tur != 'baglanti' %}Müşteriye açık{% endif %}</th><th class="text-left py-1">Ad</th>
+          <th class="text-right py-1">{% if fiyatli %}Birim fiyat{% elif tur == 'sablon' %}Ölçü aralığı (mm) min–max{% endif %}</th></tr></thead>
+        <tbody>
+        {% for kod, ad, ek in satirlar %}
+        {% set d = v(tur, kod) %}
+        <tr class="border-t align-top">
+          <td class="py-1.5 pr-2 w-24">{% if tur != 'baglanti' %}<input type="checkbox" name="a:{{ tur }}:{{ kod }}" value="1" {% if d.acik %}checked{% endif %}>{% endif %}</td>
+          <td class="py-1.5"><span class="font-mono text-xs text-slate-500">{{ kod }}</span> {% if ad != kod %}{{ ad }}{% endif %} <span class="text-xs text-slate-400">{{ ek }}</span></td>
+          <td class="py-1.5 text-right whitespace-nowrap">
+            {% if fiyatli %}
+              <input name="f:{{ tur }}:{{ kod }}" type="number" step="0.01" min="0" value="{{ '%g'|format(d.fiyat or 0) }}" class="border rounded px-2 py-1 w-28 text-right"> <span class="text-slate-400 text-xs">{{ birim }}</span>
+            {% else %}
+              <input type="hidden" name="f:{{ tur }}:{{ kod }}" value="0">
+              {% if tur == 'sablon' %}
+              <div class="grid grid-cols-3 gap-1 text-xs text-left">
+                {% for alan, aad in [('boy','Boy'),('en','En'),('derinlik','Der.')] %}
+                <label>{{ aad }}<div class="flex gap-0.5"><input name="s:{{ kod }}:{{ alan }}:min" value="{{ '%g'|format(sinirlar[kod][alan][0]) }}" class="border rounded px-1 w-14"><input name="s:{{ kod }}:{{ alan }}:max" value="{{ '%g'|format(sinirlar[kod][alan][1]) }}" class="border rounded px-1 w-14"></div></label>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+  </div>
+  <div class="sticky bottom-0 bg-slate-100/90 py-3"><button class="bg-blue-600 text-white rounded-lg px-6 py-2.5 font-semibold">Kaydet</button></div>
+</form>
+{% endblock %}

@@ -25,3 +25,8 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret")
 DB_PATH = os.path.join(BASE_DIR, "data", "membrane.db")
+
+# Google ile giriş (Google Cloud Console → OAuth istemci kimliği, "Web uygulaması")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+# Şifresiz e-posta ile "sosyal giriş" TEST modu. Canlıda KAPALI kalmalı (hesap ele geçirilir).
+SOSYAL_TEST = os.environ.get("SOSYAL_TEST", "") == "1"

@@ -80,6 +80,15 @@ class Hata(Exception):
     """Kullanıcı hatası: 422, mesaj aynen gösterilir, dolap değişmez."""
 
 
+# Müşteriye KAPALI kodlar (yönetici tanım ekranından): {"malzeme": [...], "bant": [...], ...}.
+# Boş = kısıt yok (yönetici). İstekler _KILIT altında tek tek işlendiği için modül düzeyinde.
+KAPALI: dict = {}
+
+
+def _acik_mi(tur: str, kod: str) -> bool:
+    return kod not in KAPALI.get(tur, ())
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Doğrulama
 # ══════════════════════════════════════════════════════════════════════════
@@ -134,6 +143,8 @@ def _malzeme(v: Any, ad: str = "Malzeme") -> str:
     kodlar = {str(m.get("kod")) for m in tn.malzemeler()}
     if not isinstance(v, str) or v not in kodlar:
         raise Hata(f"{ad}: tanımda olmayan malzeme")
+    if not _acik_mi("malzeme", v):
+        raise Hata(f"{ad}: bu malzeme seçilemez")
     return v
 
 
@@ -143,6 +154,8 @@ def _bant_kodu(v: Any, ad: str = "Bant") -> str:
     kodlar = {str(b.get("kod")) for b in tn.bantlar()}
     if not isinstance(v, str) or v not in kodlar:
         raise Hata(f"{ad}: tanımda olmayan bant")
+    if not _acik_mi("bant", v):
+        raise Hata(f"{ad}: bu bant seçilemez")
     return v
 
 
@@ -383,7 +396,8 @@ SECENEK = {
     "kapak": {"tip": lambda v, a: _enum(M.KapakTipi, v, a),
               "yarim_bindirme": _bool,
               "katlanma": lambda v, a: _sec(v, ("", "SOL", "SAG", "KARSILIKLI"), a),
-              "mentesetipi": lambda v, a: _sec(v, tuple(str(m["kod"]) for m in tn.menteseler()), a),
+              "mentesetipi": lambda v, a: _sec(v, tuple(str(m["kod"]) for m in tn.menteseler()
+                                                       if _acik_mi("mentese", str(m["kod"]))), a),
               "mentese_adet": lambda v, a: _tam(v, a, 0, 12),
               "mentese_ust": _SAYI(0, 1000), "mentese_alt": _SAYI(0, 1000),
               "mentese_artim": _SAYI(50, 3000),
@@ -393,7 +407,8 @@ SECENEK = {
               "profil_boy": _SAYI(20, 3000)},
     "cekmece": {"tip": lambda v, a: _enum(M.KapakTipi, v, a),
                 "ic": _bool,
-                "raytipi": lambda v, a: _sec(v, tuple(str(r["kod"]) for r in tn.raylar()), a),
+                "raytipi": lambda v, a: _sec(v, tuple(str(r["kod"]) for r in tn.raylar()
+                                                   if _acik_mi("ray", str(r["kod"]))), a),
                 "kasa_birlesim": lambda v, a: _sec(v, ("YAN_DISTA", "ON_DISTA"), a),
                 "kasa_baglanti": lambda v, a: v if v == "" else _baglanti_kodu(v),
                 "kanalli_taban": _bool,
@@ -423,6 +438,8 @@ def _sablon(k: Any, tur: str, ad: Any) -> Any:
         ad = tn.alt_sablon_adi(k.sablon, t) if k.sablon else None
     elif not isinstance(ad, str) or ad not in tn.eleman_sablon_adlari(t):
         raise Hata("Tanımda olmayan şablon")
+    elif t in ("arkalik", "kulp", "cekmece") and not _acik_mi(t, ad):
+        raise Hata("Bu şablon seçilemez")
     return tn.eleman_sablonu(t, ad)
 
 
@@ -455,6 +472,8 @@ def _kulp(sec: Any) -> Any:
     ad = sec.get("sablon")
     if ad not in (None, "") and ad not in tn.eleman_sablon_adlari("kulp"):
         raise Hata("Kulp şablonu tanımda yok")
+    if ad not in (None, "") and not _acik_mi("kulp", ad):
+        raise Hata("Bu kulp seçilemez")
     ku = tn.eleman_sablonu("kulp", ad or None)
     for alan, v in sec.items():
         if alan == "sablon":
@@ -766,6 +785,19 @@ def _tur(e: Any) -> str:
     return str(e.tur)
 
 
+_MALIYET_ON = (("Malzeme ", "malzeme:"), ("Kenar bandi ", "bant:"), ("Baglanti ", "baglanti:"),
+               ("Kanal", "donati:kanal"), ("Mentese", "donati:mentese"), ("Kulp", "donati:kulp"),
+               ("Cekmece rayi", "donati:ray"), ("Ayak", "donati:ayak"))
+
+
+def _maliyet_anahtari(ad: str) -> str:
+    """R.maliyet kalem adından kararlı anahtar (fiyat eşleştirmesi için)."""
+    for on, anahtar in _MALIYET_ON:
+        if ad.startswith(on):
+            return anahtar + ad[len(on):].strip() if anahtar.endswith(":") else anahtar
+    return "diger:" + ad
+
+
 def gorunum(k: Any, cab: Any, rol: str) -> dict[str, Any]:
     adlar = {p.id: p.name for p in cab.panels}
     el_tur = {e.id: _tur(e) for e in k.elemanlar()}
@@ -830,6 +862,8 @@ def gorunum(k: Any, cab: Any, rol: str) -> dict[str, Any]:
         pl.append(row)
 
     donati = [{"ad": r.label, "adet": r.qty} for r in H.hardware_rows(cab, rules=rs, qty=max(1, int(k.adet)))]
+    maliyet = [{"anahtar": _maliyet_anahtari(m.ad), "ad": m.ad, "miktar": m.miktar, "birim": m.birim}
+               for m in R.maliyet(satirlar, cab, tn, k)]
     doktor = [{"seviye": b.seviye, "kod": b.kod, "mesaj": b.mesaj, "parcalar": list(b.parcalar)}
               for b in D.teshis(cab, k, tn)]
     uyarilar = list(dict.fromkeys(list(k.uyarilar or []) + list(E.cakisma_kontrol(k) or [])))
@@ -838,7 +872,7 @@ def gorunum(k: Any, cab: Any, rol: str) -> dict[str, Any]:
                   "ayaktipi": k.ayaktipi.name, "ayakyuksekligi": k.ayakyuksekligi},
         "ozellik": ozellikler(k),
         "gozler": gozler, "parcalar2b": p2, "parcalar3b": p3,
-        "parca_listesi": pl, "donati": donati,
+        "parca_listesi": pl, "donati": donati, "maliyet": maliyet,
         "ozet": {"parca": len(satirlar), "m2": round(sum(s.alan_m2 for s in satirlar), 3),
                  "bant_m": round(sum(s.bant_m for s in satirlar), 2)},
         "uyarilar": uyarilar, "doktor": doktor,
@@ -908,18 +942,24 @@ async def islem(request: Request) -> JSONResponse:
     if rol not in ("musteri", "yonetici"):
         return _hata("Geçersiz rol", 400)
     izinler = set(govde.get("izinler") or [])
+    kodlar = govde.get("kapali") if rol != "yonetici" else None
+    if kodlar is not None and (not isinstance(kodlar, dict) or
+                               not all(isinstance(v, list) for v in kodlar.values())):
+        return _hata("Geçersiz kodlar", 400)
     islemler = govde.get("islem")
     if isinstance(islemler, dict):
         islemler = [islemler]
     if not isinstance(islemler, list) or len(islemler) > 20:
         return _hata("Geçersiz işlem", 400)
+    global KAPALI
     with _KILIT:
+        KAPALI = {t: {str(x) for x in v} for t, v in kodlar.items()} if kodlar else {}
         try:
             _sonlu(islemler, "islem")
             ilk = islemler[0] if islemler else {}
             if isinstance(ilk, dict) and ilk.get("tip") == "yeni":
                 ad = ilk.get("sablon")
-                if ad not in tn.kabin_sablon_adlari():
+                if ad not in tn.kabin_sablon_adlari() or not _acik_mi("sablon", ad):
                     raise Hata("Tanımda olmayan şablon")
                 k = tn.kabin_sablonu(ad)
                 olc = {f: _sayi(ilk[f], f, OLCU_MIN, OLCU_MAX) for f in OLCU_ALANLARI if ilk.get(f) is not None}

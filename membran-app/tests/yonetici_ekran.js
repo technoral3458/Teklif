@@ -1,0 +1,20 @@
+const { chromium } = require('playwright'); const fs = require('fs');
+const S = process.argv[2], N = S + '/npm/', B = 'http://127.0.0.1:8100', O = S + '/ekran/';
+(async () => {
+  const br = await chromium.launch(); const ctx = await br.newContext({viewport: {width: 1440, height: 900}});
+  await ctx.route('https://cdn.tailwindcss.com/**', r => r.fulfill({body: fs.readFileSync(N + 'tw.js'), contentType: 'application/javascript'}));
+  const a = await ctx.newPage(); const hat = []; a.on('pageerror', e => hat.push(e.message));
+  await a.goto(B + '/login'); await a.fill('[name=username]', 'admin'); await a.fill('[name=password]', 'admin123');
+  await Promise.all([a.waitForNavigation(), a.click('button')]);
+  await a.goto(B + '/membrane/kabin/tanimlar');
+  await a.fill('[name="f:malzeme:MDF18"]', '650'); await a.fill('[name="kar"]', '25');
+  await Promise.all([a.waitForNavigation(), a.click('button:has-text("Kaydet")')]);
+  console.log('kayit:', (await a.textContent('body')).includes('Kaydedildi'));
+  await a.screenshot({path: O + '20_tanimlar.png', fullPage: true});
+  await a.goto(B + '/membrane/api');
+  await a.fill('[name=ad]', 'Atölye CNC-1'); await Promise.all([a.waitForNavigation(), a.click('button:has-text("Oluştur")')]);
+  console.log('anahtar gösterildi:', await a.isVisible('#anahtar'));
+  await a.screenshot({path: O + '21_api.png', fullPage: true});
+  console.log('JS hatası:', JSON.stringify(hat));
+  await br.close();
+})();

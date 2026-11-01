@@ -4,6 +4,10 @@
 <div class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border p-6 mt-4">
   <h1 class="text-xl font-bold mb-1">Üye Ol</h1>
   <p class="text-sm text-slate-500 mb-4">Sipariş verebilmek için hesap oluşturun.</p>
+  {% if google_client_id %}
+  <div class="mb-4">{% include "_google.html" %}</div>
+  <div class="flex items-center gap-3 text-xs text-slate-400 mb-4"><div class="flex-1 border-t"></div>ya da e-posta ile<div class="flex-1 border-t"></div></div>
+  {% endif %}
   {% if error %}<div class="bg-red-50 text-red-700 text-sm rounded-lg px-3 py-2 mb-3">{{ error }}</div>{% endif %}
   <form method="post" class="space-y-3">
     <input type="hidden" name="next" value="{{ next }}">

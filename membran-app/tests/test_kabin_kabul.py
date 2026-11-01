@@ -381,14 +381,8 @@ def test_hatali_dolap_siparis_olmaz(ortam):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. API (bölüm 12) · 9. Kapak regresyonu
+# 9. Kapak regresyonu  (7. API: tests/test_kabin_api.py)
 # ══════════════════════════════════════════════════════════════════════════
-@pytest.mark.skip(reason="TitaniumCam sipariş API'si (/api/titanium/v1) bu aşamada kurulmadı; "
-                         "aktarım .tkabin indirme ile")
-def test_api():
-    pass
-
-
 def test_kapak_regresyon(ortam):
     a = ortam["TestClient"](ortam["app"])
     a.post("/login", data={"username": "admin", "password": "admin123"})

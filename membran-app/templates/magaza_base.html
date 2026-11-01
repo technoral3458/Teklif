@@ -34,6 +34,24 @@
     </div>
   </header>
 
+  {% if google_client_id and not cust %}
+  {# Google ile giriş: telefonda/tarayıcıda kayıtlı hesap varsa One Tap çıkar; daha önce izin verdiyse otomatik girer #}
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <div id="g_id_onload" data-client_id="{{ google_client_id }}" data-callback="googleGiris"
+       data-auto_select="{{ 'false' if request.query_params.get('cikis') else 'true' }}"
+       data-itp_support="true" data-use_fedcm_for_prompt="true" data-context="signin" data-ux_mode="popup"></div>
+  <script>
+    function googleGiris(r) {
+      const sonraki = location.pathname === '/' ? '/' : location.pathname + location.search;
+      fetch('/magaza/google', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                               body: JSON.stringify({credential: r.credential, next: sonraki})})
+        .then(x => x.json()).then(d => { if (d.url) location.href = d.url; else alert(d.error || 'Google girişi başarısız'); });
+    }
+    {% if request.query_params.get('cikis') %}
+    window.addEventListener('load', () => { if (window.google) google.accounts.id.disableAutoSelect(); });
+    {% endif %}
+  </script>
+  {% endif %}
   <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
     {% block content %}{% endblock %}
   </main>
