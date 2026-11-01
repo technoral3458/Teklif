@@ -431,3 +431,18 @@ async def siparislerim(request: Request):
                      (cust["username"],))
     return templates.TemplateResponse(request, "magaza_siparisler.html",
                                       _ctx(request, cust, orders=orders, kabin=kabin))
+
+
+# Yasal sayfalar (Google giriş onay ekranı bunları ister)
+@router.get("/gizlilik", response_class=HTMLResponse)
+async def gizlilik(request: Request):
+    return templates.TemplateResponse(request, "magaza_yasal.html",
+                                      _ctx(request, current_customer(request), tur="gizlilik",
+                                           baslik="Gizlilik Politikası"))
+
+
+@router.get("/kosullar", response_class=HTMLResponse)
+async def kosullar(request: Request):
+    return templates.TemplateResponse(request, "magaza_yasal.html",
+                                      _ctx(request, current_customer(request), tur="kosullar",
+                                           baslik="Kullanım Koşulları"))

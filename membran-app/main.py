@@ -22,7 +22,7 @@ app = FastAPI(title="Membran Kapak Yönetim Sistemi", lifespan=lifespan)
 # Giriş gerektirmeyen yollar (müşteri mağazası + teklif sayfası dahil).
 # /magaza ve /kabin kendi müşteri oturumunu ('csession') içeride denetler.
 PUBLIC_PATHS = ("/login", "/logout", "/static", "/teklif", "/magaza", "/kabin",
-                "/api/titanium")   # API: oturum değil Bearer anahtarı (routers/titanium_api.py)
+                "/api/titanium", "/gizlilik", "/kosullar")   # API: oturum değil Bearer anahtarı (routers/titanium_api.py)
 
 
 @app.middleware("http")
