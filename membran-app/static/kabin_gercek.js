@@ -71,35 +71,40 @@ window.KabinGercek = (() => {
     constructor(kap, tikla) {
       this.kap = kap; this.tikla = tikla; this.gorunum = {};
       if (!T) { kap.innerHTML = '<p style="padding:1rem;color:#64748b">3B görünüm yüklenemedi.</p>'; return; }
-      const r = this.r = new T.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
+      const r = this.r = new T.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
+      r.setClearColor(0x000000, 0);
+      kap.style.background = 'radial-gradient(120% 90% at 50% 38%, #fbfaf8 0%, #efebe5 55%, #ddd7ce 100%)';  // stüdyo fonu
       r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-      r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 1.0;
+      r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 0.92;
       r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
       kap.appendChild(r.domElement);
       const s = this.s = new T.Scene();
-      s.background = lin('#f2efea');
       if (T.RoomEnvironment) {
         const pm = new T.PMREMGenerator(r);
         s.environment = pm.fromScene(new T.RoomEnvironment(), 0.04).texture;
       }
-      s.add(new T.HemisphereLight(0xffffff, 0xd8d2c8, s.environment ? 0.25 : 0.8));
+      s.add(new T.HemisphereLight(0xffffff, 0xcfc8bd, s.environment ? 0.35 : 0.85));
       const gun = this.gun = new T.DirectionalLight(0xfff6ea, s.environment ? 1.6 : 1.1);
       gun.castShadow = true; gun.shadow.mapSize.set(2048, 2048);
-      gun.shadow.bias = -0.0004; gun.shadow.normalBias = 1.5; gun.shadow.radius = 6;
+      gun.shadow.bias = -0.0005; gun.shadow.normalBias = 2.5; gun.shadow.radius = 8;
       s.add(gun, gun.target);
-      // oda: zemin + duvar
-      this.zemin = new T.Mesh(new T.PlaneGeometry(9000, 9000), new T.MeshStandardMaterial({color: lin('#d4ccc0'), roughness: 0.92}));
+      // stüdyo: görünmez zemin yalnız gölgeyi alır + dolabın altında yumuşak temas gölgesi
+      this.zemin = new T.Mesh(new T.PlaneGeometry(12000, 12000), new T.ShadowMaterial({opacity: 0.07}));
       this.zemin.rotation.x = -Math.PI / 2; this.zemin.receiveShadow = true;
-      this.duvar = new T.Mesh(new T.PlaneGeometry(9000, 6000), new T.MeshStandardMaterial({color: lin('#f2efea'), roughness: 0.97}));
-      this.duvar.receiveShadow = true;
-      s.add(this.zemin, this.duvar);
+      const cg = document.createElement('canvas'); cg.width = cg.height = 128;
+      const cx = cg.getContext('2d'), gr = cx.createRadialGradient(64, 64, 4, 64, 64, 64);
+      gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.22)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128);
+      this.temas = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({map: new T.CanvasTexture(cg), transparent: true, depthWrite: false}));
+      this.temas.rotation.x = -Math.PI / 2; this.temas.renderOrder = -1;
+      s.add(this.zemin, this.temas);
       this.grup = new T.Group(); s.add(this.grup);
       this.c = new T.PerspectiveCamera(32, 1, 20, 60000);
       this.ctl = T.OrbitControls ? new T.OrbitControls(this.c, r.domElement) : null;
       if (this.ctl) {
         Object.assign(this.ctl, {enableDamping: true, dampingFactor: 0.09, enablePan: false,
-                                 minPolarAngle: 0.25, maxPolarAngle: Math.PI / 2 - 0.04,
-                                 minAzimuthAngle: -1.25, maxAzimuthAngle: 1.25});
+                                 minPolarAngle: 0.95, maxPolarAngle: Math.PI / 2 - 0.03,   // tepeden bakılmaz
+                                 minAzimuthAngle: -1.05, maxAzimuthAngle: 1.05, rotateSpeed: 0.7});
         this.ctl.addEventListener('start', () => { this.elle = true; });
       }
       this.elle = false;
@@ -136,7 +141,7 @@ window.KabinGercek = (() => {
       const hedef = new T.Vector3(0, this.oy + H * 0.56, 0);   // üstteki düğmelere yer
       const yon = new T.Vector3(0.42, 0.2, 1).normalize();
       this.c.position.copy(hedef).add(yon.multiplyScalar(uz));
-      if (this.ctl) { this.ctl.target.copy(hedef); this.ctl.minDistance = R * 1.1; this.ctl.maxDistance = uz * 2.2; this.ctl.update(); }
+      if (this.ctl) { this.ctl.target.copy(hedef); this.ctl.minDistance = R * 1.25; this.ctl.maxDistance = uz * 1.6; this.ctl.update(); }
       else this.c.lookAt(hedef);
     }
 
@@ -156,6 +161,9 @@ window.KabinGercek = (() => {
       return (this._mats[anahtar] = m);
     }
 
+    _kenar() {
+      return this._mats._kenar || (this._mats._kenar = new T.LineBasicMaterial({color: 0x2a2f36, transparent: true, opacity: 0.28}));
+    }
     _metal() {
       return this._mats._metal || (this._mats._metal = new T.MeshStandardMaterial({color: lin('#c3c6cb'), metalness: 1, roughness: 0.26}));
     }
@@ -213,6 +221,8 @@ window.KabinGercek = (() => {
         const m = this._ekle(new T.Mesh(geo, mat), id);
         m.userData.ozelMat = hat || sec;
         if (!kutu) m.material.side = T.DoubleSide;
+        const ks = new T.LineSegments(new T.EdgesGeometry(geo, 30), this._kenar());   // ince kenar çizgisi: biçim belli olsun
+        ks.raycast = () => {}; this.grup.add(ks);
       }
 
       // kulplar (2B kutusundan: x sağa, y üstten aşağı, z1 ön yüz)
@@ -241,12 +251,12 @@ window.KabinGercek = (() => {
         this._ekle(bz);
       }
 
-      // oda: duvar dolabın arkasında, zemin 0'da
-      this.duvar.position.set(0, 3000, -Dp / 2 - 1);
-      this.zemin.position.y = 0;
-      // güneş: sol-üst-önden, gölge kamerası dolaba göre
+      // zemin ve temas gölgesi (üst dolapta zemin yok)
+      this.zemin.visible = this.temas.visible = !o.ust;
+      this.temas.scale.set(W * 1.35 + 200, Dp * 1.6 + 200, 1); this.temas.position.set(0, 0.5, 0);
+      // ana ışık: sol-üst-önden; gölge arkaya düşer
       const R = Math.max(W, H + oy, Dp);
-      this.gun.position.set(-0.9 * R, oy + H * 1.6 + 600, Dp / 2 + 1.4 * R);
+      this.gun.position.set(-0.55 * R, oy + H * 2.2 + 800, Dp / 2 + 1.1 * R);
       this.gun.target.position.set(0, oy + H / 2, 0);
       const sc = this.gun.shadow.camera, e = Math.max(W, H) * 0.9 + 600;
       Object.assign(sc, {left: -e, right: e, top: e, bottom: -e, near: 10, far: R * 6 + 4000});

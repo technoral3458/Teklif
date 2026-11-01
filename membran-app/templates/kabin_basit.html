@@ -98,7 +98,7 @@ const IZIN = new Set({{ izinler|tojson }});
 const SINIR = {{ sinir|tojson }};
 const K = KabinCizim;
 const GOR = {{ gorunum|tojson }};
-const UST = !!((BILGI.kabin_sablonlari.find(x => x.ad === {{ t.sablon|tojson }}) || {}).ust);
+const UST = /^(ust|üst)\b/i.test({{ t.sablon|tojson }});   // duvar (üst) dolabı: zeminde değil
 const $ = id => document.getElementById(id);
 const S = { v: null, goz: null, parca: null, onGizli: false, gorunum: '2b' };
 let k3 = null;
@@ -243,7 +243,7 @@ document.querySelectorAll('[data-gor]').forEach(b => b.addEventListener('click',
   document.querySelectorAll('[data-gor]').forEach(x => x.classList.toggle('sec', x === b));
   $('s2').classList.toggle('hidden', S.gorunum === '3b'); $('v3').classList.toggle('hidden', S.gorunum !== '3b');
   if (S.gorunum === '3b' && !k3) k3 = new KabinGercek.KabinGercek($('v3'), id => { if (id && id !== S.parca) { S.parca = id; S.goz = null; dock(); ipucu(); ciz(); } });
-  ciz(); setTimeout(() => k3 && k3.boyut(), 30);
+  ciz(); setTimeout(() => { if (k3 && S.gorunum === '3b') { k3.elle = false; k3.boyut(); k3.sigdir(); } }, 30);   // her açılışta önden
 }));
 $('ad').addEventListener('change', () => istek('/ad', {ad: $('ad').value}));
 
