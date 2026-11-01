@@ -1,0 +1,25 @@
+{% extends "magaza_base.html" %}
+{% block title %}Sipariş {{ o.order_no }}{% endblock %}
+{% block content %}
+<a href="/kabin" class="text-sm text-slate-500">← Online Kabin</a>
+<div class="flex flex-wrap items-center gap-3 mt-1 mb-4">
+  <h1 class="text-2xl font-bold">Sipariş {{ o.order_no }}</h1>
+  <span class="text-sm rounded-full px-3 py-1 {% if o.status == 'onayli' %}bg-emerald-100 text-emerald-700{% elif o.status == 'reddedildi' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+    {{ {'bekliyor':'Onay bekliyor','onayli':'Onaylı','reddedildi':'Reddedildi'}[o.status] }}</span>
+</div>
+{% if o.proje %}<p class="text-sm text-slate-600 mb-1">Proje: {{ o.proje }}</p>{% endif %}
+{% if o.note %}<p class="text-sm text-slate-600 mb-3">Not: {{ o.note }}</p>{% endif %}
+<div class="bg-white border rounded-2xl overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500"><tr><th class="text-left p-3">#</th><th class="text-left p-3">Dolap</th><th class="text-right p-3">Ölçü (B×E×D)</th><th class="text-right p-3">Adet</th><th class="text-right p-3">Parça</th></tr></thead>
+    <tbody>
+    {% for l in lines %}
+      <tr class="border-t"><td class="p-3">{{ l.line_no }}</td><td class="p-3">{{ l.name }} <span class="text-slate-400">{{ l.cabinet_no }}</span></td>
+      <td class="p-3 text-right whitespace-nowrap">{{ "%g"|format(l.height_mm) }} × {{ "%g"|format(l.width_mm) }} × {{ "%g"|format(l.depth_mm) }}</td>
+      <td class="p-3 text-right">{{ l.qty }}</td><td class="p-3 text-right">{{ l.ozet.parca }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-slate-400 mt-3">Onaylanan sipariş değiştirilemez.</p>
+{% endblock %}

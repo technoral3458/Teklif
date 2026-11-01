@@ -1,0 +1,67 @@
+{% extends "magaza_base.html" %}
+{% block title %}Online Kabin — Ersan Mobilya{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+  <h1 class="text-2xl font-bold">Online Kabin</h1>
+  <a href="/kabin/yeni" class="bg-emerald-600 text-white font-semibold rounded-lg px-4 py-2 hover:bg-emerald-700">+ Yeni dolap</a>
+</div>
+{% if hata %}<div class="bg-red-50 text-red-700 rounded-lg px-4 py-2 mb-4 text-sm">{{ hata }}</div>{% endif %}
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <section class="lg:col-span-2">
+    <h2 class="font-semibold mb-3">Dolaplarım</h2>
+    {% if not taslaklar %}
+      <div class="bg-white border rounded-2xl p-8 text-center text-slate-500">Henüz dolap yok. <a href="/kabin/yeni" class="text-emerald-700 font-medium">Şablondan başlayın</a></div>
+    {% endif %}
+    <div class="grid sm:grid-cols-2 gap-3">
+      {% for t in taslaklar %}
+      <div class="bg-white border rounded-2xl p-4">
+        <div class="flex items-start justify-between gap-2">
+          <a href="/kabin/t/{{ t.id }}" class="font-semibold text-slate-900 hover:text-emerald-700 break-all">{{ t.ad or t.sablon }}</a>
+          {% if t.hata_var %}<span class="text-xs bg-red-100 text-red-700 rounded-full px-2 py-0.5 whitespace-nowrap">Hata var</span>
+          {% elif t.sepette %}<span class="text-xs bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 whitespace-nowrap">Sepette</span>{% endif %}
+        </div>
+        <div class="text-sm text-slate-500 mt-1">{{ t.sablon }} · {{ "%g"|format(t.ozet.en or 0) }} × {{ "%g"|format(t.ozet.boy or 0) }} × {{ "%g"|format(t.ozet.derinlik or 0) }} mm</div>
+        <div class="text-xs text-slate-400">{{ t.ozet.parca or 0 }} parça · {{ t.ozet.m2 or 0 }} m² · adet {{ t.ozet.adet or 1 }}</div>
+        <div class="flex flex-wrap gap-2 mt-3 text-sm">
+          <a href="/kabin/t/{{ t.id }}" class="border rounded-lg px-3 py-1 hover:bg-slate-50">Aç</a>
+          <form method="post" action="/kabin/t/{{ t.id }}/kopyala"><button class="border rounded-lg px-3 py-1 hover:bg-slate-50">Kopyala</button></form>
+          <form method="post" action="/kabin/t/{{ t.id }}/sil" onsubmit="return confirm('Dolap silinsin mi?')"><button class="border rounded-lg px-3 py-1 text-red-600 hover:bg-red-50">Sil</button></form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="space-y-6">
+    <div class="bg-white border rounded-2xl p-4">
+      <h2 class="font-semibold mb-3">Sepet</h2>
+      {% if not sepet %}<p class="text-sm text-slate-500">Dolabı açıp "Sepete ekle" deyin.</p>{% endif %}
+      {% for t in sepet %}
+      <div class="flex items-center justify-between text-sm border-b py-2">
+        <span class="truncate pr-2">{{ t.ad or t.sablon }} <span class="text-slate-400">× {{ t.ozet.adet or 1 }}</span></span>
+        <form method="post" action="/kabin/t/{{ t.id }}/sepetten"><button class="text-xs text-red-500">Çıkar</button></form>
+      </div>
+      {% endfor %}
+      {% if sepet %}
+      <form method="post" action="/kabin/siparis" class="mt-3 space-y-2 text-sm">
+        <input name="proje" placeholder="Proje adı" class="border rounded-lg px-3 py-2 w-full">
+        <textarea name="note" rows="2" placeholder="Not" class="border rounded-lg px-3 py-2 w-full"></textarea>
+        <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-2.5 hover:bg-emerald-700">Sipariş ver</button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="bg-white border rounded-2xl p-4">
+      <h2 class="font-semibold mb-3">Kabin siparişlerim</h2>
+      {% if not siparisler %}<p class="text-sm text-slate-500">Henüz sipariş yok.</p>{% endif %}
+      {% for o in siparisler %}
+      <a href="/kabin/siparis/{{ o.id }}" class="flex items-center justify-between text-sm border-b py-2 hover:text-emerald-700">
+        <span>{{ o.order_no }} <span class="text-slate-400">· {{ o.satir }} dolap</span></span>
+        <span class="text-xs rounded-full px-2 py-0.5 {% if o.status == 'onayli' %}bg-emerald-100 text-emerald-700{% elif o.status == 'reddedildi' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+          {{ {'bekliyor':'Onay bekliyor','onayli':'Onaylı','reddedildi':'Reddedildi'}[o.status] }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

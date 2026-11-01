@@ -20,8 +20,8 @@ async def lifespan(app):
 app = FastAPI(title="Membran Kapak Yönetim Sistemi", lifespan=lifespan)
 
 # Giriş gerektirmeyen yollar (müşteri mağazası + teklif sayfası dahil).
-# /magaza kendi müşteri oturumunu ('csession') içeride denetler.
-PUBLIC_PATHS = ("/login", "/logout", "/static", "/teklif", "/magaza")
+# /magaza ve /kabin kendi müşteri oturumunu ('csession') içeride denetler.
+PUBLIC_PATHS = ("/login", "/logout", "/static", "/teklif", "/magaza", "/kabin")
 
 
 @app.middleware("http")
@@ -44,12 +44,14 @@ from routers.public_routes import router as public_router  # noqa: E402
 from routers.vardar import router as vardar_router  # noqa: E402
 from routers.membrane import router as membrane_router  # noqa: E402
 from routers.magaza import router as magaza_router  # noqa: E402
+from routers.kabin import router as kabin_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(public_router)
 app.include_router(vardar_router)
 app.include_router(membrane_router)
 app.include_router(magaza_router)
+app.include_router(kabin_router)
 
 
 @app.get("/")

@@ -5,3 +5,8 @@ data/
 *.db
 .venv/
 venv/
+
+# TitaniumCam motor kodu gizli: repoya girmez (sunucuda /opt/kabin_motor)
+kabin_motor/
+cabinet_v2/
+*.tkabin

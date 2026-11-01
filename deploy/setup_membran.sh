@@ -91,6 +91,9 @@ nginx -t
 systemctl enable nginx
 systemctl restart nginx
 
+# Online Kabin motor servisi önceden kurulduysa (motor /opt/kabin_motor'da, repo dışında) yeniden başlat
+systemctl restart membran-kabin 2>/dev/null || true
+
 echo ">>> [8/8] Test..."
 sleep 2
 echo -n "membran servisi: "; systemctl is-active membran

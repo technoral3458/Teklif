@@ -218,6 +218,69 @@ CREATE TABLE IF NOT EXISTS shop_cart (
     qty INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ===== ONLINE KABİN (TitaniumCam motoru) =====
+-- Müşteri taslağı: güncel kabin JSON sunucuda durur (tarayıcı yalnız işlem yollar)
+CREATE TABLE IF NOT EXISTS kabin_taslak (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    musteri TEXT NOT NULL,             -- müşteri kullanıcı adı; yönetici satır düzenlemesi: '@yonetici'
+    ad TEXT DEFAULT '',
+    sablon TEXT DEFAULT '',
+    kabin_json TEXT NOT NULL,
+    imlec INTEGER DEFAULT 0,           -- geri alma: kabin_taslak_surum.sira (güncel hal)
+    panel_taban TEXT DEFAULT '',       -- kabin özellikleri paneli açılış hali (İptal buraya döner)
+    sepette INTEGER DEFAULT 0,
+    hata_var INTEGER DEFAULT 0,
+    ozet_json TEXT DEFAULT '{}',
+    siparis_satir_id INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS kabin_taslak_surum (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    taslak_id INTEGER NOT NULL,
+    sira INTEGER NOT NULL,
+    kabin_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_kabin_surum ON kabin_taslak_surum (taslak_id, sira);
+-- Yönetici ayarları: alan yetkileri, şablon başına ölçü sınırları (anahtar -> JSON)
+CREATE TABLE IF NOT EXISTS kabin_ayar (
+    anahtar TEXT PRIMARY KEY,
+    deger TEXT NOT NULL
+);
+-- Kapak siparişinin karşılığı
+CREATE TABLE IF NOT EXISTS cabinet_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_no TEXT DEFAULT '',
+    musteri TEXT NOT NULL,
+    musteri_ad TEXT DEFAULT '',
+    proje TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    status TEXT DEFAULT 'bekliyor',    -- bekliyor | onayli | reddedildi
+    approved_at TEXT DEFAULT '',
+    approved_by TEXT DEFAULT '',
+    claimed_by TEXT DEFAULT '',
+    claimed_at TEXT DEFAULT '',
+    production_status TEXT DEFAULT '',
+    degisti INTEGER DEFAULT 0,         -- havuza alındıktan sonra değişti uyarısı
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS cabinet_order_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    line_no INTEGER NOT NULL,
+    cabinet_no TEXT DEFAULT '',
+    name TEXT DEFAULT '',
+    qty INTEGER DEFAULT 1,
+    width_mm REAL DEFAULT 0,
+    height_mm REAL DEFAULT 0,
+    depth_mm REAL DEFAULT 0,
+    tkabin TEXT NOT NULL,              -- dondurulmuş {"format":"tkabin","schema":1,"kabin":{...}}
+    engine_version TEXT DEFAULT '',
+    definitions_version TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    ozet_json TEXT DEFAULT '{}'
+);
 """
 
 # Mevcut veritabanlarına sonradan eklenen kolonlar (idempotent).
