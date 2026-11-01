@@ -9,8 +9,13 @@
   <form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/onayla"><button class="bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm">✓ Onayla</button></form>
   <form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/reddet" onsubmit="return confirm('Sipariş reddedilsin mi?')"><button class="border border-red-300 text-red-600 rounded-lg px-4 py-2 text-sm bg-white">Reddet</button></form>
   {% endif %}
+  {% if o.status != 'bekliyor' and not o.claimed_by %}<form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/bekliyor"><button class="border rounded-lg px-3 py-2 text-sm bg-white">↩ Onayı geri al</button></form>{% endif %}
   {% if o.claimed_by %}<form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/havuza-geri"><button class="border rounded-lg px-3 py-2 text-sm bg-white">Havuza geri al</button></form>{% endif %}
+  <form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/sil" class="ml-auto"
+        data-soru="{{ o.order_no }} siparişi tamamen silinsin mi?{% if o.claimed_by %} DİKKAT: TitaniumCam bu siparişi üretime almış.{% endif %} Bu işlem geri alınamaz."
+        onsubmit="return confirm(this.dataset.soru)"><button class="border border-red-200 text-red-600 rounded-lg px-3 py-2 text-sm bg-white">🗑 Siparişi sil</button></form>
 </div>
+{% if mesaj %}<div class="bg-emerald-50 text-emerald-800 rounded-lg px-4 py-2 mb-3 text-sm">{{ mesaj }}</div>{% endif %}
 {% if hata %}<div class="bg-red-50 text-red-700 rounded-lg px-4 py-2 mb-3 text-sm">{{ hata }}</div>{% endif %}
 {% if o.degisti %}<div class="bg-red-50 text-red-700 rounded-lg px-4 py-2 mb-3 text-sm">⚠️ Üretimdeki sipariş değişti: havuza alındıktan sonra satır güncellendi.</div>{% endif %}
 <div class="text-sm text-slate-600 mb-4">
@@ -20,6 +25,16 @@
   {% if o.production_status %} · Üretim: {{ o.production_status }}{% endif %}
   {% if o.note %}<br>Not: {{ o.note }}{% endif %}
 </div>
+<details class="bg-white rounded-xl shadow mb-4">
+  <summary class="cursor-pointer px-4 py-3 text-sm font-semibold">✏️ Sipariş bilgilerini düzenle</summary>
+  <form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/bilgi" class="px-4 pb-4 grid sm:grid-cols-2 gap-3 text-sm">
+    <label>Müşteri adı<input name="musteri_ad" value="{{ o.musteri_ad }}" class="mt-1 border rounded-lg px-3 py-2 w-full"></label>
+    <label>Proje<input name="proje" value="{{ o.proje }}" class="mt-1 border rounded-lg px-3 py-2 w-full"></label>
+    <label class="sm:col-span-2">Not<textarea name="note" rows="2" class="mt-1 border rounded-lg px-3 py-2 w-full">{{ o.note }}</textarea></label>
+    <div><button class="bg-blue-600 text-white rounded-lg px-5 py-2 font-semibold">Kaydet</button></div>
+  </form>
+</details>
+{% if o.status != 'bekliyor' %}<p class="text-xs text-slate-500 mb-3">Dolabın kendisini düzeltmek için önce "Onayı geri al".</p>{% endif %}
 
 {% for l in lines %}
 <div class="bg-white rounded-xl shadow p-4 mb-4">
@@ -27,8 +42,13 @@
     <div><b>{{ l.line_no }}. {{ l.name }}</b> <span class="text-slate-400">{{ l.cabinet_no }}</span>
       <span class="text-sm text-slate-600 ml-2">{{ "%g"|format(l.height_mm) }} × {{ "%g"|format(l.width_mm) }} × {{ "%g"|format(l.depth_mm) }} mm · adet {{ l.qty }}</span>
       <span class="text-xs text-slate-400 ml-2">motor {{ l.engine_version }} · tanım {{ l.definitions_version }}</span></div>
-    <div class="flex gap-2">
+    <div class="flex flex-wrap gap-2">
+      <form method="post" action="/titaniumcam/kabin/satir/{{ l.id }}/adet" class="flex items-center gap-1">
+        <input name="adet" type="number" min="1" max="999" value="{{ l.qty }}" class="border rounded-lg px-2 py-1.5 w-16 text-sm" aria-label="Adet">
+        <button class="border rounded-lg px-2 py-1.5 text-sm">Adet</button></form>
       {% if o.status == 'bekliyor' %}<form method="post" action="/titaniumcam/kabin/satir/{{ l.id }}/duzenle"><button class="border rounded-lg px-3 py-1.5 text-sm">✏️ Aç / düzelt</button></form>{% endif %}
+      <form method="post" action="/titaniumcam/kabin/satir/{{ l.id }}/sil" data-soru="{{ l.line_no }}. dolap ({{ l.name }}) siparişten çıkarılsın mı?{% if lines|length == 1 %} Bu son dolap: sipariş tamamen silinir.{% endif %}" onsubmit="return confirm(this.dataset.soru)">
+        <button class="border border-red-200 text-red-600 rounded-lg px-3 py-1.5 text-sm">Çıkar</button></form>
       <a href="/titaniumcam/kabin/satir/{{ l.id }}/tkabin" class="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-sm">⬇️ İndir (.tkabin)</a>
     </div>
   </div>
@@ -51,7 +71,7 @@ document.querySelectorAll('[data-satir]').forEach(async el => {
   liste.innerHTML = `${dok}<div class="mb-2 text-slate-700">${v.ozet.parca} parça · ${v.ozet.m2} m² · ${v.ozet.bant_m} m bant</div>
     <table class="w-full text-slate-700"><thead class="text-slate-400"><tr><th class="text-left p-1">Cins</th><th class="text-left p-1">Ad</th><th class="text-right p-1">Boy</th><th class="text-right p-1">En</th><th class="text-right p-1">Kal.</th><th class="text-right p-1">Adet</th><th class="text-left p-1">Malzeme</th><th class="text-left p-1">Bant (B1/B2/E1/E2)</th><th class="text-right p-1">Delik</th></tr></thead><tbody>${satir}</tbody></table>
     <div class="mt-2 text-slate-600">Donatı: ${v.donati.map(d => KabinCizim.esc(d.ad)+' × '+d.adet).join(' · ')}</div>
-    <div class="mt-3 border-t pt-2"><b>Fiyat</b> ${v.fiyat.eksik.length ? '<span class="text-amber-600">— fiyatı girilmemiş: ' + v.fiyat.eksik.map(KabinCizim.esc).join(', ') + ' (<a class="underline" href="/titaniumcam/kabin/tanimlar">tanımlar</a>)</span>' : ''}
+    <div class="mt-3 border-t pt-2"><b>Fiyat</b> ${v.fiyat.eksik.length ? '<span class="text-amber-600">— fiyatı girilmemiş: ' + v.fiyat.eksik.map(KabinCizim.esc).join(', ') + ' (<a class="underline" href="/titaniumcam/kabinler?sekme=maliyet">maliyetler</a>)</span>' : ''}
       <table class="w-full text-slate-700 mt-1"><tbody>${v.fiyat.kalemler.map(k => `<tr><td>${KabinCizim.esc(k.ad)}</td><td class="text-right">${k.miktar} ${KabinCizim.esc(k.birim)}</td><td class="text-right">× ${k.birim_fiyat}</td><td class="text-right">${k.tutar.toLocaleString('tr-TR')} ₺</td></tr>`).join('')}
       <tr class="border-t font-semibold"><td colspan="3">Toplam (kâr %${v.fiyat.kar_orani} dahil)</td><td class="text-right">${v.fiyat.toplam.toLocaleString('tr-TR')} ₺</td></tr></tbody></table></div>`;
 });

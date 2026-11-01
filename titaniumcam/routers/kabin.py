@@ -759,7 +759,7 @@ DURUM_AD = {"bekliyor": "Onay bekliyor", "onayli": "Onaylı", "reddedildi": "Red
 
 
 @router.get("/titaniumcam/kabin", response_class=HTMLResponse)
-async def y_liste(request: Request, durum: str = ""):
+async def y_liste(request: Request, durum: str = "", mesaj: str = ""):
     sql = ("SELECT o.*, (SELECT COUNT(*) FROM cabinet_order_lines l WHERE l.order_id=o.id) satir, "
            "(SELECT COALESCE(SUM(qty),0) FROM cabinet_order_lines l WHERE l.order_id=o.id) dolap "
            "FROM cabinet_orders o")
@@ -769,11 +769,11 @@ async def y_liste(request: Request, durum: str = ""):
         args = (durum,)
     orders = db.query(sql + " ORDER BY id DESC", args)
     return templates.TemplateResponse(request, "kabin_y_liste.html", {
-        "request": request, "orders": orders, "durum": durum, "DURUM_AD": DURUM_AD})
+        "request": request, "orders": orders, "durum": durum, "DURUM_AD": DURUM_AD, "mesaj": mesaj})
 
 
 @router.get("/titaniumcam/kabin/siparis/{oid}", response_class=HTMLResponse)
-async def y_siparis(request: Request, oid: int, hata: str = ""):
+async def y_siparis(request: Request, oid: int, hata: str = "", mesaj: str = ""):
     o = db.one("SELECT * FROM cabinet_orders WHERE id=?", (oid,))
     if not o:
         return RedirectResponse("/titaniumcam/kabin", status_code=303)
@@ -782,7 +782,7 @@ async def y_siparis(request: Request, oid: int, hata: str = ""):
         l["ozet"] = json.loads(l["ozet_json"] or "{}")
         l.pop("tkabin", None)
     return templates.TemplateResponse(request, "kabin_y_siparis.html", {
-        "request": request, "o": o, "lines": lines, "DURUM_AD": DURUM_AD, "hata": hata})
+        "request": request, "o": o, "lines": lines, "DURUM_AD": DURUM_AD, "hata": hata, "mesaj": mesaj})
 
 
 @router.get("/titaniumcam/kabin/satir/{lid}/veri")
@@ -841,6 +841,83 @@ async def y_havuza_geri(oid: int):
     db.execute("UPDATE cabinet_orders SET claimed_by='', claimed_at='', production_status='released' "
                "WHERE id=?", (oid,))
     return RedirectResponse(f"/titaniumcam/kabin/siparis/{oid}", status_code=303)
+
+
+def _siparise(oid, mesaj="", hata=""):
+    from urllib.parse import urlencode
+    q = urlencode({k: v for k, v in (("mesaj", mesaj), ("hata", hata)) if v})
+    return RedirectResponse(f"/titaniumcam/kabin/siparis/{oid}" + ("?" + q if q else ""), status_code=303)
+
+
+def _degisti_isaretle(oid):
+    """Üretime alınmış (TitaniumCam'in çektiği) sipariş değişirse uyarı bayrağı."""
+    db.execute("UPDATE cabinet_orders SET degisti=1 WHERE id=? AND claimed_by<>''", (oid,))
+
+
+def _siparisi_sil(oid):
+    for l in db.query("SELECT id FROM cabinet_order_lines WHERE order_id=?", (oid,)):
+        for t in db.query("SELECT id FROM kabin_taslak WHERE musteri=? AND siparis_satir_id=?", (YONETICI, l["id"])):
+            db.execute("DELETE FROM kabin_taslak_surum WHERE taslak_id=?", (t["id"],))
+            db.execute("DELETE FROM kabin_taslak WHERE id=?", (t["id"],))
+    db.execute("DELETE FROM cabinet_order_lines WHERE order_id=?", (oid,))
+    db.execute("DELETE FROM cabinet_order_log WHERE order_id=?", (oid,))
+    db.execute("DELETE FROM cabinet_orders WHERE id=?", (oid,))
+
+
+@router.post("/titaniumcam/kabin/siparis/{oid}/sil")
+async def y_siparis_sil(oid: int):
+    o = db.one("SELECT order_no FROM cabinet_orders WHERE id=?", (oid,))
+    if o:
+        _siparisi_sil(oid)
+    from urllib.parse import quote
+    return RedirectResponse("/titaniumcam/kabin?mesaj=" + quote(f"{(o or {}).get('order_no', '')} silindi"), status_code=303)
+
+
+@router.post("/titaniumcam/kabin/siparis/{oid}/bilgi")
+async def y_siparis_bilgi(oid: int, proje: str = Form(""), note: str = Form(""), musteri_ad: str = Form("")):
+    if not db.one("SELECT 1 FROM cabinet_orders WHERE id=?", (oid,)):
+        return RedirectResponse("/titaniumcam/kabin", status_code=303)
+    db.execute("UPDATE cabinet_orders SET proje=?, note=?, musteri_ad=COALESCE(NULLIF(?, ''), musteri_ad) WHERE id=?",
+               (proje.strip()[:120], note.strip()[:1000], musteri_ad.strip()[:120], oid))
+    return _siparise(oid, "Sipariş bilgileri kaydedildi")
+
+
+@router.post("/titaniumcam/kabin/siparis/{oid}/bekliyor")
+async def y_onay_geri(oid: int):
+    """Onaylı ya da reddedilmiş siparişi yeniden 'onay bekliyor'a al (TitaniumCam henüz almadıysa)."""
+    o = db.one("SELECT * FROM cabinet_orders WHERE id=?", (oid,))
+    if not o:
+        return RedirectResponse("/titaniumcam/kabin", status_code=303)
+    if o["claimed_by"]:
+        return _siparise(oid, hata="TitaniumCam bu siparişi üretime almış; önce 'Havuza geri al'")
+    db.execute("UPDATE cabinet_orders SET status='bekliyor', approved_at='', approved_by='' WHERE id=?", (oid,))
+    return _siparise(oid, "Sipariş yeniden onay bekliyor; düzeltip onaylayabilirsiniz")
+
+
+@router.post("/titaniumcam/kabin/satir/{lid}/adet")
+async def y_satir_adet(lid: int, adet: int = Form(1)):
+    l = db.one("SELECT * FROM cabinet_order_lines WHERE id=?", (lid,))
+    if not l:
+        return RedirectResponse("/titaniumcam/kabin", status_code=303)
+    adet = max(1, min(999, adet))
+    db.execute("UPDATE cabinet_order_lines SET qty=? WHERE id=?", (adet, lid))
+    _degisti_isaretle(l["order_id"])
+    return _siparise(l["order_id"], f"{l['line_no']}. dolap: adet {adet}")
+
+
+@router.post("/titaniumcam/kabin/satir/{lid}/sil")
+async def y_satir_sil(lid: int):
+    l = db.one("SELECT * FROM cabinet_order_lines WHERE id=?", (lid,))
+    if not l:
+        return RedirectResponse("/titaniumcam/kabin", status_code=303)
+    if db.one("SELECT COUNT(*) n FROM cabinet_order_lines WHERE order_id=?", (l["order_id"],))["n"] <= 1:
+        return await y_siparis_sil(l["order_id"])             # son dolap: sipariş tümden silinir
+    for t in db.query("SELECT id FROM kabin_taslak WHERE musteri=? AND siparis_satir_id=?", (YONETICI, lid)):
+        db.execute("DELETE FROM kabin_taslak_surum WHERE taslak_id=?", (t["id"],))
+        db.execute("DELETE FROM kabin_taslak WHERE id=?", (t["id"],))
+    db.execute("DELETE FROM cabinet_order_lines WHERE id=?", (lid,))
+    _degisti_isaretle(l["order_id"])
+    return _siparise(l["order_id"], f"{l['line_no']}. dolap ({l['name']}) siparişten çıkarıldı")
 
 
 @router.post("/titaniumcam/kabin/satir/{lid}/duzenle")

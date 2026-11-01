@@ -23,12 +23,12 @@
     ('/titaniumcam/kabin/tanimlar', '🧾', 'Tanımlar', 'Müşterinin kullanabileceği malzeme, bant, ray…; renk / doku; ölçü sınırları'),
     ('/titaniumcam/kabin/ayar', '🎛️', 'Gelişmiş alan yetkileri', 'Müşteri ve yönetici hangi alanı değiştirebilir'),
   ]),
-  ('TitaniumCam bağlantısı', [
-    ('/titaniumcam/api', '🔑', 'TitaniumCam API', s.anahtar ~ ' etkin anahtar · siparişleri programa aktarır'),
+  ('Lisans', [
     ('/titaniumcam/acil-lisans', '🛟', 'Acil lisans', s.lisans ~ ' lisans · bozulan bilgisayar için geçici lisans'),
   ]),
   ('Sistem', [
     ('/titaniumcam/ayarlar', '🔧', 'Ayarlar', 'Firma adı · sipariş onayı (' ~ ('otomatik' if akis.kabin_onay == 'otomatik' else 'yönetici onaylar') ~ ') · müşteriler · şifre'),
+    ('/titaniumcam/api', '🔑', 'TitaniumCam API', s.anahtar ~ ' etkin anahtar · siparişleri programa aktarır (Ayarlar içinde)'),
   ]),
 ] %}
 {% for baslik, kartlar in bolumler %}

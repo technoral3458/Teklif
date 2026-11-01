@@ -398,3 +398,46 @@ def test_kabinler_ve_maliyet(o):
     assert a.get("/titaniumcam/kabinler").status_code == 200
     assert db.one("SELECT gorsel_json FROM kabin_model WHERE id=?", (k["id"],))["gorsel_json"]
     a.post(f"/titaniumcam/kabin/modeller/{m['id']}/sil"); a.post(f"/titaniumcam/kabin/modeller/{k['id']}/sil")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Sipariş düzenleme / silme (yönetici)
+# ══════════════════════════════════════════════════════════════════════════
+def test_siparis_duzenle_sil(o):
+    a, db = o["admin"], o["db"]
+    oid = _onayli_siparis(o, "duzen@test.com", adet=2)
+    t = a.get("/titaniumcam/kabin").text
+    assert f"/titaniumcam/kabin/siparis/{oid}/sil" in t and "TitaniumCam API" not in t and "Maliyetler" not in t.split("<main")[1]
+    # bilgiler
+    a.post(f"/titaniumcam/kabin/siparis/{oid}/bilgi", data={"proje": "Yeni Proje", "note": "Kapıya teslim", "musteri_ad": "Ali Veli"})
+    s = db.one("SELECT * FROM cabinet_orders WHERE id=?", (oid,))
+    assert (s["proje"], s["note"], s["musteri_ad"]) == ("Yeni Proje", "Kapıya teslim", "Ali Veli")
+    # onayı geri al → bekliyor; TitaniumCam aldıysa önce havuza geri
+    db.execute("UPDATE cabinet_orders SET claimed_by='CNC-1' WHERE id=?", (oid,))
+    assert "havuza geri" in a.post(f"/titaniumcam/kabin/siparis/{oid}/bekliyor").text.lower()
+    db.execute("UPDATE cabinet_orders SET claimed_by='' WHERE id=?", (oid,))
+    a.post(f"/titaniumcam/kabin/siparis/{oid}/bekliyor")
+    assert db.one("SELECT status FROM cabinet_orders WHERE id=?", (oid,))["status"] == "bekliyor"
+    # adet ve satır çıkarma (üretime alınmışsa 'değişti')
+    lid = db.one("SELECT id FROM cabinet_order_lines WHERE order_id=?", (oid,))["id"]
+    db.execute("UPDATE cabinet_orders SET claimed_by='CNC-1' WHERE id=?", (oid,))
+    a.post(f"/titaniumcam/kabin/satir/{lid}/adet", data={"adet": "5"})
+    assert db.one("SELECT qty FROM cabinet_order_lines WHERE id=?", (lid,))["qty"] == 5
+    assert db.one("SELECT degisti FROM cabinet_orders WHERE id=?", (oid,))["degisti"] == 1
+    # son satır çıkarılınca sipariş tümden silinir; taslak / kayıtlar da gider
+    a.post(f"/titaniumcam/kabin/satir/{lid}/duzenle")
+    r = a.post(f"/titaniumcam/kabin/satir/{lid}/sil")
+    assert "silindi" in r.text
+    assert db.one("SELECT 1 FROM cabinet_orders WHERE id=?", (oid,)) is None
+    assert db.one("SELECT 1 FROM cabinet_order_lines WHERE order_id=?", (oid,)) is None
+    assert db.one("SELECT 1 FROM kabin_taslak WHERE siparis_satir_id=?", (lid,)) is None
+    # liste üzerinden doğrudan silme; API'de de görünmez
+    oid2 = _onayli_siparis(o, "duzen2@test.com", adet=1)
+    k = _anahtar(o)
+    assert any(x["id"] == f"K-{oid2}" for x in o["TC"](o["app"]).get("/api/titanium/v1/cabinet-orders", headers=_h(k)).json()["orders"])
+    a.post(f"/titaniumcam/kabin/siparis/{oid2}/sil")
+    assert db.one("SELECT 1 FROM cabinet_orders WHERE id=?", (oid2,)) is None
+    assert not any(x["id"] == f"K-{oid2}" for x in o["TC"](o["app"]).get("/api/titanium/v1/cabinet-orders", headers=_h(k)).json()["orders"])
+    assert o["TC"](o["app"]).get(f"/api/titanium/v1/cabinet-orders/K-{oid2}", headers=_h(k)).status_code == 404
+    # API bölümü Ayarlar'da
+    assert 'href="/titaniumcam/api"' in a.get("/titaniumcam/ayarlar").text

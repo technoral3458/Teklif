@@ -1,40 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Kabin Siparişleri{% endblock %}
 {% block content %}
-<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-  <h1 class="text-2xl font-bold">🧰 Kabin Siparişleri</h1>
-  <div class="flex gap-2">
-    <a href="/titaniumcam/kabinler" class="bg-emerald-600 text-white rounded-lg px-3 py-2 text-sm">🗄️ Kabinler</a>
-    <a href="/titaniumcam/kabinler?sekme=maliyet" class="bg-blue-600 text-white rounded-lg px-3 py-2 text-sm">💰 Maliyetler</a>
-    <a href="/titaniumcam/api" class="border rounded-lg px-3 py-2 bg-white hover:bg-slate-50 text-sm">🔑 TitaniumCam API</a>
-  </div>
-</div>
-<div class="flex flex-wrap gap-2 mb-3 text-sm">
-  <a href="/titaniumcam/kabin" class="px-3 py-1 rounded-full border {% if not durum %}bg-slate-800 text-white{% else %}bg-white{% endif %}">Tümü</a>
+<h1 class="text-2xl font-bold mb-4">🧰 Kabin Siparişleri</h1>
+{% if mesaj %}<div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-3 mb-4 text-sm">{{ mesaj }}</div>{% endif %}
+<div class="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1 mb-4 text-sm font-semibold">
+  <a href="/titaniumcam/kabin" class="whitespace-nowrap px-4 py-2 rounded-full {% if not durum %}bg-slate-900 text-white{% else %}bg-white text-slate-600 shadow-sm{% endif %}">Tümü</a>
   {% for k, v in DURUM_AD.items() %}
-  <a href="/titaniumcam/kabin?durum={{ k }}" class="px-3 py-1 rounded-full border {% if durum == k %}bg-slate-800 text-white{% else %}bg-white{% endif %}">{{ v }}</a>
+  <a href="/titaniumcam/kabin?durum={{ k }}" class="whitespace-nowrap px-4 py-2 rounded-full {% if durum == k %}bg-slate-900 text-white{% else %}bg-white text-slate-600 shadow-sm{% endif %}">{{ v }}</a>
   {% endfor %}
 </div>
-<div class="bg-white rounded-xl shadow overflow-x-auto">
-  <table class="w-full text-sm">
-    <thead class="bg-slate-50 text-slate-500"><tr>
-      <th class="text-left p-3">Sipariş no</th><th class="text-left p-3">Müşteri</th><th class="text-left p-3">Proje</th>
-      <th class="text-right p-3">Dolap</th><th class="text-left p-3">Durum</th><th class="text-left p-3">Üretim</th><th class="text-left p-3">Tarih</th></tr></thead>
-    <tbody>
-    {% for o in orders %}
-    <tr class="border-t hover:bg-slate-50">
-      <td class="p-3"><a href="/titaniumcam/kabin/siparis/{{ o.id }}" class="text-blue-700 font-medium">{{ o.order_no }}</a>
-        {% if o.degisti %}<span title="Havuza alındıktan sonra değişti" class="ml-1 text-xs bg-red-100 text-red-700 rounded px-1">değişti</span>{% endif %}</td>
-      <td class="p-3">{{ o.musteri_ad }}</td><td class="p-3">{{ o.proje }}</td>
-      <td class="p-3 text-right">{{ o.dolap }} <span class="text-slate-400">({{ o.satir }} satır)</span></td>
-      <td class="p-3"><span class="text-xs rounded-full px-2 py-0.5 {% if o.status == 'onayli' %}bg-emerald-100 text-emerald-700{% elif o.status == 'reddedildi' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{{ DURUM_AD[o.status] }}</span></td>
-      <td class="p-3 text-xs">{{ o.claimed_by }} {{ o.production_status }}</td>
-      <td class="p-3 text-xs text-slate-500">{{ o.created_at[:16] }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="p-6 text-center text-slate-500">Sipariş yok.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+
+<div class="space-y-3">
+{% for o in orders %}
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200/70 p-4">
+    <div class="flex items-start justify-between gap-3">
+      <a href="/titaniumcam/kabin/siparis/{{ o.id }}" class="min-w-0">
+        <div class="font-bold text-blue-700">{{ o.order_no }}
+          {% if o.degisti %}<span title="Üretime alındıktan sonra değişti" class="ml-1 text-[11px] font-semibold bg-red-100 text-red-700 rounded px-1.5 py-0.5 align-middle">değişti</span>{% endif %}</div>
+        <div class="font-semibold text-slate-900 truncate">{{ o.musteri_ad or o.musteri }}</div>
+        <div class="text-sm text-slate-500 truncate">{{ o.proje or 'Proje adı yok' }}</div>
+      </a>
+      <span class="text-xs font-semibold rounded-full px-2.5 py-1 whitespace-nowrap {% if o.status == 'onayli' %}bg-emerald-100 text-emerald-700{% elif o.status == 'reddedildi' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-800{% endif %}">{{ DURUM_AD[o.status] }}</span>
+    </div>
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mt-2">
+      <span><b class="text-slate-800">{{ o.dolap }}</b> dolap · {{ o.satir }} kalem</span>
+      <span>{{ o.created_at[:16] }}</span>
+      {% if o.claimed_by %}<span class="text-blue-700">TitaniumCam: {{ o.claimed_by }}{% if o.production_status %} · {{ o.production_status }}{% endif %}</span>{% endif %}
+    </div>
+    <div class="flex gap-2 mt-3">
+      <a href="/titaniumcam/kabin/siparis/{{ o.id }}" class="flex-1 flex items-center justify-center bg-slate-900 text-white rounded-xl h-10 text-sm font-semibold">Aç / düzenle</a>
+      <form method="post" action="/titaniumcam/kabin/siparis/{{ o.id }}/sil"
+            data-soru="{{ o.order_no }} ({{ o.musteri_ad or o.musteri }}) siparişi tamamen silinsin mi?{% if o.claimed_by %} DİKKAT: TitaniumCam bu siparişi üretime almış.{% endif %} Bu işlem geri alınamaz."
+            onsubmit="return confirm(this.dataset.soru)">
+        <button class="h-10 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-semibold bg-white">Sil</button>
+      </form>
+    </div>
+  </div>
+{% else %}
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-slate-500">Sipariş yok.</div>
+{% endfor %}
 </div>
 {% endblock %}

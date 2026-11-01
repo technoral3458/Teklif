@@ -20,7 +20,8 @@ def _sayfa(request, mesaj="", hata=""):
                           "FROM membrane_users u WHERE role='customer' ORDER BY id DESC")
     return templates.TemplateResponse(request, "ayarlar.html", {
         "request": request, "akis": akis_ayar(), "musteriler": musteriler,
-        "kullanici": request.state.user, "mesaj": mesaj, "hata": hata})
+        "kullanici": request.state.user, "mesaj": mesaj, "hata": hata,
+        "api_anahtar": (db.one("SELECT COUNT(*) n FROM api_keys WHERE revoked_at IS NULL OR revoked_at=''") or {}).get("n", 0)})
 
 
 @router.get("/titaniumcam", response_class=HTMLResponse)
