@@ -34,8 +34,9 @@ window.KabinCizim = (() => {
 
   /* 2B ön görünüş. Eksen: X sağa, Y aşağı, 0 gövdenin üstü (motor ile aynı). */
   function ciz2B(svg, v, o = {}) {
-    o = Object.assign({etiket: true, seciliGoz: [], seciliParca: new Set(), hatali: new Set(),
+    o = Object.assign({etiket: true, detay: true, seciliGoz: [], seciliParca: new Set(), hatali: new Set(),
                        kapakSec: true, gizli: new Set(), odak: null}, o);
+    // detay: false → yalnız ana hatlar ve dış ölçüler (bölme / kapak ölçüsü, menteşe yok)
     const g = v.govde;
     const b = o.odak || sinir(v);
     const pad = Math.max(40, (b.x1 - b.x0) * 0.08);
@@ -78,22 +79,24 @@ window.KabinCizim = (() => {
         const m = p.menteseyeri, cx = (k.x1 + k.x2) / 2, cy = (k.y1 + k.y2) / 2;
         const pts = m === 'SOL' ? [[k.x2, k.y1], [k.x1, cy], [k.x2, k.y2]] : m === 'SAG' ? [[k.x1, k.y1], [k.x2, cy], [k.x1, k.y2]]
           : m === 'UST' ? [[k.x1, k.y2], [cx, k.y1], [k.x2, k.y2]] : [[k.x1, k.y1], [cx, k.y2], [k.x2, k.y1]];
-        el('polyline', {points: pts.map(q => q.join(',')).join(' '), fill: 'none', stroke: '#94a3b8',
+        el('polyline', {points: pts.map(q => q.join(',')).join(' '), fill: 'none', stroke: o.detay ? '#94a3b8' : '#cbd5e1',
                         'stroke-dasharray': '6 5', 'vector-effect': 'non-scaling-stroke'}, grup);
-        for (const z of (p.menteseler || [])) {          // menteşe konumları (kapak üstünden)
+        if (o.detay) for (const z of (p.menteseler || [])) {          // menteşe konumları (kapak üstünden)
           const yy = k.y1 + z, xx = m === 'SAG' ? k.x2 - 22 : k.x1 + 22;
           if (m === 'SOL' || m === 'SAG') el('circle', {cx: xx, cy: yy, r: 17.5, fill: 'none', stroke: '#64748b', 'vector-effect': 'non-scaling-stroke'}, grup);
         }
       }
       if ((p.tur === 'kapak' || p.tur === 'cekmece') && (p.kulp || []).length) {
-        for (const kn of p.kulp) {
-          const cx = kn.includes('sol') ? k.x1 + 50 : kn.includes('sag') ? k.x2 - 50 : (k.x1 + k.x2) / 2;
-          const cy = kn.includes('ust') ? k.y1 + 40 : kn.includes('alt') ? k.y2 - 40 : (k.y1 + k.y2) / 2;
-          el('line', {x1: cx - 64, y1: cy, x2: cx + 64, y2: cy, stroke: '#475569', 'stroke-width': 4,
+        p.kulp.forEach((kn, i) => {
+          const dik = (p.kulp_yon || [])[i] === 'DIKEY';
+          const cx = kn.includes('sol') ? k.x1 + (dik ? 40 : 100) : kn.includes('sag') ? k.x2 - (dik ? 40 : 100) : (k.x1 + k.x2) / 2;
+          const cy = kn.includes('ust') ? k.y1 + (dik ? 110 : 40) : kn.includes('alt') ? k.y2 - (dik ? 110 : 40) : (k.y1 + k.y2) / 2;
+          const [dx, dy] = dik ? [0, 64] : [64, 0];
+          el('line', {x1: cx - dx, y1: cy - dy, x2: cx + dx, y2: cy + dy, stroke: '#475569', 'stroke-width': 4,
                       'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke'}, grup);
-        }
+        });
       }
-      if (o.etiket && on && o.kapakSec && w > fs * 4 && h > fs * 2) {
+      if (o.etiket && o.detay && on && o.kapakSec && w > fs * 4 && h > fs * 2) {
         el('text', {x: (k.x1 + k.x2) / 2, y: (k.y1 + k.y2) / 2, 'font-size': fs * 0.8, 'text-anchor': 'middle',
                     'dominant-baseline': 'middle', fill: '#334155', 'pointer-events': 'none'}, grup)
           .textContent = `${sayi(h)} × ${sayi(w)}`;
@@ -106,7 +109,7 @@ window.KabinCizim = (() => {
       el('rect', {x: z.x1, y: z.y1, width: z.x2 - z.x1, height: z.y2 - z.y1, class: 'goz', 'data-goz': i,
                   fill: sec ? 'rgba(16,185,129,.22)' : 'rgba(0,0,0,0)',
                   stroke: sec ? '#059669' : 'none', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke'}, kat.goz);
-      if (!o.etiket) return;
+      if (!o.etiket || !o.detay) return;
       const w = z.x2 - z.x1, h = z.y2 - z.y1;
       if (w > fs * 2.5) {
         const t = el('text', {x: (z.x1 + z.x2) / 2, y: z.y1 + fs * 1.1, 'font-size': fs, 'text-anchor': 'middle',

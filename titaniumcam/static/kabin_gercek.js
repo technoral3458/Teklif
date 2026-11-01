@@ -242,14 +242,15 @@ window.KabinGercek = (() => {
       this.grup.add(mesh); return mesh;
     }
 
-    _kulp(cx, cy, zOn, uzun) {                           // çubuk kulp: 2 ayak + boru
+    _kulp(cx, cy, zOn, uzun, dikey) {                    // çubuk kulp: 2 ayak + boru (yatay ya da dikey)
       const L = uzun + 32, ay = 30;
       const boru = new T.Mesh(new T.CylinderGeometry(6, 6, L, 20), this._metal());
-      boru.rotation.z = Math.PI / 2; boru.position.set(cx, cy, zOn + ay);
+      if (!dikey) boru.rotation.z = Math.PI / 2;
+      boru.position.set(cx, cy, zOn + ay);
       this._ekle(boru);
-      for (const dx of [-uzun / 2, uzun / 2]) {
+      for (const d of [-uzun / 2, uzun / 2]) {
         const a = new T.Mesh(new T.CylinderGeometry(4.5, 4.5, ay, 14), this._metal());
-        a.rotation.x = Math.PI / 2; a.position.set(cx + dx, cy, zOn + ay / 2);
+        a.rotation.x = Math.PI / 2; a.position.set(cx + (dikey ? 0 : d), cy + (dikey ? d : 0), zOn + ay / 2);
         this._ekle(a);
       }
     }
@@ -294,11 +295,12 @@ window.KabinGercek = (() => {
       for (const p of v.parcalar2b) {
         if (!(p.tur === 'kapak' || p.tur === 'cekmece') || !(p.kulp || []).length || gizli.has(p.id)) continue;
         const b = p.kutu;
-        for (const kn of p.kulp) {
-          const cx = (kn.includes('sol') ? b.x1 + 50 : kn.includes('sag') ? b.x2 - 50 : (b.x1 + b.x2) / 2) - W / 2;
-          const cyU = kn.includes('ust') ? b.y1 + 40 : kn.includes('alt') ? b.y2 - 40 : (b.y1 + b.y2) / 2;
-          this._kulp(cx, H - cyU + oy, Dp / 2 - b.z1, 128);
-        }
+        p.kulp.forEach((kn, i) => {
+          const dik = (p.kulp_yon || [])[i] === 'DIKEY';
+          const cx = (kn.includes('sol') ? b.x1 + (dik ? 40 : 100) : kn.includes('sag') ? b.x2 - (dik ? 40 : 100) : (b.x1 + b.x2) / 2) - W / 2;
+          const cyU = kn.includes('ust') ? b.y1 + (dik ? 110 : 40) : kn.includes('alt') ? b.y2 - (dik ? 110 : 40) : (b.y1 + b.y2) / 2;
+          this._kulp(cx, H - cyU + oy, Dp / 2 - b.z1, 128, dik);
+        });
       }
 
       // ayak / baza

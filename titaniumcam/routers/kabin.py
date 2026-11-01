@@ -1110,7 +1110,7 @@ def _ust_mu(sablon):
 def _onizleme(view):
     """Küçük 2B çizim verisi (delik vb. yok)."""
     return {"govde": view["govde"], "gozler": [],
-            "parcalar2b": [{k: p[k] for k in ("id", "tur", "katman", "kutu", "menteseyeri", "kulp")
+            "parcalar2b": [{k: p[k] for k in ("id", "tur", "katman", "kutu", "menteseyeri", "kulp", "kulp_yon")
                             if k in p} for p in view["parcalar2b"]]}
 
 
@@ -1123,7 +1123,7 @@ def _gorsel(view, sablon):
             "parcalar3b": [{"id": p["id"], "eleman": p.get("eleman", ""), "tur": p["tur"],
                             "malzeme": p.get("malzeme", ""), "koseler": yuvarla(p["koseler"])}
                            for p in view["parcalar3b"]],
-            "parcalar2b": [{k: p[k] for k in ("id", "tur", "kutu", "kulp") if k in p}
+            "parcalar2b": [{k: p[k] for k in ("id", "tur", "kutu", "kulp", "kulp_yon") if k in p}
                            for p in view["parcalar2b"] if p["tur"] in ("kapak", "cekmece")]}
 
 

@@ -829,10 +829,10 @@ def gorunum(k: Any, cab: Any, rol: str) -> dict[str, Any]:
             n = e.mentese_adet or E.mentese_otomatik_adet(e)
             d.update(menteseyeri=e.menteseyeri.name, mentese=int(n),
                      menteseler=[_r(x) for x in E.mentese_konumlari(e)] if e.menteseyeri.name != "YOK" else [],
-                     kulp=[ku.konum for ku in e.kulplar], tip=e.tip.name)
+                     kulp=[ku.konum for ku in e.kulplar], kulp_yon=[ku.yon.name for ku in e.kulplar], tip=e.tip.name)
         elif tur == "cekmece":
             d.update(raytipi=e.raytipi, tip=e.tip.name, ic=bool(getattr(e, "ic", False)),
-                     kulp=[ku.konum for ku in e.kulplar],
+                     kulp=[ku.konum for ku in e.kulplar], kulp_yon=[ku.yon.name for ku in e.kulplar],
                      kasa={ad: {"en": _r(b.xson - b.xbas), "boy": _r(b.yson - b.ybas),
                                 "derinlik": _r(b.zson - b.zbas)} for ad, b in (e.kasa or {}).items()})
         p2.append(d)

@@ -45,6 +45,16 @@
   .kart-sec.sec { border-color: #10b981; background: #ecfdf5; color: #047857; }
   .yuzer { box-shadow: 0 4px 16px #0f172a1f; }
   #panel { display: none; }
+  .kulp-kapak { position: relative; width: 112px; height: 168px; border: 2px solid #cbd5e1; border-radius: 10px; background: #f8fafc; flex: none; }
+  .kulp-kapak.ayna { transform: scaleX(-1); }
+  .kulp-kapak .mentese { position: absolute; left: 5px; width: 9px; height: 9px; border-radius: 99px; border: 1.5px solid #94a3b8; }
+  .kulp-kapak [data-kulpyer] { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 10px; display: grid; place-items: center; }
+  .kulp-kapak [data-kulpyer]:hover { background: #e2e8f0; }
+  .kulp-kapak [data-kulpyer] i { display: block; background: #cbd5e1; border-radius: 3px; }
+  .kulp-kapak [data-kulpyer].sec { background: #d1fae5; }
+  .kulp-kapak [data-kulpyer].sec i { background: #059669; }
+  .kulp-kapak.yatay [data-kulpyer] i { width: 24px; height: 5px; }
+  .kulp-kapak.dikey [data-kulpyer] i { width: 5px; height: 24px; }
   .p-baslik { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; }
   .p-arac { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .p-arac .dock-btn { min-width: 0; height: 68px; padding: 0 4px; }
@@ -191,7 +201,7 @@ function ciz() {
   if (!S.v) return;
   const hat = new Set(); for (const b of S.v.doktor) if (b.seviye === 'hata') for (const p of b.parcalar) { hat.add(p); if (p.split('.')[1]) hat.add(p.split('.')[1]); }
   K.ciz2B($('s2'), S.v, {seciliGoz: S.goz ? [S.goz] : [], seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat,
-                        kapakSec: true, gizli: gizliler(), etiket: true});
+                        kapakSec: true, gizli: gizliler(), etiket: true, detay: false});
   if (k3) k3.guncelle(S.v, {seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat, gizli: gizliler(), gorunum: GOR, ust: UST,
                            seciliGoz: S.goz ? S.goz.i : null});
 }
@@ -337,6 +347,12 @@ function deger(kok = $('sayfaIc')) {
   }); return o;
 }
 function kontrolTik(e) {
+  const ky = e.target.closest('[data-kulpyer]');
+  if (ky) {
+    const kk = ky.closest('.kulp-kapak'); kk.querySelectorAll('[data-kulpyer]').forEach(x => x.classList.toggle('sec', x === ky));
+    const h = kk.closest('[data-kulp-yer]').querySelector('input[name=kulpyer]'); h.value = ky.dataset.kulpyer; h.dispatchEvent(new Event('change', {bubbles: true}));
+    return;
+  }
   const a = e.target.closest('[data-a]');
   if (a) {
     const k = a.closest('[data-adim]'), i = k.querySelector('input');
@@ -522,6 +538,43 @@ function bolmeSayfa() {
 }
 
 function kulpSablonu() { return (BILGI.eleman_sablonlari.kulp || []).find(a => a !== 'Kulpsuz') || null; }
+// Kulp: motor konumu 3×3 ızgaradır ve menteşeye göre yansıtılır ("sag" = açılan kenar). Müşteri kapağın
+// resmi üzerinde açılan kenarda ya da ortada, üstte / ortada / altta seçer; sağa açılan kapakta resim aynalanır.
+const KULP_YERLER = [['ortaust', 50, 13], ['orta', 50, 50], ['ortaalt', 50, 87], ['sagust', 82, 13], ['sagorta', 82, 50], ['sagalt', 82, 87]];
+const ayna = k => k.replace('sag', '\0').replace('sol', 'sag').replace('\0', 'sol');
+function kulpSecici(kapakMi, yon, yer) {
+  const yonlar = [['yok', 'Kulpsuz'], ['YATAY', 'Yatay'], ...(kapakMi ? [['DIKEY', 'Dikey']] : [])];
+  if (!kulpSablonu()) return `<input type="hidden" name="kulpyon" value="yok">`;
+  if (!kapakMi) return `<div><div class="etiket">Kulp</div>${seg('kulpyon', yonlar, yon)}</div>
+    <div data-kulp-yer class="${yon === 'yok' ? 'hidden' : ''}"><div class="etiket">Kulp yeri</div>${seg('kulpyer', [['ortaust', 'Üstte'], ['orta', 'Ortada']], yer === 'orta' ? 'orta' : 'ortaust')}</div>`;
+  return `<div><div class="etiket">Kulp</div>${seg('kulpyon', yonlar, yon)}</div>
+    <div data-kulp-yer class="${yon === 'yok' ? 'hidden' : ''}"><div class="etiket">Kulp yeri <span class="font-normal text-slate-400">kapağın üzerinde seçin</span></div>
+      <div class="flex items-center gap-4">
+        <div class="kulp-kapak ${yon === 'DIKEY' ? 'dikey' : 'yatay'}">
+          <span class="mentese" style="top:18%"></span><span class="mentese" style="top:78%"></span>
+          ${KULP_YERLER.map(([k, x, y]) => `<button type="button" data-kulpyer="${k}" class="${k === yer ? 'sec' : ''}" style="left:${x}%;top:${y}%" aria-label="${k}"><i></i></button>`).join('')}
+        </div>
+        <p class="text-xs text-slate-500">○ menteşe tarafı. Kulp açılan kenara göre yerleşir; iki kapakta kulplar ortada buluşur.</p>
+      </div><input type="hidden" name="kulpyer" value="${yer}"></div>`;
+}
+function kulpGuncelle(f, aynaMi) {         // seçicinin görünümü (yön değişince çubuk, açılış değişince ayna)
+  const alan = $('sayfaIc').querySelector('[data-kulp-yer]'); if (!alan) return;
+  alan.classList.toggle('hidden', f.kulpyon === 'yok');
+  const kk = alan.querySelector('.kulp-kapak');
+  if (kk) { kk.classList.toggle('dikey', f.kulpyon === 'DIKEY'); kk.classList.toggle('yatay', f.kulpyon !== 'DIKEY'); kk.classList.toggle('ayna', !!aynaMi); }
+}
+function kulpNesne(f) {
+  const ku = kulpSablonu();
+  if (!ku || f.kulpyon === 'yok') return {konum: 'yok'};
+  const dik = f.kulpyon === 'DIKEY';
+  return {sablon: ku, konum: f.kulpyer || 'ortaust', yon: dik ? 'DIKEY' : 'YATAY', yatay_mesafe: dik ? 40 : 100, dikey_mesafe: dik ? 110 : 40};
+}
+function mevcutKulp(p, kapakMi) {          // düzenlenen parçanın kulbu → seçici başlangıcı (göreli)
+  if (!p) return null;
+  if (!(p.kulp || []).length) return {yon: 'yok', yer: kapakMi ? 'ortaust' : 'ortaust'};
+  const yer = p.menteseyeri === 'SAG' ? ayna(p.kulp[0]) : p.kulp[0];
+  return {yon: (p.kulp_yon || [])[0] || 'YATAY', yer: KULP_YERLER.some(([k]) => k === yer) ? yer : 'ortaust'};
+}
 
 function onuKapali(z) {            // bu bölmenin önünde kapak / çekmece var mı
   const cx = (z.x1 + z.x2) / 2, cy = (z.y1 + z.y2) / 2;
@@ -539,20 +592,21 @@ function kapakSayfa(p) {          // p: düzenlenen kapak (grup)
   if (!p && gozYok()) return;
   const grup = p ? S.v.parcalar2b.filter(x => x.tur === 'kapak' && (p.grup ? x.grup === p.grup : x.id === p.id)) : [];
   const n0 = grup.length || ((S.goz && S.goz.z.x2 - S.goz.z.x1 > 600) ? 2 : 1);
-  const kulpVar = p ? (p.kulp || []).length > 0 : true;
+  const uzun = S.goz && (S.goz.z.y2 - S.goz.z.y1) > 1000;
+  const k0 = mevcutKulp(p, true) || (uzun ? {yon: 'DIKEY', yer: 'sagorta'} : {yon: 'YATAY', yer: 'ortaust'});
   const sutunVar = !p && kapsamGozleri('sutun').length > 1;
   const dolapVar = !p && kapsamGozleri('dolap').length > kapsamGozleri('sutun').length;
   let ic = `<div><div class="etiket">Kapak sayısı</div>${seg('n', [[1, '1'], [2, '2'], [3, '3'], [4, '4']], n0)}</div>`;
   if (!p) ic += `<div><div class="etiket">Neyi kapatsın?</div>${seg('kapsam', [['goz', 'Bu bölmeyi'], ...(sutunVar ? [['sutun', 'Bütün sütunu']] : []), ...(dolapVar ? [['dolap', 'Bütün dolabı']] : [])], sutunVar ? 'sutun' : 'goz')}</div>`;
   ic += `<div id="acilisAlan" class="${n0 === 1 ? '' : 'hidden'}"><div class="etiket">Açılış yönü</div>${seg('acilis', [['SOL', 'Sola açılır'], ['SAG', 'Sağa açılır']], p ? (p.menteseyeri === 'SAG' ? 'SAG' : 'SOL') : 'SOL')}</div>
-    <div><div class="etiket">Kulp</div>${seg('kulp', [['1', 'Kulplu'], ['0', 'Kulpsuz']], kulpVar ? '1' : '0')}</div>
+    ${kulpSecici(true, k0.yon, k0.yer)}
     <div id="onBilgi" class="text-sm text-slate-500 min-h-[20px]"></div>`;
   sayfaAc(p ? 'Kapağı düzenle' : 'Kapak ekle', ic, birincil(p ? 'Kaydet' : 'Kapak ekle'));
   const topla = () => {
     const f = deger(), n = +f.n;
     $('acilisAlan').classList.toggle('hidden', n !== 1);
-    const ku = kulpSablonu();
-    const base = {adet: n, kulp: f.kulp === '1' && ku ? {sablon: ku} : {konum: 'yok'}, ...(n === 1 ? {menteseler: [f.acilis]} : {})};
+    kulpGuncelle(f, n === 1 && f.acilis === 'SAG');
+    const base = {adet: n, kulp: kulpNesne(f), ...(n === 1 ? {menteseler: [f.acilis]} : {})};
     return p ? {tip: 'grup_duzenle', id: p.id, ...base} : {tip: 'ekle', tur: 'kapak', ...base, noktalar: kapsamNoktalari(f.kapsam)};
   };
   let z = null;
@@ -578,12 +632,12 @@ async function cekmeceSayfa(p) {
   const ray = r && BILGI.raylar.find(x => r.sonuc.raylar[x.kod]);
   if (!ray) { tost('Bu derinliğe uygun çekmece rayı yok', true); return; }
   sayfaAc(p ? 'Çekmeceleri düzenle' : 'Çekmece ekle', `<div><div class="etiket">Kaç çekmece?</div>${adim('n', n0, 1, 6)}</div>
-    <div><div class="etiket">Kulp</div>${seg('kulp', [['1', 'Kulplu'], ['0', 'Kulpsuz']], p && !(p.kulp || []).length ? '0' : '1')}</div>
+    ${(k => kulpSecici(false, k.yon, k.yer))(mevcutKulp(p, false) || {yon: 'YATAY', yer: 'ortaust'})}
     <div class="text-sm text-slate-500">Ray: <b>${K.esc(ray.ad)}</b> (derinliğe göre otomatik)</div>
     <div id="onBilgi" class="text-sm text-slate-500 min-h-[20px]"></div>`, birincil(p ? 'Kaydet' : 'Çekmece ekle'));
   const topla = () => {
-    const f = deger(), ku = kulpSablonu();
-    const base = {sablon: sab, adet: f.n, secenek: {raytipi: ray.kod}, kulp: f.kulp === '1' && ku ? {sablon: ku} : {konum: 'yok'}};
+    const f = deger(); kulpGuncelle(f, false);
+    const base = {sablon: sab, adet: f.n, secenek: {raytipi: ray.kod}, kulp: kulpNesne(f)};
     return p ? {tip: 'grup_duzenle', id: p.id, ...base} : {tip: 'ekle', tur: 'cekmece', ...base, noktalar: [[S.goz.x, S.goz.y]]};
   };
   let z = null;
