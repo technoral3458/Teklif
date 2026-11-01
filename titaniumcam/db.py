@@ -161,6 +161,9 @@ MIGRATIONS = [
     ("membrane_users", "phone", "TEXT DEFAULT ''"),
     ("membrane_users", "onay_sekli", "TEXT DEFAULT ''"),   # müşteri bazlı onay şekli istisnası
     ("kabin_taslak", "model_id", "INTEGER DEFAULT 0"),      # yöneticinin düzenlediği hazır model
+    ("kabin_model", "kategori", "TEXT DEFAULT ''"),          # vitrin grubu (boşsa şablon adı)
+    ("kabin_model", "gorsel_json", "TEXT DEFAULT ''"),       # gerçekçi 3B görsel verisi
+    ("kabin_model", "maliyet_json", "TEXT DEFAULT ''"),      # motorun maliyet miktarları
 ]
 
 # Kaldırılan eski sistemin tabloları (maliyet, kapak modelleri, nesting, Vardar, eski mağaza / konfigüratör)

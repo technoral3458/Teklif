@@ -9,17 +9,18 @@
     <div class="text-2xl font-bold {% if s.bekleyen %}text-amber-600{% endif %}">{{ s.bekleyen }}</div><div class="text-xs text-slate-500">Onay bekleyen sipariş</div></a>
   <a href="/titaniumcam/kabin" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.siparis }}</div><div class="text-xs text-slate-500">Toplam sipariş</div></a>
   <a href="/titaniumcam/ayarlar#musteriler" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.musteri }}</div><div class="text-xs text-slate-500">Müşteri</div></a>
-  <a href="/titaniumcam/kabin/modeller" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.model }}</div><div class="text-xs text-slate-500">Satıştaki hazır model</div></a>
+  <a href="/titaniumcam/kabinler" class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold">{{ s.model }}</div><div class="text-xs text-slate-500">Satıştaki kabin</div></a>
 </div>
 
 {% set bolumler = [
   ('Satış', [
     ('/titaniumcam/kabin', '🧰', 'Kabin siparişleri', 'Onay, düzeltme, .tkabin indirme'),
-    ('/titaniumcam/kabin/modeller', '🏷️', 'Hazır modeller', 'Tasarladığın dolapları mağazada sat; otomatik arkalık'),
+    ('/titaniumcam/kabinler', '🗄️', 'Kabinler', 'Satışa sunulan kabinler: tasarla, satışa aç, grupla'),
+    ('/titaniumcam/kabinler?sekme=maliyet', '💰', 'Maliyetler', 'Kabin başına maliyet, kâr ve satış fiyatı; birim fiyatlar'),
     ('/', '🛍️', 'Mağazayı aç', 'Müşterinin gördüğü sayfa'),
   ]),
   ('Ürün tanımları', [
-    ('/titaniumcam/kabin/tanimlar', '💰', 'Tanımlar ve fiyatlar', 'Malzeme, bant, donatı fiyatları; renk / doku; müşterinin neleri kullanabileceği'),
+    ('/titaniumcam/kabin/tanimlar', '🧾', 'Tanımlar', 'Müşterinin kullanabileceği malzeme, bant, ray…; renk / doku; ölçü sınırları'),
     ('/titaniumcam/kabin/ayar', '🎛️', 'Gelişmiş alan yetkileri', 'Müşteri ve yönetici hangi alanı değiştirebilir'),
   ]),
   ('TitaniumCam bağlantısı', [

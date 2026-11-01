@@ -137,9 +137,10 @@ window.KabinGercek = (() => {
       const v = T.MathUtils.degToRad(this.c.fov) / 2, h = Math.atan(Math.tan(v) * this.c.aspect);
       // kutuya göre sığdır (açılı bakışta görünen genişlik ≈ en + derinliğin bir kısmı)
       const gW = W * 0.93 + D * 0.42, gH = H * 1.0 + D * 0.2;
-      const uz = (Math.max(gH / 2 / Math.tan(v), gW / 2 / Math.tan(h)) + D / 2) * 1.32;
-      const hedef = new T.Vector3(0, this.oy + H * 0.56, 0);   // üstteki düğmelere yer
-      const yon = new T.Vector3(0.42, 0.2, 1).normalize();
+      const kart = this.kartModu;            // vitrin kartı: ortalı, sıkı kadraj
+      const uz = (Math.max(gH / 2 / Math.tan(v), gW / 2 / Math.tan(h)) + D / 2) * (kart ? 1.06 : 1.32);
+      const hedef = new T.Vector3(0, this.oy + H * (kart ? 0.47 : 0.56), 0);   // editör: üstteki düğmelere yer
+      const yon = new T.Vector3(kart ? 0.36 : 0.42, kart ? 0.16 : 0.2, 1).normalize();
       this.c.position.copy(hedef).add(yon.multiplyScalar(uz));
       if (this.ctl) { this.ctl.target.copy(hedef); this.ctl.minDistance = R * 1.25; this.ctl.maxDistance = uz * 1.6; this.ctl.update(); }
       else this.c.lookAt(hedef);
@@ -279,5 +280,38 @@ window.KabinGercek = (() => {
       this.tikla(hit ? hit.object.userData.id : null, e);
     }
   }
-  return {KabinGercek, ahsapDoku};
+  // Vitrin / katalog kartı: tek görünmez çizici her kabin için bir resim (PNG, saydam) üretir;
+  // sayfada onlarca WebGL penceresi açılmaz.
+  let _kart = null;
+  function resim(v, gorunum, w = 420, h = 520) {
+    if (!T || !v || !v.govde) return null;
+    if (!_kart) {
+      const d = document.createElement('div');
+      d.style.cssText = `position:fixed;left:-10000px;top:0;width:${w}px;height:${h}px;pointer-events:none`;
+      document.body.appendChild(d);
+      _kart = new KabinGercek(d, null);
+      _kart.kartModu = true;
+      d.style.background = 'none';
+    }
+    const k = _kart;
+    if (!k.r) return null;
+    k.kap.style.width = w + 'px'; k.kap.style.height = h + 'px';
+    k.elle = false; k.olcu = null;
+    k.guncelle(v, {gorunum: gorunum || {}, ust: !!v.ust});
+    k.r.render(k.s, k.c);
+    return k.r.domElement.toDataURL('image/png');
+  }
+  // Sırayla doldur: <img data-gorsel-i="i"> → gorseller[i] (sayfa donmasın diye aralıklı)
+  function kartlariDoldur(secici, gorseller, gorunum) {
+    const imgs = [...document.querySelectorAll(secici)];
+    let i = 0;
+    const adim = () => {
+      if (i >= imgs.length) return;
+      const img = imgs[i++], v = gorseller[+img.dataset.gorselI];
+      try { const u = resim(v, gorunum); if (u) { img.src = u; img.classList.add('hazir'); } } catch (e) { console.warn(e); }
+      (window.requestIdleCallback || (f => setTimeout(f, 16)))(adim);
+    };
+    adim();
+  }
+  return {KabinGercek, ahsapDoku, resim, kartlariDoldur};
 })();

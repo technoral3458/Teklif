@@ -349,3 +349,52 @@ def test_hazir_model(o):
     assert r.status_code == 200 and len([p for p in r.json()["parcalar2b"] if p["tur"] == "cekmece"]) == 3
     a.post(f"/titaniumcam/kabin/modeller/{mid}/sil")
     assert db.one("SELECT 1 FROM kabin_model WHERE id=?", (mid,)) is None
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Kabinler (katalog) ve Maliyetler
+# ══════════════════════════════════════════════════════════════════════════
+def test_kabinler_ve_maliyet(o):
+    a, db = o["admin"], o["db"]
+    from routers.kabin import fiyat_hesapla, tanim_tablosu
+    assert a.get("/titaniumcam/kabinler").status_code == 200
+    r = a.post("/titaniumcam/kabin/modeller/yeni", data={"ad": "Mutfak Alt 2 Kapak", "sablon": "Alt Dolap",
+                                                        "kategori": "Mutfak"}, follow_redirects=False)
+    yurl = r.headers["location"]
+    for x in [{"tip": "olcu", "en": 800},
+              {"tip": "ekle", "tur": "kapak", "noktalar": [[400, 300]], "adet": 2, "kulp": {"sablon": "Ust orta 128"}}]:
+        assert a.post(yurl + "/islem", json={"islem": x}).status_code == 200
+    assert a.post(yurl + "/modele-kaydet").json()["url"].startswith("/titaniumcam/kabinler")
+    m = db.one("SELECT * FROM kabin_model WHERE ad='Mutfak Alt 2 Kapak'")
+    g = json.loads(m["gorsel_json"])
+    assert g["govde"]["en"] == 800 and any(p["tur"] == "kapak" for p in g["parcalar3b"]) and g["ust"] is False
+    assert len([p for p in g["parcalar2b"] if p["tur"] == "kapak"]) == 2 and json.loads(m["maliyet_json"])
+    # Maliyetler: birim fiyat + kâr; açık / kapalı ayarına dokunmaz
+    kapali_once = {(r["tur"], r["kod"]) for r in db.query("SELECT tur, kod FROM kabin_tanim WHERE acik=0")}
+    form = {"kar": "25", "goster": "1", "f:malzeme:MDF18": "650", "f:donati:mentese": "55"}
+    assert "Fiyatlar kaydedildi" in a.post("/titaniumcam/kabinler/fiyatlar", data=form).text
+    T = tanim_tablosu()
+    assert T[("malzeme", "MDF18")]["fiyat"] == 650 and T[("donati", "mentese")]["fiyat"] == 55
+    assert {(r["tur"], r["kod"]) for r in db.query("SELECT tur, kod FROM kabin_tanim WHERE acik=0")} == kapali_once
+    t = a.get("/titaniumcam/kabinler?sekme=maliyet").text
+    assert "Mutfak Alt 2 Kapak" in t and "Kabin maliyetleri" in t and 'name="f:malzeme:MDF18"' in t
+    f = fiyat_hesapla(json.loads(m["maliyet_json"]))
+    assert f["kar_orani"] == 25 and abs(f["toplam"] - f["ara_toplam"] * 1.25) < 0.02
+    # Tanımlar kaydı fiyatları SİLMEZ (fiyat alanı artık orada yok)
+    a.post("/titaniumcam/kabin/tanimlar", data={"f:malzeme:MDF18": "", "a:malzeme:MDF18": "1",
+                                                **{f"e:{x}": "1" for x in ("dikeybolme", "yataybolme", "raf", "kapak", "cekmece")}})
+    assert tanim_tablosu()[("malzeme", "MDF18")]["fiyat"] == 650
+    # satışa aç / kopyala / grup
+    a.post(f"/titaniumcam/kabin/modeller/{m['id']}/satis")
+    assert db.one("SELECT acik FROM kabin_model WHERE id=?", (m["id"],))["acik"] == 1
+    a.post(f"/titaniumcam/kabin/modeller/{m['id']}/kopyala")
+    k = db.one("SELECT * FROM kabin_model WHERE ad='Mutfak Alt 2 Kapak (kopya)'")
+    assert k and k["acik"] == 0 and k["kategori"] == "Mutfak" and k["gorsel_json"] == m["gorsel_json"]
+    # vitrin: grup, gerçekçi görsel verisi, kopya görünmez
+    v = o["TC"](o["app"]).get("/").text
+    assert "Mutfak Alt 2 Kapak" in v and "(kopya)" not in v and 'data-grup="Mutfak"' in v and "kartlariDoldur" in v
+    # eski görseli olmayan model bir kez motordan hesaplanır
+    db.execute("UPDATE kabin_model SET gorsel_json='', maliyet_json='' WHERE id=?", (k["id"],))
+    assert a.get("/titaniumcam/kabinler").status_code == 200
+    assert db.one("SELECT gorsel_json FROM kabin_model WHERE id=?", (k["id"],))["gorsel_json"]
+    a.post(f"/titaniumcam/kabin/modeller/{m['id']}/sil"); a.post(f"/titaniumcam/kabin/modeller/{k['id']}/sil")

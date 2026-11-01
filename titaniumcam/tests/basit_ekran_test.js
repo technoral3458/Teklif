@@ -78,20 +78,20 @@ async function yerel(ctx) {
   for (const [ad, sab, isl] of [['Çekmeceli Alt Dolap', 'Alt Dolap', [{tip: 'olcu', en: 600}, {tip: 'ekle', tur: 'cekmece', noktalar: [[300, 300]], adet: 4, sablon: 'Mandalli 500'}]],
                                 ['Raflı Boy Dolap', 'Boy Dolap', [{tip: 'ekle', tur: 'raf', noktalar: [[300, 900]], adet: 4}, {tip: 'ekle', tur: 'kapak', noktalar: [[300, 100]], adet: 1, menteseler: ['SAG'], kulp: {sablon: 'Ust orta 128'}}]],
                                 ['İki Kapaklı Üst Dolap', 'Ust Dolap', [{tip: 'olcu', en: 800}, {tip: 'ekle', tur: 'raf', noktalar: [[400, 300]], adet: 1}, {tip: 'ekle', tur: 'kapak', noktalar: [[400, 100], [400, 500]], adet: 2, kulp: {sablon: 'Ust orta 128'}}]]]) {
-    await a.goto(B + '/titaniumcam/kabin/modeller');
+    await a.goto(B + '/titaniumcam/kabinler');
+    if (!(await a.isVisible('[name=ad]'))) await a.click('summary:has-text("Yeni kabin")');
     await a.fill('[name=ad]', ad); await a.selectOption('select[name=sablon]', sab);
     await Promise.all([a.waitForNavigation(), a.click('button:has-text("Oluştur ve tasarla")')]);
     const taban = new URL(a.url()).pathname;
     for (const x of isl) { const r = await a.request.post(B + taban + '/islem', {data: {islem: x}}); if (!r.ok()) throw new Error(ad + ': ' + await r.text()); }
     const r = await a.request.post(B + taban + '/modele-kaydet'); if (!r.ok()) throw new Error(await r.text());
   }
-  await a.goto(B + '/titaniumcam/kabin/modeller');
-  for (const f of await a.$$('form[action$="/guncelle"]')) { await f.$eval('input[name=acik]', i => i.checked = true); }
+  await a.goto(B + '/titaniumcam/kabinler');
   const formlar = await a.$$eval('form[action$="/guncelle"]', fs => fs.map(f => f.action));
   for (const act of formlar) await a.request.post(act, {form: {acik: '1', aciklama: 'Ölçüye göre üretilir'}});
-  await a.goto(B + '/titaniumcam/kabin/modeller'); await a.waitForTimeout(300);
+  await a.goto(B + '/titaniumcam/kabinler'); await a.waitForTimeout(300);
   await a.screenshot({path: O + '36_yonetici_modeller.png', fullPage: true});
-  ok((await a.textContent('body')).includes('Satışta'), 'Yönetici: 3 model satışa açıldı');
+  ok((await a.textContent('body')).includes('Satışta'), 'Yönetici: 3 kabin satışa açıldı');
   // vitrin
   const v = await m.newPage(); await v.goto(B + '/'); await v.waitForTimeout(400);
   await v.screenshot({path: O + '37_vitrin_modeller.png', fullPage: true});

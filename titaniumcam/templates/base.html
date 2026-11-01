@@ -10,7 +10,8 @@
 <body class="bg-slate-100 text-slate-800 min-h-screen">
   {% set nav = request.url.path %}
   {% set items = [
-      ('/titaniumcam/kabin', '🧰 Kabin Siparişleri', nav.startswith('/titaniumcam/kabin')),
+      ('/titaniumcam/kabin', '🧰 Kabin Siparişleri', nav.startswith('/titaniumcam/kabin') and not nav.startswith('/titaniumcam/kabinler')),
+      ('/titaniumcam/kabinler', '🗄️ Kabinler', nav.startswith('/titaniumcam/kabinler')),
       ('/titaniumcam/acil-lisans', '🛟 Acil Lisans', nav.startswith('/titaniumcam/acil-lisans')),
       ('/titaniumcam/admin', '⚙️ Yönetici', nav.startswith('/titaniumcam/admin') or nav.startswith('/titaniumcam/ayarlar') or nav.startswith('/titaniumcam/api')),
   ] %}

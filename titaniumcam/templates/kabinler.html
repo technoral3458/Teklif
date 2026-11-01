@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Kabinler{% endblock %}
+{% block content %}
+<style>
+  .kabin-sahne { background: radial-gradient(120% 85% at 50% 30%, #fdfcfa 0%, #f1ede7 55%, #e2dcd2 100%); }
+  .kabin-sahne img { opacity: 0; transition: opacity .3s; } .kabin-sahne img.hazir { opacity: 1; }
+  details > summary { list-style: none; } details > summary::-webkit-details-marker { display: none; }
+</style>
+<div class="flex flex-wrap items-center justify-between gap-3 mb-1">
+  <h1 class="text-2xl font-bold">🗄️ Kabinler</h1>
+  <a href="/" target="_blank" class="text-sm text-blue-600">Mağazada gör ↗</a>
+</div>
+<p class="text-sm text-slate-500 mb-4">Satışa sunulan kabinler ve maliyetleri. Kabini editörde tasarlarsınız; müşteri onu mağazada gerçekçi görüntüyle görür, ölçüsünü ve rengini değiştirip sipariş verir.</p>
+{% if mesaj %}<div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-3 mb-4 text-sm">{{ mesaj }}</div>{% endif %}
+
+<nav class="flex gap-1 mb-5 text-sm font-semibold">
+  {% for k, ad in [('katalog', 'Katalog'), ('maliyet', 'Maliyetler')] %}
+  <a href="?sekme={{ k }}" class="px-5 py-2.5 rounded-full {% if sekme == k %}bg-slate-900 text-white{% else %}bg-white text-slate-600 shadow-sm{% endif %}">{{ ad }}</a>
+  {% endfor %}
+</nav>
+
+{% if sekme == 'katalog' %}
+<!-- Yeni kabin -->
+<details class="bg-white rounded-2xl shadow mb-6" {% if not modeller %}open{% endif %}>
+  <summary class="cursor-pointer px-5 py-4 font-semibold flex items-center gap-2"><span class="w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center">+</span> Yeni kabin</summary>
+  <form method="post" action="/titaniumcam/kabin/modeller/yeni" class="px-5 pb-5 grid sm:grid-cols-4 gap-3 text-sm">
+    <label class="sm:col-span-2">Kabin adı<input name="ad" required placeholder="Örn. 3 çekmeceli alt dolap" class="mt-1 border rounded-lg px-3 py-2 w-full"></label>
+    <label>Başlangıç<select name="sablon" class="mt-1 border rounded-lg px-3 py-2 w-full">{% for s in sablonlar %}<option>{{ s.ad }}</option>{% endfor %}</select></label>
+    <label>Grup (isteğe bağlı)<input name="kategori" list="kategoriler" placeholder="Şablon adı" class="mt-1 border rounded-lg px-3 py-2 w-full"></label>
+    <div class="sm:col-span-4"><button class="bg-emerald-600 text-white rounded-lg px-5 py-2.5 font-semibold">Oluştur ve tasarla →</button>
+      <span class="text-xs text-slate-400 ml-2">Editörde kapak, çekmece, raf ekleyip "Modeli kaydet"e basın.</span></div>
+  </form>
+</details>
+<datalist id="kategoriler">{% for k in kategoriler %}<option value="{{ k }}">{% endfor %}</datalist>
+
+{% for grup, liste in gruplar %}
+<h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2 mt-6">{{ grup }} · {{ liste|length }}</h2>
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for m in liste %}
+  {% set i = modeller.index(m) %}
+  <div class="bg-white rounded-2xl shadow overflow-hidden flex flex-col">
+    <div class="kabin-sahne relative aspect-[5/4]">
+      <img data-gorsel-i="{{ i }}" alt="" class="absolute inset-0 w-full h-full object-contain">
+      <form method="post" action="/titaniumcam/kabin/modeller/{{ m.id }}/satis" class="absolute right-3 top-3">
+        <button class="text-xs font-semibold rounded-full px-3 py-1.5 shadow {% if m.acik %}bg-emerald-600 text-white{% else %}bg-white text-slate-600{% endif %}">{{ '● Satışta' if m.acik else '○ Satışta değil' }}</button>
+      </form>
+    </div>
+    <div class="p-4 flex-1 flex flex-col">
+      <div class="flex items-start justify-between gap-2">
+        <div class="font-semibold leading-tight">{{ m.ad }}</div>
+        <div class="text-right whitespace-nowrap">
+          {% if m.fiyat.eksik %}<span class="text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5" title="{{ m.fiyat.eksik|join(', ') }}">fiyat eksik</span>
+          {% else %}<div class="font-bold text-emerald-700">{{ "{:,.0f}".format(m.fiyat.toplam).replace(',','.') }} ₺</div>{% endif %}
+        </div>
+      </div>
+      <div class="text-xs text-slate-500 mt-1">{{ '%g'|format(m.gorsel.govde.boy or 0) }} × {{ '%g'|format(m.gorsel.govde.en or 0) }} × {{ '%g'|format(m.gorsel.govde.derinlik or 0) }} mm · {{ m.ozet.parca or 0 }} parça · maliyet {{ "{:,.0f}".format(m.fiyat.ara_toplam).replace(',','.') }} ₺</div>
+      <details class="mt-3 text-sm">
+        <summary class="cursor-pointer text-slate-500 hover:text-slate-800">Ad, açıklama, grup…</summary>
+        <form method="post" action="/titaniumcam/kabin/modeller/{{ m.id }}/guncelle" class="space-y-2 mt-2">
+          <input name="ad" value="{{ m.ad }}" class="border rounded-lg px-3 py-2 w-full font-semibold">
+          <textarea name="aciklama" rows="2" placeholder="Kısa açıklama (mağazada görünür)" class="border rounded-lg px-3 py-2 w-full">{{ m.aciklama }}</textarea>
+          <div class="flex gap-2">
+            <input name="kategori" value="{{ m.kategori }}" list="kategoriler" placeholder="Grup: {{ m.sablon }}" class="border rounded-lg px-3 py-2 flex-1 min-w-0">
+            <label class="flex items-center gap-1 text-xs text-slate-500">Sıra<input name="sira" type="number" value="{{ m.sira }}" class="border rounded-lg px-2 py-2 w-16"></label>
+          </div>
+          <label class="flex items-center gap-2"><input type="checkbox" name="acik" value="1" {% if m.acik %}checked{% endif %}> Mağazada satışta</label>
+          <button class="bg-blue-600 text-white rounded-lg px-4 py-2 w-full">Kaydet</button>
+        </form>
+      </details>
+      <div class="flex gap-2 mt-auto pt-3 text-sm">
+        <form method="post" action="/titaniumcam/kabin/modeller/{{ m.id }}/duzenle" class="flex-1"><button class="w-full bg-slate-900 text-white rounded-lg px-3 py-2 font-semibold">✏️ Tasarımı düzenle</button></form>
+        <form method="post" action="/titaniumcam/kabin/modeller/{{ m.id }}/kopyala"><button class="border rounded-lg px-3 py-2" title="Kopyala">⧉</button></form>
+        <form method="post" action="/titaniumcam/kabin/modeller/{{ m.id }}/sil" data-soru="{{ m.ad }} silinsin mi?" onsubmit="return confirm(this.dataset.soru)"><button class="border border-red-200 text-red-600 rounded-lg px-3 py-2" title="Sil">🗑</button></form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-2xl shadow p-8 text-center text-slate-500">Henüz kabin yok. Yukarıdan ilk kabininizi oluşturun.</div>
+{% endfor %}
+
+<div class="grid lg:grid-cols-3 gap-4 mt-10">
+  <form method="post" action="/titaniumcam/kabinler/vitrin" class="bg-white rounded-2xl shadow p-5 text-sm">
+    <h2 class="font-semibold mb-1">Boş kabinden tasarım</h2>
+    <p class="text-slate-500 mb-3">Müşteri katalog dışında boş Alt / Üst / Boy dolaptan da başlayabilsin mi?</p>
+    <label class="flex items-center gap-2 mb-3"><input type="checkbox" name="bos_sablon" value="1" {% if vitrin.bos_sablon %}checked{% endif %}> Mağazada göster</label>
+    <button class="bg-slate-900 text-white rounded-lg px-4 py-2">Kaydet</button>
+  </form>
+  <form method="post" action="/titaniumcam/kabin/modeller/arkalik" class="lg:col-span-2 bg-white rounded-2xl shadow p-5 text-sm">
+    <h2 class="font-semibold mb-1">Otomatik arkalık</h2>
+    <p class="text-slate-500 mb-3">Müşteri arkalık seçmez; boş kabinden başlarsa buradaki arkalık eklenir.</p>
+    <div class="grid sm:grid-cols-3 gap-3">
+      {% for s in sablonlar %}
+      <label>{{ s.ad }}<select name="ark:{{ s.ad }}" class="border rounded-lg px-2 py-2 w-full">
+        <option value="" {% if not oto_ark[s.ad] %}selected{% endif %}>Arkalık yok</option>
+        {% for a in arkaliklar %}<option value="{{ a.ad }}" {% if oto_ark[s.ad] == a.ad %}selected{% endif %}>{{ a.ad }}</option>{% endfor %}
+      </select></label>
+      {% endfor %}
+    </div>
+    <button class="bg-slate-900 text-white rounded-lg px-4 py-2 mt-3">Kaydet</button>
+  </form>
+</div>
+
+{% else %}
+<!-- MALİYETLER -->
+<div class="bg-white rounded-2xl shadow overflow-hidden mb-6">
+  <div class="px-5 py-4 border-b flex flex-wrap items-center justify-between gap-2">
+    <h2 class="font-semibold">Kabin maliyetleri</h2>
+    <span class="text-xs text-slate-500">Miktarlar motordan (m², metre, adet) × birim fiyatlar · kâr %{{ '%g'|format(fiyat.kar) }}</span>
+  </div>
+  {% for m in modeller %}
+  <details class="border-b last:border-0">
+    <summary class="cursor-pointer px-5 py-3 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center text-sm hover:bg-slate-50">
+      <div class="col-span-2 sm:col-span-2 font-semibold">{{ m.ad }} <span class="text-xs font-normal text-slate-400">{{ m.grup }}</span>
+        {% if not m.acik %}<span class="text-[10px] text-slate-400 border rounded px-1 ml-1">satışta değil</span>{% endif %}</div>
+      {% for k, ad in [('malzeme','Malzeme'),('bant','Bant'),('donati','Donatı'),('baglanti','Bağlantı')] %}
+      <div class="text-slate-600"><span class="sm:hidden text-xs text-slate-400">{{ ad }}: </span>{{ "{:,.0f}".format(m.grup_toplam[k]).replace(',','.') }} ₺</div>
+      {% endfor %}
+      <div class="text-right col-span-2 sm:col-span-1">
+        <div class="text-xs text-slate-400">maliyet {{ "{:,.0f}".format(m.fiyat.ara_toplam).replace(',','.') }} ₺</div>
+        <div class="font-bold {% if m.fiyat.eksik %}text-amber-700{% else %}text-emerald-700{% endif %}">{{ "{:,.0f}".format(m.fiyat.toplam).replace(',','.') }} ₺</div>
+      </div>
+    </summary>
+    <div class="px-5 pb-4 overflow-x-auto">
+      {% if m.fiyat.eksik %}<div class="text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2 mb-2">Fiyatı girilmemiş: {{ m.fiyat.eksik|join(', ') }} — müşteriye toplam gösterilmez.</div>{% endif %}
+      <table class="w-full text-xs">
+        <thead class="text-slate-400"><tr><th class="text-left py-1">Kalem</th><th class="text-right">Miktar</th><th class="text-right">Birim fiyat</th><th class="text-right">Tutar</th></tr></thead>
+        {% for k in m.fiyat.kalemler %}
+        <tr class="border-t"><td class="py-1">{{ k.ad }}</td><td class="text-right">{{ '%g'|format(k.miktar|round(3)) }} {{ k.birim }}</td>
+          <td class="text-right {% if not k.birim_fiyat %}text-amber-700{% endif %}">{{ '%g'|format(k.birim_fiyat) }} ₺</td><td class="text-right font-medium">{{ "{:,.2f}".format(k.tutar) }} ₺</td></tr>
+        {% endfor %}
+        <tr class="border-t font-semibold"><td class="py-1" colspan="3">Maliyet</td><td class="text-right">{{ "{:,.2f}".format(m.fiyat.ara_toplam) }} ₺</td></tr>
+        <tr><td class="py-1" colspan="3">Satış (kâr %{{ '%g'|format(fiyat.kar) }})</td><td class="text-right font-bold text-emerald-700">{{ "{:,.2f}".format(m.fiyat.toplam) }} ₺</td></tr>
+      </table>
+    </div>
+  </details>
+  {% else %}
+  <div class="p-6 text-center text-slate-500 text-sm">Henüz kabin yok.</div>
+  {% endfor %}
+</div>
+
+<form method="post" action="/titaniumcam/kabinler/fiyatlar" class="space-y-4">
+  <div class="bg-white rounded-2xl shadow p-5 grid sm:grid-cols-3 gap-4 text-sm items-end">
+    <label>Kâr oranı (%)<input name="kar" type="number" step="0.1" value="{{ '%g'|format(fiyat.kar) }}" class="mt-1 border rounded-lg px-3 py-2 w-full text-base"></label>
+    <label class="flex items-center gap-2 pb-2"><input type="checkbox" name="goster" value="1" {% if fiyat.goster %}checked{% endif %}> Müşteriye fiyat göster</label>
+    <p class="text-xs text-slate-400">Fiyatı girilmemiş kalem varsa müşteriye toplam gösterilmez.</p>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-4">
+    {% for baslik, tur, birim_ad, satirlar in birim %}
+    <div class="bg-white rounded-2xl shadow p-5">
+      <h3 class="font-semibold mb-2">{{ baslik }}</h3>
+      <table class="w-full text-sm">
+        {% for kod, ad, ek in satirlar %}
+        <tr class="border-t"><td class="py-1.5 pr-2"><span class="font-mono text-xs text-slate-400">{{ kod }}</span> {% if ad != kod %}{{ ad }}{% endif %} <span class="text-xs text-slate-400">{{ ek if tur != 'donati' else '' }}</span></td>
+          <td class="py-1.5 text-right whitespace-nowrap"><input name="f:{{ tur }}:{{ kod }}" type="number" step="0.01" min="0" value="{{ '%g'|format(fy(tur, kod)) }}" class="border rounded-lg px-2 py-1.5 w-28 text-right {% if not fy(tur, kod) %}border-amber-300 bg-amber-50{% endif %}">
+            <span class="text-xs text-slate-400 inline-block w-12 text-left">{{ birim_ad or ('₺/' ~ ek) }}</span></td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="sticky bottom-0 bg-slate-100/90 backdrop-blur py-3"><button class="bg-blue-600 text-white rounded-xl px-6 py-3 font-semibold">Fiyatları kaydet</button></div>
+</form>
+{% endif %}
+
+{% if sekme == 'katalog' and modeller %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="/static/kabin_gercek.js"></script>
+<script>
+KabinGercek.kartlariDoldur('.kabin-sahne img[data-gorsel-i]', {{ modeller|map(attribute='gorsel')|list|tojson }}, {{ gorunum|tojson }});
+</script>
+{% endif %}
+{% endblock %}

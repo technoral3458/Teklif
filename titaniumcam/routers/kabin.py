@@ -181,6 +181,23 @@ def fiyat_hesapla(maliyet):
             "toplam": round(ara * (1 + a["kar"] / 100.0), 2), "eksik": eksik}
 
 
+def _fiyat_ayar_yaz(f):
+    try:
+        kar = max(-90.0, min(500.0, float(str(f.get("kar", "0")).replace(",", ".") or 0)))
+    except ValueError:
+        kar = 0.0
+    _ayar_yaz("fiyat", {"kar": kar, "goster": f.get("goster") == "1"})
+
+
+def maliyet_ozeti(fiyat):
+    """Kalemleri gruplar: malzeme / kenar bandı / bağlantı / donatı (Maliyetler ekranı)."""
+    g = {"malzeme": 0.0, "bant": 0.0, "baglanti": 0.0, "donati": 0.0}
+    for k in fiyat["kalemler"]:
+        tur = k["anahtar"].partition(":")[0]
+        g[tur if tur in g else "donati"] += k["tutar"]
+    return {k: round(v, 2) for k, v in g.items()}
+
+
 def musteri_fiyati(fiyat):
     """Müşteriye gösterilecek toplam (ayar kapalıysa ya da eksik fiyat varsa None)."""
     if not fiyat_ayar()["goster"] or fiyat["eksik"] or fiyat["toplam"] <= 0:
@@ -364,7 +381,7 @@ async def _editor_sayfa(request, tid, rol, taban):
         "bilgi": gbil,
         "izinler": sorted(izinler(rol)), "sinir": sinirlar(t["sablon"]), "satir": satir,
         "geri_url": (f"/titaniumcam/kabin/siparis/{satir['order_id']}" if satir else
-                     "/titaniumcam/kabin/modeller" if t.get("model_id") else "/titaniumcam/kabin")
+                     KATALOG if t.get("model_id") else "/titaniumcam/kabin")
         if rol == "yonetici" else "/",
         "fiyat_ayar": fiyat_ayar(), "gorunum": gorunumler(gbil),
     })
@@ -935,7 +952,6 @@ async def y_tanimlar(request: Request, kayit: int = 0):
         ("arkalik", "Arkalık şablonları", "", [(x["ad"], x["ad"], f"{x['tip']} {x['kalinlik']:g} mm")
                                                for x in bil["arkaliklar"]], False),
         ("kulp", "Kulp şablonları", "", [(a, a, "") for a in bil["kulplar"]], False),
-        ("baglanti", "Bağlantı elemanları", "₺/adet", [(x["kod"], x["ad"], "") for x in bil["baglantilar"]], True),
     ]
     yet = yetkiler()
     return templates.TemplateResponse(request, "kabin_y_tanimlar.html", {
@@ -953,10 +969,10 @@ async def y_tanimlar_kaydet(request: Request):
         parca = anahtar.split(":", 2)                 # f:tur:kod (fiyat) · a:tur:kod (açık)
         if len(parca) != 3 or parca[0] not in ("f", "a") or parca[1] not in TANIM_TURLERI:
             continue
-        r = satirlar.setdefault((parca[1], parca[2]), {"fiyat": 0.0, "acik": 0})
-        if parca[0] == "f":
+        r = satirlar.setdefault((parca[1], parca[2]), {"fiyat": None, "acik": 0})
+        if parca[0] == "f" and str(deger).strip():     # fiyat yalnız gönderildiyse (Maliyetler ekranı)
             try:
-                r["fiyat"] = max(0.0, float(str(deger).replace(",", ".") or 0))
+                r["fiyat"] = max(0.0, float(str(deger).replace(",", ".")))
             except ValueError:
                 pass
         else:
@@ -976,14 +992,15 @@ async def y_tanimlar_kaydet(request: Request):
     for (tur, kod), r in satirlar.items():
         if tur == "donati" or tur == "baglanti":
             r["acik"] = 1                              # fiyat kalemi; müşteri seçmez
-        db.execute("INSERT INTO kabin_tanim (tur, kod, fiyat, acik) VALUES (?,?,?,?) "
-                   "ON CONFLICT(tur, kod) DO UPDATE SET fiyat=excluded.fiyat, acik=excluded.acik",
-                   (tur, kod[:80], r["fiyat"], r["acik"]))
-    try:
-        kar = max(-90.0, min(500.0, float(str(f.get("kar", "0")).replace(",", ".") or 0)))
-    except ValueError:
-        kar = 0.0
-    _ayar_yaz("fiyat", {"kar": kar, "goster": f.get("goster") == "1"})
+        if r["fiyat"] is None:
+            db.execute("INSERT INTO kabin_tanim (tur, kod, fiyat, acik) VALUES (?,?,0,?) "
+                       "ON CONFLICT(tur, kod) DO UPDATE SET acik=excluded.acik", (tur, kod[:80], r["acik"]))
+        else:
+            db.execute("INSERT INTO kabin_tanim (tur, kod, fiyat, acik) VALUES (?,?,?,?) "
+                       "ON CONFLICT(tur, kod) DO UPDATE SET fiyat=excluded.fiyat, acik=excluded.acik",
+                       (tur, kod[:80], r["fiyat"], r["acik"]))
+    if "kar" in f:
+        _fiyat_ayar_yaz(f)
     y = _ayar("yetkiler", {}) or {}
     for t, _ad in EKLE_TURLERI:
         y[f"ekle.{t}"] = "M" if f.get(f"e:{t}") == "1" else "Y"
@@ -1003,39 +1020,151 @@ async def y_tanimlar_kaydet(request: Request):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Yönetici: hazır modeller — editörde tasarla, mağazada sat
+# Yönetici: Kabinler (satıştaki kabin kataloğu + maliyetler)
+# Kabin = yöneticinin editörde tasarladığı model; vitrinde gerçekçi 3B görselle satılır.
 # ══════════════════════════════════════════════════════════════════════════
+KATALOG = "/titaniumcam/kabinler"
+
+
+def _git_katalog(mesaj="", sekme=""):
+    from urllib.parse import urlencode
+    q = {k: v for k, v in (("sekme", sekme), ("mesaj", mesaj)) if v}
+    return RedirectResponse(KATALOG + ("?" + urlencode(q) if q else ""), status_code=303)
+
+
+def _ust_mu(sablon):
+    return bool(re.match(r"(?i)^(ust|üst)\b", sablon or ""))
+
+
 def _onizleme(view):
-    """Vitrin kartı için küçük çizim verisi (delik vb. yok)."""
+    """Küçük 2B çizim verisi (delik vb. yok)."""
     return {"govde": view["govde"], "gozler": [],
             "parcalar2b": [{k: p[k] for k in ("id", "tur", "katman", "kutu", "menteseyeri", "kulp")
                             if k in p} for p in view["parcalar2b"]]}
 
 
-def magaza_modelleri():
+def _gorsel(view, sablon):
+    """Gerçekçi 3B görsel için en küçük veri: gövde, parça köşeleri, kapak / çekmece kulpları."""
+    oz = view.get("ozellik") or {}
+    yuvarla = lambda k: [[round(c, 1) for c in q] for q in k]  # noqa: E731
+    return {"govde": view["govde"], "ust": _ust_mu(sablon),
+            "ozellik": {k: oz.get(k) for k in ("govde.malzeme", "baza.on_geriye")},
+            "parcalar3b": [{"id": p["id"], "eleman": p.get("eleman", ""), "tur": p["tur"],
+                            "malzeme": p.get("malzeme", ""), "koseler": yuvarla(p["koseler"])}
+                           for p in view["parcalar3b"]],
+            "parcalar2b": [{k: p[k] for k in ("id", "tur", "kutu", "kulp") if k in p}
+                           for p in view["parcalar2b"] if p["tur"] in ("kapak", "cekmece")]}
+
+
+def _model_gorunumu_yaz(mid, view, sablon):
+    db.execute("UPDATE kabin_model SET onizleme_json=?, ozet_json=?, gorsel_json=?, maliyet_json=? WHERE id=?",
+               (json.dumps(_onizleme(view)), json.dumps(view["ozet"]), json.dumps(_gorsel(view, sablon)),
+                json.dumps(view.get("maliyet") or []), mid))
+
+
+async def _katalog(sadece_satista):
+    """Modeller + görsel + fiyat. Görseli olmayan (eski) model bir kez motordan hesaplanır."""
     out = []
-    for m in db.query("SELECT id, ad, aciklama, sablon, onizleme_json, ozet_json FROM kabin_model "
-                      "WHERE acik=1 ORDER BY sira, id"):
-        m["onizleme"] = json.loads(m.pop("onizleme_json") or "{}")
-        m["ozet"] = json.loads(m.pop("ozet_json") or "{}")
+    for m in db.query("SELECT * FROM kabin_model" + (" WHERE acik=1" if sadece_satista else "") + " ORDER BY sira, id"):
+        if not m.get("gorsel_json"):
+            try:
+                view = await KI.islem(json.loads(m["kabin_json"]), [{"tip": "goster"}], "yonetici", izinler("yonetici"))
+                _model_gorunumu_yaz(m["id"], view, m["sablon"])
+                m.update(gorsel_json=json.dumps(_gorsel(view, m["sablon"])), ozet_json=json.dumps(view["ozet"]),
+                         maliyet_json=json.dumps(view.get("maliyet") or []))
+            except KI.ServisHatasi:
+                pass
+        m["gorsel"] = json.loads(m.get("gorsel_json") or "{}")
+        m["ozet"] = json.loads(m.get("ozet_json") or "{}")
+        m["onizleme"] = json.loads(m.get("onizleme_json") or "{}")
+        m["fiyat"] = fiyat_hesapla(json.loads(m.get("maliyet_json") or "[]"))
+        m["grup"] = (m.get("kategori") or "").strip() or m["sablon"]
         out.append(m)
     return out
 
 
-@router.get("/titaniumcam/kabin/modeller", response_class=HTMLResponse)
-async def y_modeller(request: Request, mesaj: str = ""):
+def _gruplar(modeller):
+    g = {}
+    for m in modeller:
+        g.setdefault(m["grup"], []).append(m)
+    return list(g.items())
+
+
+def _kullanilan_gorunum(modeller, bil):
+    """Yalnız vitrindeki kabinlerin kullandığı malzemelerin rengi / dokusu."""
+    kodlar = {p.get("malzeme") for m in modeller for p in (m["gorsel"].get("parcalar3b") or [])}
+    return {k: v for k, v in gorunumler(bil).items() if k in kodlar}
+
+
+async def magaza_modelleri():
+    """Vitrin: satıştaki kabinler (gruplu), müşteri fiyatı (gösterim açık ve eksik yoksa)."""
+    modeller = await _katalog(True)
+    for m in modeller:
+        m["musteri_fiyat"] = musteri_fiyati(m["fiyat"])
+        m.pop("kabin_json", None)
+        m.pop("fiyat", None)
+    return modeller
+
+
+def vitrin_ayar():
+    a = _ayar("vitrin", {}) or {}
+    return {"bos_sablon": a.get("bos_sablon", True)}
+
+
+@router.get("/titaniumcam/kabin/modeller")
+async def y_modeller_eski():
+    return RedirectResponse(KATALOG, status_code=303)
+
+
+@router.get(KATALOG, response_class=HTMLResponse)
+async def y_kabinler(request: Request, sekme: str = "katalog", mesaj: str = ""):
     try:
         bil = await KI.bilgi()
     except KI.ServisHatasi as e:
         return HTMLResponse(f"<p style='padding:2rem;font-family:sans-serif'>{e.mesaj}</p>", status_code=503)
-    modeller = db.query("SELECT * FROM kabin_model ORDER BY sira, id")
+    sekme = sekme if sekme in ("katalog", "maliyet") else "katalog"
+    modeller = await _katalog(False)
     for m in modeller:
-        m["onizleme"] = json.loads(m["onizleme_json"] or "{}")
-        m["ozet"] = json.loads(m["ozet_json"] or "{}")
+        m["grup_toplam"] = maliyet_ozeti(m["fiyat"])
+        m.pop("kabin_json", None)
+    T = tanim_tablosu()
+    fy = lambda tur, kod: float((T.get((tur, kod)) or {}).get("fiyat") or 0)  # noqa: E731
+    birim = [
+        ("Malzemeler", "malzeme", "₺/m²", [(x["kod"], x["ad"], f"{x.get('kalinlik') or ''} mm") for x in bil["malzemeler"]]),
+        ("Kenar bantları", "bant", "₺/m", [(x["kod"], x["ad"], "") for x in bil["bantlar"]]),
+        ("Donatı", "donati", "", [(k, ad, b) for k, ad, b in DONATI]),
+        ("Bağlantı elemanları", "baglanti", "₺/adet", [(x["kod"], x["ad"], "") for x in bil["baglantilar"]]),
+    ]
     ark = {x["ad"]: oto_arkalik(x["ad"], bil) for x in bil["kabin_sablonlari"]}
-    return templates.TemplateResponse(request, "kabin_y_modeller.html", {
-        "request": request, "modeller": modeller, "sablonlar": bil["kabin_sablonlari"],
-        "arkaliklar": bil["arkaliklar"], "oto_ark": ark, "mesaj": mesaj})
+    return templates.TemplateResponse(request, "kabinler.html", {
+        "request": request, "sekme": sekme, "mesaj": mesaj, "modeller": modeller, "gruplar": _gruplar(modeller),
+        "sablonlar": bil["kabin_sablonlari"], "arkaliklar": bil["arkaliklar"], "oto_ark": ark,
+        "gorunum": gorunumler(bil), "fiyat": fiyat_ayar(), "birim": birim, "fy": fy, "vitrin": vitrin_ayar(),
+        "kategoriler": sorted({m["grup"] for m in modeller} | {x["ad"] for x in bil["kabin_sablonlari"]})})
+
+
+@router.post(KATALOG + "/fiyatlar")
+async def y_kabin_fiyatlar(request: Request):
+    """Maliyetler: yalnız birim fiyatlar + kâr (müşteriye açık / kapalı ayarına dokunmaz)."""
+    f = await request.form()
+    for anahtar, deger in f.multi_items():
+        parca = anahtar.split(":", 2)
+        if len(parca) != 3 or parca[0] != "f" or parca[1] not in TANIM_TURLERI:
+            continue
+        try:
+            v = max(0.0, float(str(deger).replace(",", ".") or 0))
+        except ValueError:
+            continue
+        db.execute("INSERT INTO kabin_tanim (tur, kod, fiyat, acik) VALUES (?,?,?,1) "
+                   "ON CONFLICT(tur, kod) DO UPDATE SET fiyat=excluded.fiyat", (parca[1], parca[2][:80], v))
+    _fiyat_ayar_yaz(f)
+    return _git_katalog("Fiyatlar kaydedildi", "maliyet")
+
+
+@router.post(KATALOG + "/vitrin")
+async def y_kabin_vitrin(bos_sablon: str = Form("")):
+    _ayar_yaz("vitrin", {**(_ayar("vitrin", {}) or {}), "bos_sablon": bool(bos_sablon)})
+    return _git_katalog("Vitrin ayarı kaydedildi")
 
 
 @router.post("/titaniumcam/kabin/modeller/arkalik")
@@ -1043,7 +1172,7 @@ async def y_oto_arkalik(request: Request):
     f = await request.form()
     a = {k[4:]: str(v)[:80] for k, v in f.items() if k.startswith("ark:")}
     _ayar_yaz("musteri_kabin", {**(_ayar("musteri_kabin", {}) or {}), "arkalik": a})
-    return RedirectResponse("/titaniumcam/kabin/modeller?mesaj=Otomatik arkalık kaydedildi", status_code=303)
+    return _git_katalog("Otomatik arkalık kaydedildi")
 
 
 async def _model_taslak(mid, kabin, ad, sablon):
@@ -1055,7 +1184,7 @@ async def _model_taslak(mid, kabin, ad, sablon):
 
 
 @router.post("/titaniumcam/kabin/modeller/yeni")
-async def y_model_yeni(ad: str = Form(...), sablon: str = Form(...)):
+async def y_model_yeni(ad: str = Form(...), sablon: str = Form(...), kategori: str = Form("")):
     try:
         bil = await KI.bilgi()
         islemler = [{"tip": "yeni", "sablon": sablon}]
@@ -1068,11 +1197,13 @@ async def y_model_yeni(ad: str = Form(...), sablon: str = Form(...)):
                              "noktalar": [[sab["en"] / 2, min(100.0, sab["boy"] / 4)]]})
         view = await KI.islem(None, islemler, "yonetici", izinler("yonetici"))
     except KI.ServisHatasi as e:
-        return RedirectResponse(f"/titaniumcam/kabin/modeller?mesaj={e.mesaj}", status_code=303)
-    mid = db.execute("INSERT INTO kabin_model (ad, sablon, kabin_json, onizleme_json, ozet_json) VALUES (?,?,?,?,?)",
-                     (ad.strip()[:80] or sablon, sablon, json.dumps(view["kabin"], ensure_ascii=False),
-                      json.dumps(_onizleme(view)), json.dumps(view["ozet"])))
-    tid = await _model_taslak(mid, view["kabin"], ad.strip()[:80] or sablon, sablon)
+        return _git_katalog(e.mesaj)
+    ad = ad.strip()[:80] or sablon
+    sira = (db.one("SELECT COALESCE(MAX(sira), 0) + 1 n FROM kabin_model") or {}).get("n", 0)
+    mid = db.execute("INSERT INTO kabin_model (ad, sablon, kategori, kabin_json, sira) VALUES (?,?,?,?,?)",
+                     (ad, sablon, kategori.strip()[:60], json.dumps(view["kabin"], ensure_ascii=False), sira))
+    _model_gorunumu_yaz(mid, view, sablon)
+    tid = await _model_taslak(mid, view["kabin"], ad, sablon)
     return RedirectResponse(f"/titaniumcam/kabin/t/{tid}", status_code=303)
 
 
@@ -1080,7 +1211,7 @@ async def y_model_yeni(ad: str = Form(...), sablon: str = Form(...)):
 async def y_model_duzenle(mid: int):
     m = db.one("SELECT * FROM kabin_model WHERE id=?", (mid,))
     if not m:
-        return RedirectResponse("/titaniumcam/kabin/modeller", status_code=303)
+        return _git_katalog()
     for t in db.query("SELECT id FROM kabin_taslak WHERE musteri=? AND model_id=?", (YONETICI, mid)):
         db.execute("DELETE FROM kabin_taslak_surum WHERE taslak_id=?", (t["id"],))
         db.execute("DELETE FROM kabin_taslak WHERE id=?", (t["id"],))
@@ -1098,23 +1229,47 @@ async def y_modele_kaydet(request: Request, tid: int):
     except KI.ServisHatasi as e:
         return _hata(e)
     if view["hata_var"]:
-        return JSONResponse({"error": "Dolapta hata var, model kaydedilemez"}, status_code=422)
-    db.execute("UPDATE kabin_model SET kabin_json=?, onizleme_json=?, ozet_json=?, ad=?, "
-               "updated_at=datetime('now') WHERE id=?",
-               (t["kabin_json"], json.dumps(_onizleme(view)), json.dumps(view["ozet"]),
-                db.one("SELECT ad FROM kabin_taslak WHERE id=?", (tid,))["ad"] or "Model", t["model_id"]))
-    return JSONResponse({"ok": True, "url": "/titaniumcam/kabin/modeller?mesaj=Model kaydedildi"})
+        return JSONResponse({"error": "Dolapta hata var, kabin kaydedilemez"}, status_code=422)
+    m = db.one("SELECT sablon FROM kabin_model WHERE id=?", (t["model_id"],))
+    db.execute("UPDATE kabin_model SET kabin_json=?, ad=?, updated_at=datetime('now') WHERE id=?",
+               (t["kabin_json"], db.one("SELECT ad FROM kabin_taslak WHERE id=?", (tid,))["ad"] or "Kabin", t["model_id"]))
+    _model_gorunumu_yaz(t["model_id"], view, (m or {}).get("sablon", t["sablon"]))
+    return JSONResponse({"ok": True, "url": KATALOG + "?mesaj=Kabin kaydedildi"})
 
 
 @router.post("/titaniumcam/kabin/modeller/{mid}/guncelle")
-async def y_model_guncelle(mid: int, ad: str = Form(""), aciklama: str = Form(""), sira: int = Form(0),
-                           acik: str = Form("")):
-    db.execute("UPDATE kabin_model SET ad=COALESCE(NULLIF(?, ''), ad), aciklama=?, sira=?, acik=? WHERE id=?",
-               (ad.strip()[:80], aciklama.strip()[:300], sira, 1 if acik else 0, mid))
-    return RedirectResponse("/titaniumcam/kabin/modeller?mesaj=Kaydedildi", status_code=303)
+async def y_model_guncelle(request: Request, mid: int):
+    f = await request.form()
+    try:
+        sira = int(f.get("sira") or 0)
+    except ValueError:
+        sira = 0
+    db.execute("UPDATE kabin_model SET ad=COALESCE(NULLIF(?, ''), ad), aciklama=?, sira=?, acik=?, kategori=? WHERE id=?",
+               (str(f.get("ad", "")).strip()[:80], str(f.get("aciklama", "")).strip()[:300], sira,
+                1 if f.get("acik") else 0, str(f.get("kategori", "")).strip()[:60], mid))
+    return _git_katalog("Kaydedildi")
+
+
+@router.post("/titaniumcam/kabin/modeller/{mid}/satis")
+async def y_model_satis(mid: int):
+    db.execute("UPDATE kabin_model SET acik=1-acik WHERE id=?", (mid,))
+    m = db.one("SELECT ad, acik FROM kabin_model WHERE id=?", (mid,)) or {"ad": "", "acik": 0}
+    return _git_katalog(f"{m['ad']}: " + ("satışa açıldı" if m["acik"] else "satıştan kaldırıldı"))
+
+
+@router.post("/titaniumcam/kabin/modeller/{mid}/kopyala")
+async def y_model_kopyala(mid: int):
+    m = db.one("SELECT * FROM kabin_model WHERE id=?", (mid,))
+    if not m:
+        return _git_katalog()
+    db.execute("INSERT INTO kabin_model (ad, aciklama, sablon, kategori, kabin_json, onizleme_json, ozet_json, "
+               "gorsel_json, maliyet_json, acik, sira) VALUES (?,?,?,?,?,?,?,?,?,0,?)",
+               ((m["ad"] + " (kopya)")[:80], m["aciklama"], m["sablon"], m.get("kategori", ""), m["kabin_json"],
+                m["onizleme_json"], m["ozet_json"], m.get("gorsel_json", ""), m.get("maliyet_json", ""), m["sira"] + 1))
+    return _git_katalog(f"{m['ad']} kopyalandı (satışta değil)")
 
 
 @router.post("/titaniumcam/kabin/modeller/{mid}/sil")
 async def y_model_sil(mid: int):
     db.execute("DELETE FROM kabin_model WHERE id=?", (mid,))
-    return RedirectResponse("/titaniumcam/kabin/modeller?mesaj=Model silindi", status_code=303)
+    return _git_katalog("Kabin silindi")

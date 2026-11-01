@@ -1,71 +1,96 @@
 {% extends "magaza_base.html" %}
-{% block title %}Dolap tasarla — {{ firma().ad }}{% endblock %}
+{% block title %}Kabinler — {{ firma().ad }}{% endblock %}
 {% block content %}
-<section class="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-8 mb-8">
-  <h1 class="text-3xl font-extrabold mb-2">Kendi mobilyanı tasarla</h1>
-  <p class="opacity-90 max-w-xl">Ölçünü ve seçeneklerini gir, anında fiyatını gör, sipariş ver. Üretime biz alırız.</p>
-  <a href="#dolaplar" class="inline-block mt-4 bg-white text-emerald-700 font-semibold rounded-lg px-5 py-2.5 hover:bg-emerald-50">Hemen tasarla →</a>
-  <div class="text-sm opacity-80 mt-2">Üyelik gerekmez · giriş yalnız siparişte</div>
+<style>
+  .kabin-sahne { background: radial-gradient(120% 85% at 50% 30%, #fdfcfa 0%, #f1ede7 55%, #e2dcd2 100%); }
+  .kabin-sahne img { opacity: 0; transition: opacity .35s ease; }
+  .kabin-sahne img.hazir { opacity: 1; }
+  .kabin-sahne .iskelet { position: absolute; inset: 18% 26%; border-radius: 6px; background: linear-gradient(90deg, #ebe6de 0%, #f6f3ee 50%, #ebe6de 100%); background-size: 200% 100%; animation: parla 1.4s infinite linear; }
+  .kabin-sahne img.hazir + .iskelet { display: none; }
+  @keyframes parla { to { background-position: -200% 0; } }
+  .grup-cip.sec { background: #0f172a; color: #fff; }
+</style>
+
+<section class="rounded-3xl bg-slate-900 text-white px-6 py-8 sm:px-10 sm:py-10 mb-8 relative overflow-hidden">
+  <div class="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-emerald-500/20 blur-2xl"></div>
+  <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2 relative">Ölçünüze özel kabinler</h1>
+  <p class="text-slate-300 max-w-xl relative">Bir kabin seçin, ölçüsünü ve rengini değiştirin, raf, kapak, çekmece ekleyin. Fiyatı anında görün, siparişi verin; üretime biz alalım.</p>
+  <a href="#kabinler" class="inline-block mt-5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold rounded-xl px-5 py-3 relative">Kabinleri gör</a>
+  <div class="text-xs text-slate-400 mt-3 relative">Üyelik gerekmez · giriş yalnız siparişte</div>
 </section>
 
-{% if not dolaplar %}
-<h2 id="dolaplar" class="text-lg font-bold mb-2">Dolap tasarla</h2>
+{% if dolap_hata %}
 <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 mb-10 text-sm">
-  Dolap tasarımı şu an kullanılamıyor: {{ dolap_hata }}. Lütfen biraz sonra tekrar deneyin.
+  Kabin tasarımı şu an kullanılamıyor: {{ dolap_hata }}. Lütfen biraz sonra tekrar deneyin.
 </div>
 {% else %}
-<div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
-  <h2 id="dolaplar" class="text-lg font-bold">Dolap tasarla</h2>
+
+<div class="flex flex-wrap items-end justify-between gap-2 mb-3">
+  <h2 id="kabinler" class="text-2xl font-bold tracking-tight">Kabinler</h2>
   {% if taslak_sayisi %}<a href="/kabin" class="text-sm text-emerald-700 font-medium">Kayıtlı dolaplarım ({{ taslak_sayisi }}) →</a>{% endif %}
 </div>
-<p class="text-sm text-slate-500 mb-4">Hazır bir modelden başlayın ya da boş dolabı kendiniz tasarlayın. Ölçüyü siz verirsiniz; üye olmanız gerekmez, yalnız sipariş verirken giriş istenir.</p>
+
 {% if modeller %}
-<form method="post" action="/kabin/yeni" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-  {% for m in modeller %}
-  <button name="model" value="{{ m.id }}" class="group bg-white rounded-2xl shadow-sm hover:shadow-lg border text-left overflow-hidden transition">
-    <div class="bg-gradient-to-b from-slate-50 to-slate-100 h-40 sm:h-48 p-3"><svg class="model-svg w-full h-full" data-onizleme='{{ m.onizleme|tojson }}'></svg></div>
-    <div class="p-3 sm:p-4">
-      <div class="font-semibold text-slate-900 group-hover:text-emerald-700 leading-tight">{{ m.ad }}</div>
-      {% if m.aciklama %}<div class="text-xs text-slate-500 mt-1 line-clamp-2">{{ m.aciklama }}</div>{% endif %}
-      <div class="text-xs text-slate-400 mt-1">{{ '%g'|format(m.onizleme.govde.boy or 0) }} × {{ '%g'|format(m.onizleme.govde.en or 0) }} × {{ '%g'|format(m.onizleme.govde.derinlik or 0) }} mm</div>
-      <div class="mt-2 text-emerald-700 text-sm font-medium">Ölçünü ver →</div>
-    </div>
-  </button>
-  {% endfor %}
-</form>
-<h3 class="font-semibold text-slate-700 mb-3">Ya da boş dolaptan kendin tasarla</h3>
+{% if gruplar|length > 1 %}
+<div class="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1 mb-4" id="cipler">
+  <button type="button" class="grup-cip sec whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold bg-white border" data-grup="">Tümü</button>
+  {% for g, _ in gruplar %}<button type="button" class="grup-cip whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold bg-white border" data-grup="{{ g }}">{{ g }}</button>{% endfor %}
+</div>
 {% endif %}
-<form method="post" action="/kabin/yeni" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-  {% for s in dolaplar %}
-  {% set sc = 150.0 / ([s.boy, s.en * 1.4]|max) %}
-  {% set w = s.en * sc %}{% set h = s.boy * sc %}{% set ay = (s.ayakyuksekligi if s.ayaktipi != 'YOK' else 0) * sc %}
-  <button name="sablon" value="{{ s.ad }}" class="group bg-white rounded-2xl shadow-sm hover:shadow-md border text-left overflow-hidden">
-    <svg viewBox="0 0 180 170" class="w-full h-36 bg-slate-100" aria-hidden="true">
-      <g transform="translate({{ 90 - w/2 }},{{ 160 - h }})">
-        <rect x="0" y="0" width="{{ w }}" height="{{ h - ay }}" fill="#f5efe6" stroke="#475569" stroke-width="1.5"/>
-        {% if s.ust %}<line x1="0" y1="4" x2="{{ w }}" y2="4" stroke="#475569"/>{% endif %}
-        <line x1="4" y1="0" x2="4" y2="{{ h - ay }}" stroke="#475569"/><line x1="{{ w-4 }}" y1="0" x2="{{ w-4 }}" y2="{{ h - ay }}" stroke="#475569"/>
-        <line x1="0" y1="{{ h - ay - 4 }}" x2="{{ w }}" y2="{{ h - ay - 4 }}" stroke="#475569"/>
-        {% if ay %}<rect x="6" y="{{ h - ay }}" width="5" height="{{ ay }}" fill="#64748b"/><rect x="{{ w - 11 }}" y="{{ h - ay }}" width="5" height="{{ ay }}" fill="#64748b"/>{% endif %}
-      </g>
-    </svg>
-    <div class="p-4">
-      <div class="font-semibold text-slate-900 group-hover:text-emerald-700">{{ s.ad }}</div>
-      <div class="text-xs text-slate-500 mt-1">{{ "%g"|format(s.boy) }} × {{ "%g"|format(s.en) }} × {{ "%g"|format(s.derinlik) }} mm'den başlar · ölçüye özel</div>
-      <div class="mt-3 text-emerald-700 text-sm font-medium">Tasarlamaya başla →</div>
+<form method="post" action="/kabin/yeni" class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-10">
+  {% for m in modeller %}
+  <button name="model" value="{{ m.id }}" data-grup="{{ m.grup }}" class="kabin-kart group text-left bg-white rounded-2xl border border-slate-200/80 overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition">
+    <div class="kabin-sahne relative aspect-[4/5]">
+      <img data-gorsel-i="{{ loop.index0 }}" alt="{{ m.ad }}" class="absolute inset-0 w-full h-full object-contain">
+      <div class="iskelet"></div>
+      {% if m.musteri_fiyat %}<span class="absolute left-2 top-2 bg-white/90 backdrop-blur text-slate-900 text-xs font-bold rounded-full px-2.5 py-1 shadow-sm">{{ "{:,.0f}".format(m.musteri_fiyat).replace(',','.') }} ₺</span>{% endif %}
+    </div>
+    <div class="p-3 sm:p-4">
+      <div class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">{{ m.grup }}</div>
+      <div class="font-semibold text-slate-900 leading-tight mt-0.5">{{ m.ad }}</div>
+      {% if m.aciklama %}<div class="text-xs text-slate-500 mt-1 line-clamp-2">{{ m.aciklama }}</div>{% endif %}
+      <div class="text-xs text-slate-400 mt-1">{{ '%g'|format(m.gorsel.govde.boy or 0) }} × {{ '%g'|format(m.gorsel.govde.en or 0) }} × {{ '%g'|format(m.gorsel.govde.derinlik or 0) }} mm</div>
+      <div class="mt-2 text-emerald-700 text-sm font-semibold group-hover:translate-x-0.5 transition">Tasarla →</div>
     </div>
   </button>
   {% endfor %}
 </form>
 {% endif %}
 
+{% if dolaplar %}
+<h3 class="font-semibold text-slate-700 mb-1">{{ 'Ya da boş kabinden kendiniz tasarlayın' if modeller else 'Kabin seçin ve tasarlayın' }}</h3>
+<p class="text-sm text-slate-500 mb-3">Ölçüyü siz verirsiniz; raf, bölme, kapak ve çekmeceyi siz eklersiniz.</p>
+<form method="post" action="/kabin/yeni" class="grid grid-cols-3 gap-3 mb-10">
+  {% for s in dolaplar %}
+  {% set sc = 70.0 / ([s.boy, s.en * 1.2]|max) %}
+  {% set w = s.en * sc %}{% set h = s.boy * sc %}{% set ay = (s.ayakyuksekligi if s.ayaktipi != 'YOK' else 0) * sc %}
+  <button name="sablon" value="{{ s.ad }}" class="group bg-white rounded-2xl border border-slate-200/80 text-center p-3 hover:shadow-md transition">
+    <svg viewBox="0 0 90 80" class="w-full h-16" aria-hidden="true">
+      <g transform="translate({{ 45 - w/2 }},{{ 76 - h }})">
+        <rect x="0" y="0" width="{{ w }}" height="{{ h - ay }}" rx="1" fill="#f6f2ec" stroke="#94a3b8" stroke-width="1"/>
+        {% if ay %}<rect x="3" y="{{ h - ay }}" width="3" height="{{ ay }}" fill="#64748b"/><rect x="{{ w - 6 }}" y="{{ h - ay }}" width="3" height="{{ ay }}" fill="#64748b"/>{% endif %}
+      </g>
+    </svg>
+    <div class="text-sm font-semibold text-slate-900 group-hover:text-emerald-700 mt-1">{{ s.ad }}</div>
+    <div class="text-[11px] text-slate-400">boş · ölçüye özel</div>
+  </button>
+  {% endfor %}
+</form>
+{% endif %}
+{% endif %}
+
 {% if modeller %}
-<script src="/static/kabin_cizim.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="/static/kabin_gercek.js"></script>
 <script>
-document.querySelectorAll('.model-svg').forEach(s => {
-  const v = JSON.parse(s.dataset.onizleme || '{}');
-  if (v.govde) KabinCizim.ciz2B(s, {...v, gozler: []}, {etiket: false});
-});
+const GORSEL = {{ modeller|map(attribute='gorsel')|list|tojson }};
+const GORUNUM = {{ gorunum|tojson }};
+KabinGercek.kartlariDoldur('.kabin-sahne img[data-gorsel-i]', GORSEL, GORUNUM);
+document.querySelectorAll('#cipler [data-grup]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#cipler [data-grup]').forEach(x => x.classList.toggle('sec', x === b));
+  document.querySelectorAll('.kabin-kart').forEach(k => k.classList.toggle('hidden', !!b.dataset.grup && k.dataset.grup !== b.dataset.grup));
+}));
 </script>
 {% endif %}
 {% endblock %}
