@@ -256,15 +256,16 @@ async def magaza_home(request: Request):
     dolap_hata = ""
     try:                                  # Online Kabin şablonları motor servisinden gelir
         import kabin_istemci as KI
-        from routers.kabin import musteri_bilgisi
+        from routers.kabin import musteri_bilgisi, magaza_modelleri
         dolaplar = musteri_bilgisi(await KI.bilgi())["kabin_sablonlari"]
+        modeller = magaza_modelleri()
     except Exception as e:
-        dolaplar = []
+        dolaplar, modeller = [], []
         dolap_hata = getattr(e, "mesaj", "") or "Kabin motoru şu an çalışmıyor"
     owner, _g, _c = _owner(request)
     r = db.one("SELECT COUNT(*) c FROM kabin_taslak WHERE musteri=?", (owner,)) if owner else None
     return templates.TemplateResponse(request, "magaza_home.html",
-                                      _ctx(request, cust, products=prods, dolaplar=dolaplar,
+                                      _ctx(request, cust, products=prods, dolaplar=dolaplar, modeller=modeller,
                                            dolap_hata=dolap_hata, taslak_sayisi=r["c"] if r else 0))
 
 

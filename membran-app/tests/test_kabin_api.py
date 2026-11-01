@@ -294,3 +294,59 @@ def test_hesap_degistir(o):
     assert y.get("/membrane/ayarlar").status_code == 200
     m = _musteri(o, "hacker@test.com")                                                  # müşteri ayarlara giremez
     assert m.get("/membrane/ayarlar", follow_redirects=False).status_code == 303
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hazır modeller · otomatik arkalık · sade müşteri ekranı
+# ══════════════════════════════════════════════════════════════════════════
+def test_oto_arkalik(o):
+    a, db = o["admin"], o["db"]
+    def yeni_taslak():
+        g = o["TC"](o["app"])
+        url = g.post("/kabin/yeni", data={"sablon": "Alt Dolap"}, follow_redirects=False).headers["location"]
+        return g, url, g.get(url + "/veri").json()
+    g, url, v = yeni_taslak()
+    ar = [p for p in v["parcalar2b"] if p["tur"] == "arkalik"]
+    assert len(ar) == 1                                                                 # şablonun arkalığı otomatik
+    assert "kabin_basit" not in g.get(url).text and "Sepete ekle" in g.get(url).text    # sade ekran
+    assert 'id="dockIc"' in g.get(url).text
+    a.post("/membrane/kabin/modeller/arkalik", data={"ark:Alt Dolap": "Kanalli 8", "ark:Ust Dolap": "", "ark:Boy Dolap": ""})
+    _g, _u, v = yeni_taslak()
+    ar = [r for r in v["parca_listesi"] if r["ad"].startswith("Arkalik")]
+    assert len(ar) == 1 and ar[0]["kalinlik"] == 8
+    a.post("/membrane/kabin/modeller/arkalik", data={"ark:Alt Dolap": "", "ark:Ust Dolap": "", "ark:Boy Dolap": ""})
+    _g, _u, v = yeni_taslak()
+    assert not [p for p in v["parcalar2b"] if p["tur"] == "arkalik"]                   # yönetici "arkalık yok" dedi
+    db.execute("DELETE FROM kabin_ayar WHERE anahtar='musteri_kabin'")
+
+
+def test_hazir_model(o):
+    a, db = o["admin"], o["db"]
+    assert a.get("/membrane/kabin/modeller").status_code == 200
+    r = a.post("/membrane/kabin/modeller/yeni", data={"ad": "3 Çekmeceli Alt", "sablon": "Alt Dolap"},
+               follow_redirects=False)
+    yurl = r.headers["location"]
+    assert "Modeli kaydet" in a.get(yurl).text
+    for x in [{"tip": "olcu", "en": 600}, {"tip": "ekle", "tur": "cekmece", "noktalar": [[300, 300]], "adet": 3,
+                                           "sablon": "Mandalli 500"}]:
+        assert a.post(yurl + "/islem", json={"islem": x}).status_code == 200
+    r = a.post(yurl + "/modele-kaydet")
+    assert r.status_code == 200, r.text
+    mid = db.one("SELECT id FROM kabin_model WHERE ad='3 Çekmeceli Alt'")["id"]
+    g = o["TC"](o["app"])
+    assert "3 Çekmeceli Alt" not in g.get("/").text                                      # satışta değil
+    assert g.post("/kabin/yeni", data={"model": mid}, follow_redirects=False).headers["location"].startswith("/kabin?hata")
+    a.post(f"/membrane/kabin/modeller/{mid}/guncelle", data={"ad": "3 Çekmeceli Alt", "aciklama": "Mutfak için",
+                                                             "sira": "1", "acik": "1"})
+    t = g.get("/").text
+    assert "3 Çekmeceli Alt" in t and f'name="model" value="{mid}"' in t and "Mutfak için" in t
+    url = g.post("/kabin/yeni", data={"model": mid}, follow_redirects=False).headers["location"]
+    v = g.get(url + "/veri").json()
+    assert len([p for p in v["parcalar2b"] if p["tur"] == "cekmece"]) == 3 and v["govde"]["en"] == 600
+    mk = json.loads(db.one("SELECT kabin_json FROM kabin_model WHERE id=?", (mid,))["kabin_json"])
+    tk = json.loads(db.one("SELECT kabin_json FROM kabin_taslak WHERE id=?", (int(url.rsplit("/", 1)[1]),))["kabin_json"])
+    assert mk["uid"] != tk["uid"]                                                       # müşteri kopyası yeni uid
+    r = g.post(url + "/islem", json={"islem": {"tip": "olcu", "en": 700}})                # müşteri ölçüyü değiştirir
+    assert r.status_code == 200 and len([p for p in r.json()["parcalar2b"] if p["tur"] == "cekmece"]) == 3
+    a.post(f"/membrane/kabin/modeller/{mid}/sil")
+    assert db.one("SELECT 1 FROM kabin_model WHERE id=?", (mid,)) is None

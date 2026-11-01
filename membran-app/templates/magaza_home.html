@@ -18,7 +18,23 @@
   <h2 id="dolaplar" class="text-lg font-bold">Dolap tasarla</h2>
   {% if taslak_sayisi %}<a href="/kabin" class="text-sm text-emerald-700 font-medium">Kayıtlı dolaplarım ({{ taslak_sayisi }}) →</a>{% endif %}
 </div>
-<p class="text-sm text-slate-500 mb-4">Şablonu seçin, ölçüsünü verin, raf, kapak ve çekmeceyi kendiniz yerleştirin. Üye olmanız gerekmez; yalnız sipariş verirken giriş istenir.</p>
+<p class="text-sm text-slate-500 mb-4">Hazır bir modelden başlayın ya da boş dolabı kendiniz tasarlayın. Ölçüyü siz verirsiniz; üye olmanız gerekmez, yalnız sipariş verirken giriş istenir.</p>
+{% if modeller %}
+<form method="post" action="/kabin/yeni" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  {% for m in modeller %}
+  <button name="model" value="{{ m.id }}" class="group bg-white rounded-2xl shadow-sm hover:shadow-lg border text-left overflow-hidden transition">
+    <div class="bg-gradient-to-b from-slate-50 to-slate-100 h-40 sm:h-48 p-3"><svg class="model-svg w-full h-full" data-onizleme='{{ m.onizleme|tojson }}'></svg></div>
+    <div class="p-3 sm:p-4">
+      <div class="font-semibold text-slate-900 group-hover:text-emerald-700 leading-tight">{{ m.ad }}</div>
+      {% if m.aciklama %}<div class="text-xs text-slate-500 mt-1 line-clamp-2">{{ m.aciklama }}</div>{% endif %}
+      <div class="text-xs text-slate-400 mt-1">{{ '%g'|format(m.onizleme.govde.boy or 0) }} × {{ '%g'|format(m.onizleme.govde.en or 0) }} × {{ '%g'|format(m.onizleme.govde.derinlik or 0) }} mm</div>
+      <div class="mt-2 text-emerald-700 text-sm font-medium">Ölçünü ver →</div>
+    </div>
+  </button>
+  {% endfor %}
+</form>
+<h3 class="font-semibold text-slate-700 mb-3">Ya da boş dolaptan kendin tasarla</h3>
+{% endif %}
 <form method="post" action="/kabin/yeni" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
   {% for s in dolaplar %}
   {% set sc = 150.0 / ([s.boy, s.en * 1.4]|max) %}
@@ -62,5 +78,14 @@
 </div>
 {% if not products %}
 <p class="text-slate-500">Henüz ürün tanımlı değil.</p>
+{% endif %}
+{% if modeller %}
+<script src="/static/kabin_cizim.js"></script>
+<script>
+document.querySelectorAll('.model-svg').forEach(s => {
+  const v = JSON.parse(s.dataset.onizleme || '{}');
+  if (v.govde) KabinCizim.ciz2B(s, {...v, gozler: []}, {etiket: false});
+});
+</script>
 {% endif %}
 {% endblock %}

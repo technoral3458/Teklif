@@ -79,6 +79,8 @@
     </div>
     {% if rol == 'musteri' %}
     <button id="sepetBtn" class="bg-emerald-600 hover:bg-emerald-500 rounded px-2 sm:px-3 py-1 text-sm font-semibold whitespace-nowrap flex-none" title="Sepete ekle">🛒<span class="hidden sm:inline"> Sepete ekle</span></button>
+    {% elif t.model_id %}
+    <button id="modelBtn" class="bg-emerald-600 hover:bg-emerald-500 rounded px-2 sm:px-3 py-1 text-sm font-semibold whitespace-nowrap flex-none">Modeli kaydet</button>
     {% else %}
     <button id="satirBtn" class="bg-emerald-600 hover:bg-emerald-500 rounded px-2 sm:px-3 py-1 text-sm font-semibold whitespace-nowrap flex-none">Satıra kaydet</button>
     {% endif %}
@@ -207,7 +209,7 @@ function uygula(v, {secimiKoru = false} = {}) {
   document.querySelectorAll('[data-k=geri]').forEach(b => b.disabled = !d.geri);
   document.querySelectorAll('[data-k=ileri]').forEach(b => b.disabled = !d.ileri);
   if ($('sepetBtn')) { $('sepetBtn').disabled = v.hata_var; $('sepetBtn').classList.toggle('opacity-40', v.hata_var); }
-  if ($('satirBtn')) { $('satirBtn').disabled = v.hata_var; $('satirBtn').classList.toggle('opacity-40', v.hata_var); }
+  for (const b of ['satirBtn', 'modelBtn']) if ($(b)) { $(b).disabled = v.hata_var; $(b).classList.toggle('opacity-40', v.hata_var); }
   if (S.panel) panelDegerleri(v.ozellik);
 }
 
@@ -868,6 +870,12 @@ if ($('sepetBtn')) $('sepetBtn').addEventListener('click', async () => {
     setTimeout(() => { if (confirm('Dolap sepete eklendi. Sepete gidip sipariş vermek ister misiniz?')) location.href = '/magaza/sepet'; }, 50);
     return true;
   });
+});
+if ($('modelBtn')) $('modelBtn').addEventListener('click', async () => {
+  const r = await fetch(BASE + '/modele-kaydet', {method: 'POST'});
+  const v = await r.json();
+  if (!r.ok) return durum(v.error, 'hata');
+  location.href = v.url;
 });
 if ($('satirBtn')) $('satirBtn').addEventListener('click', async () => {
   const r = await fetch(BASE + '/satira-kaydet', {method: 'POST'});

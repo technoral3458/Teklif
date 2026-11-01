@@ -278,6 +278,20 @@ CREATE TABLE IF NOT EXISTS cabinet_order_log (
     note TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
 );
+-- Yöneticinin tasarlayıp mağazada sattığı hazır dolap modelleri
+CREATE TABLE IF NOT EXISTS kabin_model (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ad TEXT NOT NULL,
+    aciklama TEXT DEFAULT '',
+    sablon TEXT DEFAULT '',
+    kabin_json TEXT NOT NULL,
+    onizleme_json TEXT DEFAULT '{}',     -- vitrin kartı çizimi (gövde + 2B parçalar)
+    ozet_json TEXT DEFAULT '{}',
+    acik INTEGER DEFAULT 0,              -- mağazada satışta mı
+    sira INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
 -- Kapak siparişinin karşılığı
 CREATE TABLE IF NOT EXISTS cabinet_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -324,6 +338,7 @@ MIGRATIONS = [
     ("vardar_orders", "source", "TEXT DEFAULT ''"),
     ("vardar_orders", "paid", "INTEGER DEFAULT 0"),
     ("membrane_users", "onay_sekli", "TEXT DEFAULT ''"),   # müşteri bazlı onay şekli istisnası
+    ("kabin_taslak", "model_id", "INTEGER DEFAULT 0"),      # yöneticinin düzenlediği hazır model
 ]
 
 

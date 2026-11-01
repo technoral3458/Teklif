@@ -70,11 +70,14 @@ ADIMLAR = [
 
 
 def altin_kabin(o):
-    s, v = svc(o, None, {"tip": "yeni", "sablon": "Alt Dolap", "en": 800, "boy": 860, "derinlik": 560})
+    """Metindeki 6 adım, motor düzeyinde (tüm eleman yetkileriyle; müşteri arkalık seçmez)."""
+    from routers.kabin import VARSAYILAN_YETKI
+    hepsi = sorted(VARSAYILAN_YETKI)
+    s, v = svc(o, None, {"tip": "yeni", "sablon": "Alt Dolap", "en": 800, "boy": 860, "derinlik": 560}, izin=hepsi)
     assert s == 200, v
     adimlar = [v]
     for a in ADIMLAR:
-        s, v = svc(o, v["kabin"], a)
+        s, v = svc(o, v["kabin"], a, izin=hepsi)
         assert s == 200, (a, v)
         adimlar.append(v)
     return adimlar
@@ -184,8 +187,10 @@ def test_reddedilenler(ortam):
     assert s == 200 and r["sonuc"]["raylar"] and not any(r["sonuc"]["raylar"].values())
     # üst tabla + üst dolgu
     v = altin_kabin(ortam)[-1]
+    from routers.kabin import VARSAYILAN_YETKI
     s, v = svc(ortam, v["kabin"], [{"tip": "ekle", "tur": "usttabla"},
-                                   {"tip": "ozellik", "alanlar": {"dolgu.ust": True, "dolgu.ust_konum": "UST"}}])
+                                   {"tip": "ozellik", "alanlar": {"dolgu.ust": True, "dolgu.ust_konum": "UST"}}],
+               izin=sorted(VARSAYILAN_YETKI))
     assert s == 200, v
     hatalar = [b for b in v["doktor"] if b["seviye"] == "hata"]
     assert len(hatalar) == 2 and v["hata_var"], hatalar
@@ -248,15 +253,17 @@ def test_web_akisi(ortam):
     url = _yeni_taslak(c)
     r = c.post(url + "/islem", json={"islem": {"tip": "olcu", "en": 800}})
     assert r.status_code == 200, r.text
-    for a in ADIMLAR:
+    for a in ADIMLAR[:-1]:                    # arkalık şablona göre otomatik geldi (müşteri seçmez)
         r = c.post(url + "/islem", json={"islem": a})
         assert r.status_code == 200, (a, r.text)
     v = r.json()
     assert v["ozet"] == {"parca": 25, "m2": 3.895, "bant_m": 9.36}
+    r = c.post(url + "/islem", json={"islem": ADIMLAR[-1]})
+    assert r.status_code == 422                                # müşteri arkalık ekleyemez
     assert "kabin" not in v                                   # müşteriye kabin JSON gitmez
     assert v["durum"]["geri"] and not v["durum"]["ileri"]
     # geri / ileri
-    r = c.post(url + "/geri"); assert r.json()["ozet"]["parca"] == 24     # arkalık geri alındı
+    r = c.post(url + "/geri"); assert r.json()["ozet"]["parca"] == 7      # 3 çekmece (18 parça) geri alındı
     r = c.post(url + "/ileri"); assert r.json()["ozet"]["parca"] == 25
     # canlı panel: ara değerler birikmez, İptal açılış hali, Tamam tek adım
     tid = int(url.rsplit("/", 1)[1])
@@ -369,6 +376,8 @@ def test_misafir_tasarlar_sipariste_giris(ortam):
 
 
 def test_hatali_dolap_siparis_olmaz(ortam):
+    from routers.kabin import _ayar_yaz
+    _ayar_yaz("yetkiler", {"ekle.usttabla": "M"})             # bu test için üst tabla müşteriye açık
     c = _musteri(ortam, "c@test.com")
     url = _yeni_taslak(c)
     for a in ([{"tip": "ekle", "tur": "usttabla"}],
@@ -378,6 +387,7 @@ def test_hatali_dolap_siparis_olmaz(ortam):
     assert r.json()["hata_var"]
     r = c.post(url + "/sepet", json={"adet": 1})
     assert r.status_code == 422 and "hata" in r.json()["error"].lower()
+    _ayar_yaz("yetkiler", {})
 
 
 # ══════════════════════════════════════════════════════════════════════════

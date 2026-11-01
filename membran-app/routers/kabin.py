@@ -54,8 +54,9 @@ VARSAYILAN_YETKI = {
     **{f"dolgu.{f}": "M" for f in ("ust", "ust_konum", "ust_boyut", "sol", "sag", "yan_boyut",
                                    "braket", "malzeme")},
     # Ekle
-    **{f"ekle.{t}": "M" for t in ("dikeybolme", "yataybolme", "raf", "arkalik", "dikeykayit",
-                                  "yataykayit", "kapak", "cekmece", "usttabla")},
+    **{f"ekle.{t}": "M" for t in ("dikeybolme", "yataybolme", "raf", "kapak", "cekmece")},
+    # teknik elemanlar: müşteri seçmez (arkalık şablona göre otomatik eklenir)
+    **{f"ekle.{t}": "Y" for t in ("arkalik", "dikeykayit", "yataykayit", "usttabla")},
     # Parça işleme
     "duzenle.sil": "M", "parca.malzeme": "M", "parca.bant": "M", "parca.damar": "M",
     "parca.onek": "Y", "parca.arkaek": "Y",
@@ -114,6 +115,16 @@ def kabin_onay_sekli(musteri):
     if u and u.get("onay_sekli") in ("yonetici", "otomatik"):
         return u["onay_sekli"]
     return akis_ayar()["kabin_onay"]
+
+
+# ── Müşteri dolabı: şablon başına otomatik arkalık (müşteri arkalık seçmez) ──
+def oto_arkalik(sablon, bil):
+    """Şablona otomatik eklenecek arkalık şablonu adı ('' = arkalık yok)."""
+    a = ((_ayar("musteri_kabin", {}) or {}).get("arkalik") or {})
+    if sablon in a:
+        return a[sablon] or ""
+    sab = next((x for x in bil["kabin_sablonlari"] if x["ad"] == sablon), None)
+    return ((sab or {}).get("alt_sablonlar") or {}).get("arkalik") or ""
 
 
 # ── Kabin tanımları: birim fiyat + müşteriye açık (yönetici: /membrane/kabin/tanimlar) ──
@@ -310,12 +321,15 @@ async def _editor_sayfa(request, tid, rol, taban):
     if t["siparis_satir_id"]:
         satir = db.one("SELECT l.*, o.order_no, o.status FROM cabinet_order_lines l "
                        "JOIN cabinet_orders o ON o.id=l.order_id WHERE l.id=?", (t["siparis_satir_id"],))
-    return templates.TemplateResponse(request, "kabin_editor.html", {
+    # müşteri: sade ekran · yönetici: ayrıntılı editör
+    return templates.TemplateResponse(request, "kabin_editor.html" if rol == "yonetici" else "kabin_basit.html", {
         "request": request, "t": t, "rol": rol, "taban": taban,
         "bilgi": bil if rol == "yonetici" else musteri_bilgisi(bil),
         "izinler": sorted(izinler(rol)), "sinir": sinirlar(t["sablon"]), "satir": satir,
-        "geri_url": (f"/membrane/kabin/siparis/{satir['order_id']}" if satir else "/membrane/kabin")
-        if rol == "yonetici" else "/magaza",
+        "geri_url": (f"/membrane/kabin/siparis/{satir['order_id']}" if satir else
+                     "/membrane/kabin/modeller" if t.get("model_id") else "/membrane/kabin")
+        if rol == "yonetici" else "/",
+        "fiyat_ayar": fiyat_ayar(),
     })
 
 
@@ -502,25 +516,42 @@ async def kabin_yeni_sayfa(request: Request):
 
 
 @router.post("/kabin/yeni")
-async def kabin_yeni(request: Request, sablon: str = Form(...)):
+async def kabin_yeni(request: Request, sablon: str = Form(""), model: int = Form(0)):
+    """Müşteri dolabı: boş şablondan (otomatik arkalıkla) ya da yöneticinin hazır modelinden."""
     cust = current_customer(request)
     yeni_token = None
     if cust:
         sahip = cust["username"]
     else:                                 # misafir: sepet çereziyle tanınır
         sahip, yeni_token = _ensure_guest_token(request)
+    ad = sablon
     try:
-        bil = await KI.bilgi()
-        sab = next((s for s in musteri_bilgisi(bil)["kabin_sablonlari"] if s["ad"] == sablon), None)
-        if not sab:
-            raise KI.ServisHatasi("Şablon bulunamadı")
-        s = sinirlar(sablon)
-        olc = {f: min(max(float(sab[f]), s[f][0]), s[f][1]) for f in ("en", "boy", "derinlik")}
-        view = await KI.islem(None, [{"tip": "yeni", "sablon": sablon, **olc}], "musteri", izinler("musteri"))
+        if model:
+            m = db.one("SELECT * FROM kabin_model WHERE id=? AND acik=1", (model,))
+            if not m:
+                raise KI.ServisHatasi("Model bulunamadı")
+            view = await KI.islem(json.loads(m["kabin_json"]), [{"tip": "yeni_uid"}], "musteri", izinler("musteri"))
+            sablon, ad = m["sablon"], m["ad"]
+        else:
+            bil = await KI.bilgi()
+            sab = next((s for s in musteri_bilgisi(bil)["kabin_sablonlari"] if s["ad"] == sablon), None)
+            if not sab:
+                raise KI.ServisHatasi("Şablon bulunamadı")
+            s = sinirlar(sablon)
+            olc = {f: min(max(float(sab[f]), s[f][0]), s[f][1]) for f in ("en", "boy", "derinlik")}
+            islemler = [{"tip": "yeni", "sablon": sablon, **olc}]
+            ark = oto_arkalik(sablon, bil)
+            izin = izinler("musteri")
+            if ark and ark not in kapali_kodlar().get("arkalik", []):
+                # arkalık en başta eklenir (motorda sonuç aynı); ölçü değişince arkalık da uyar
+                islemler.append({"tip": "ekle", "tur": "arkalik", "sablon": ark,
+                                 "noktalar": [[olc["en"] / 2, min(100.0, olc["boy"] / 4)]]})
+                izin = izin | {"ekle.arkalik"}
+            view = await KI.islem(None, islemler, "musteri", izin)
     except KI.ServisHatasi as e:
         return RedirectResponse(f"/kabin?hata={e.mesaj}", status_code=303)
     tid = db.execute("INSERT INTO kabin_taslak (musteri, ad, sablon, kabin_json) VALUES (?,?,?,?)",
-                     (sahip, sablon, sablon, json.dumps(view["kabin"], ensure_ascii=False)))
+                     (sahip, ad, sablon, json.dumps(view["kabin"], ensure_ascii=False)))
     t = db.one("SELECT * FROM kabin_taslak WHERE id=?", (tid,))
     db.execute("INSERT INTO kabin_taslak_surum (taslak_id, sira, kabin_json) VALUES (?,?,?)",
                (tid, 0, t["kabin_json"]))
@@ -919,3 +950,121 @@ async def y_tanimlar_kaydet(request: Request):
                 d[alan] = [lo, hi]
         _ayar_yaz(f"sinir.{sab}", d)
     return RedirectResponse("/membrane/kabin/tanimlar?kayit=1", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Yönetici: hazır modeller — editörde tasarla, mağazada sat
+# ══════════════════════════════════════════════════════════════════════════
+def _onizleme(view):
+    """Vitrin kartı için küçük çizim verisi (delik vb. yok)."""
+    return {"govde": view["govde"], "gozler": [],
+            "parcalar2b": [{k: p[k] for k in ("id", "tur", "katman", "kutu", "menteseyeri", "kulp")
+                            if k in p} for p in view["parcalar2b"]]}
+
+
+def magaza_modelleri():
+    out = []
+    for m in db.query("SELECT id, ad, aciklama, sablon, onizleme_json, ozet_json FROM kabin_model "
+                      "WHERE acik=1 ORDER BY sira, id"):
+        m["onizleme"] = json.loads(m.pop("onizleme_json") or "{}")
+        m["ozet"] = json.loads(m.pop("ozet_json") or "{}")
+        out.append(m)
+    return out
+
+
+@router.get("/membrane/kabin/modeller", response_class=HTMLResponse)
+async def y_modeller(request: Request, mesaj: str = ""):
+    try:
+        bil = await KI.bilgi()
+    except KI.ServisHatasi as e:
+        return HTMLResponse(f"<p style='padding:2rem;font-family:sans-serif'>{e.mesaj}</p>", status_code=503)
+    modeller = db.query("SELECT * FROM kabin_model ORDER BY sira, id")
+    for m in modeller:
+        m["onizleme"] = json.loads(m["onizleme_json"] or "{}")
+        m["ozet"] = json.loads(m["ozet_json"] or "{}")
+    ark = {x["ad"]: oto_arkalik(x["ad"], bil) for x in bil["kabin_sablonlari"]}
+    return templates.TemplateResponse(request, "kabin_y_modeller.html", {
+        "request": request, "modeller": modeller, "sablonlar": bil["kabin_sablonlari"],
+        "arkaliklar": bil["arkaliklar"], "oto_ark": ark, "mesaj": mesaj})
+
+
+@router.post("/membrane/kabin/modeller/arkalik")
+async def y_oto_arkalik(request: Request):
+    f = await request.form()
+    a = {k[4:]: str(v)[:80] for k, v in f.items() if k.startswith("ark:")}
+    _ayar_yaz("musteri_kabin", {**(_ayar("musteri_kabin", {}) or {}), "arkalik": a})
+    return RedirectResponse("/membrane/kabin/modeller?mesaj=Otomatik arkalık kaydedildi", status_code=303)
+
+
+async def _model_taslak(mid, kabin, ad, sablon):
+    tid = db.execute("INSERT INTO kabin_taslak (musteri, ad, sablon, kabin_json, model_id) VALUES (?,?,?,?,?)",
+                     (YONETICI, ad, sablon, json.dumps(kabin, ensure_ascii=False), mid))
+    db.execute("INSERT INTO kabin_taslak_surum (taslak_id, sira, kabin_json) VALUES (?,?,?)",
+               (tid, 0, json.dumps(kabin, ensure_ascii=False)))
+    return tid
+
+
+@router.post("/membrane/kabin/modeller/yeni")
+async def y_model_yeni(ad: str = Form(...), sablon: str = Form(...)):
+    try:
+        bil = await KI.bilgi()
+        islemler = [{"tip": "yeni", "sablon": sablon}]
+        sab = next((x for x in bil["kabin_sablonlari"] if x["ad"] == sablon), None)
+        if not sab:
+            raise KI.ServisHatasi("Şablon bulunamadı")
+        ark = oto_arkalik(sablon, bil)
+        if ark:
+            islemler.append({"tip": "ekle", "tur": "arkalik", "sablon": ark,
+                             "noktalar": [[sab["en"] / 2, min(100.0, sab["boy"] / 4)]]})
+        view = await KI.islem(None, islemler, "yonetici", izinler("yonetici"))
+    except KI.ServisHatasi as e:
+        return RedirectResponse(f"/membrane/kabin/modeller?mesaj={e.mesaj}", status_code=303)
+    mid = db.execute("INSERT INTO kabin_model (ad, sablon, kabin_json, onizleme_json, ozet_json) VALUES (?,?,?,?,?)",
+                     (ad.strip()[:80] or sablon, sablon, json.dumps(view["kabin"], ensure_ascii=False),
+                      json.dumps(_onizleme(view)), json.dumps(view["ozet"])))
+    tid = await _model_taslak(mid, view["kabin"], ad.strip()[:80] or sablon, sablon)
+    return RedirectResponse(f"/membrane/kabin/t/{tid}", status_code=303)
+
+
+@router.post("/membrane/kabin/modeller/{mid}/duzenle")
+async def y_model_duzenle(mid: int):
+    m = db.one("SELECT * FROM kabin_model WHERE id=?", (mid,))
+    if not m:
+        return RedirectResponse("/membrane/kabin/modeller", status_code=303)
+    for t in db.query("SELECT id FROM kabin_taslak WHERE musteri=? AND model_id=?", (YONETICI, mid)):
+        db.execute("DELETE FROM kabin_taslak_surum WHERE taslak_id=?", (t["id"],))
+        db.execute("DELETE FROM kabin_taslak WHERE id=?", (t["id"],))
+    tid = await _model_taslak(mid, json.loads(m["kabin_json"]), m["ad"], m["sablon"])
+    return RedirectResponse(f"/membrane/kabin/t/{tid}", status_code=303)
+
+
+@router.post("/membrane/kabin/t/{tid}/modele-kaydet")
+async def y_modele_kaydet(request: Request, tid: int):
+    t = _taslak(tid, YONETICI)
+    if not t or not t["model_id"]:
+        return JSONResponse({"error": "Taslak bulunamadı"}, status_code=404)
+    try:
+        view = await _goster(t, "yonetici")
+    except KI.ServisHatasi as e:
+        return _hata(e)
+    if view["hata_var"]:
+        return JSONResponse({"error": "Dolapta hata var, model kaydedilemez"}, status_code=422)
+    db.execute("UPDATE kabin_model SET kabin_json=?, onizleme_json=?, ozet_json=?, ad=?, "
+               "updated_at=datetime('now') WHERE id=?",
+               (t["kabin_json"], json.dumps(_onizleme(view)), json.dumps(view["ozet"]),
+                db.one("SELECT ad FROM kabin_taslak WHERE id=?", (tid,))["ad"] or "Model", t["model_id"]))
+    return JSONResponse({"ok": True, "url": "/membrane/kabin/modeller?mesaj=Model kaydedildi"})
+
+
+@router.post("/membrane/kabin/modeller/{mid}/guncelle")
+async def y_model_guncelle(mid: int, ad: str = Form(""), aciklama: str = Form(""), sira: int = Form(0),
+                           acik: str = Form("")):
+    db.execute("UPDATE kabin_model SET ad=COALESCE(NULLIF(?, ''), ad), aciklama=?, sira=?, acik=? WHERE id=?",
+               (ad.strip()[:80], aciklama.strip()[:300], sira, 1 if acik else 0, mid))
+    return RedirectResponse("/membrane/kabin/modeller?mesaj=Kaydedildi", status_code=303)
+
+
+@router.post("/membrane/kabin/modeller/{mid}/sil")
+async def y_model_sil(mid: int):
+    db.execute("DELETE FROM kabin_model WHERE id=?", (mid,))
+    return RedirectResponse("/membrane/kabin/modeller?mesaj=Model silindi", status_code=303)
