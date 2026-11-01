@@ -5,3 +5,5 @@ python-multipart
 httpx
 anthropic
 ezdxf  # opsiyonel, DXF içe aktarma için
+cryptography>=41   # acil lisans: Ed25519 imza
+maxminddb          # acil lisans: yerel GeoIP (veritabanı yoksa konum boş kalır)

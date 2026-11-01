@@ -257,6 +257,37 @@ CREATE TABLE IF NOT EXISTS kabin_tanim (
     acik INTEGER DEFAULT 1,
     PRIMARY KEY (tur, kod)
 );
+-- Acil lisans servisi (acil kodun kendisi saklanmaz: yalnız SHA-256 özeti)
+CREATE TABLE IF NOT EXISTS acil_lisanslar (
+    lisans_no TEXT PRIMARY KEY,
+    musteri TEXT DEFAULT '',
+    moduller TEXT DEFAULT '',
+    bitis TEXT DEFAULT '',
+    kod_ozet TEXT NOT NULL UNIQUE,
+    kapali INTEGER DEFAULT 0,
+    elle_izin INTEGER DEFAULT 0,
+    son_istek_kodu TEXT DEFAULT '',
+    son_verilis TEXT DEFAULT '',
+    son_bitis TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS acil_olaylar (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lisans_no TEXT,
+    olay TEXT NOT NULL,
+    ip TEXT DEFAULT '',
+    ulke TEXT DEFAULT '',
+    sehir TEXT DEFAULT '',
+    istek_kodu TEXT DEFAULT '',
+    surum TEXT DEFAULT '',
+    zaman TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_acil_olay_zaman ON acil_olaylar(zaman);
+CREATE TABLE IF NOT EXISTS acil_sayac (
+    ip TEXT NOT NULL,
+    tur TEXT NOT NULL,
+    zaman TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_acil_sayac ON acil_sayac(ip, tur, zaman);
 -- TitaniumCam API anahtarları: yalnız SHA-256 özeti saklanır, anahtar bir kez gösterilir
 CREATE TABLE IF NOT EXISTS api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
