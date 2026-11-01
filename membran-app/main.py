@@ -17,7 +17,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Membran Kapak Yönetim Sistemi", lifespan=lifespan)
+app = FastAPI(title="Online Sipariş Sistemi", lifespan=lifespan)
 
 # Giriş gerektirmeyen yollar (müşteri mağazası + teklif sayfası dahil).
 # /magaza ve /kabin kendi müşteri oturumunu ('csession') içeride denetler.
@@ -58,6 +58,15 @@ app.include_router(kabin_router)
 app.include_router(titanium_router)
 app.include_router(ayarlar_router)
 
+
+# Firma adı (Ayarlar → Firma) tüm şablonlarda {{ firma().ad }} olarak kullanılır
+import routers.auth_routes, routers.public_routes, routers.vardar, routers.membrane  # noqa: E402,F401
+import routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar  # noqa: E402,F401
+from routers.kabin import firma_bilgisi  # noqa: E402
+
+for _m in (routers.auth_routes, routers.public_routes, routers.vardar, routers.membrane,
+           routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar):
+    _m.templates.env.globals["firma"] = firma_bilgisi
 
 # Ana sayfa = mağaza (müşteri vitrini). Yönetici paneli: /login → /membrane
 from routers.magaza import magaza_home  # noqa: E402

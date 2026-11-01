@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Mağaza — Ersan Mobilya{% endblock %}</title>
+  <title>{% block title %}Mağaza — {{ firma().ad }}{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -11,7 +11,7 @@
   <header class="bg-white border-b sticky top-0 z-40 shadow-sm">
     <div class="max-w-6xl mx-auto px-4 py-2 sm:py-0 sm:h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 gap-y-1">
       <a href="/" class="font-extrabold text-xl text-slate-900 whitespace-nowrap">
-        🪵 Ersan <span class="text-emerald-600">Mobilya</span>
+        {{ firma().ad1 }} <span class="text-emerald-600">{{ firma().ad2 }}</span>
       </a>
       <nav class="flex items-center gap-1 sm:gap-2 text-sm whitespace-nowrap w-full sm:w-auto overflow-x-auto -mx-1 px-1">
         <a href="/" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav in ('/', '/magaza') %}font-semibold text-emerald-700{% endif %}">Ürünler</a>
@@ -56,7 +56,7 @@
   </main>
 
   <footer class="border-t bg-white text-center text-xs text-slate-400 py-4">
-    Ersan Mobilya · Online Kabin Tasarım & Sipariş · kapak.ersanmakina.net · <a href="/gizlilik" class="underline">Gizlilik</a> · <a href="/kosullar" class="underline">Koşullar</a>
+    {{ firma().ad }} · Online Kabin Tasarım & Sipariş · {{ request.url.hostname }} · <a href="/gizlilik" class="underline">Gizlilik</a> · <a href="/kosullar" class="underline">Koşullar</a>
   </footer>
 </body>
 </html>

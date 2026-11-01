@@ -79,6 +79,17 @@ def _ayar_yaz(anahtar, deger):
                (anahtar, json.dumps(deger, ensure_ascii=False)))
 
 
+FIRMA_VARSAYILAN = {"ad": "Ersan Mobilya"}
+
+
+def firma_bilgisi():
+    f = dict(FIRMA_VARSAYILAN)
+    f.update({k: v for k, v in (_ayar("firma", {}) or {}).items() if v})
+    parca = f["ad"].rsplit(" ", 1)
+    f["ad1"], f["ad2"] = (parca[0], parca[1]) if len(parca) == 2 else (f["ad"], "")
+    return f
+
+
 def yetkiler():
     y = dict(VARSAYILAN_YETKI)
     for k, v in (_ayar("yetkiler", {}) or {}).items():

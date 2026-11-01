@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     if verify_session_cookie(request):
-        return RedirectResponse("/membrane", status_code=303)
+        return RedirectResponse("/membrane/kabin", status_code=303)
     return templates.TemplateResponse(request, "login.html", {"request": request, "error": ""})
 
 

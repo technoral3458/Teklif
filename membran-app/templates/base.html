@@ -3,27 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Membran Kapak Yönetim Sistemi{% endblock %}</title>
+  <title>{% block title %}{{ firma().ad }} — Yönetim{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
   {% set nav = request.url.path %}
   {% set items = [
-      ('/membrane/vardar', '📋 Vardar', nav.startswith('/membrane/vardar')),
-      ('/membrane/kapak', '🚪 Kapak Modelleri', nav.startswith('/membrane/kapak')),
       ('/membrane/kabin', '🧰 Kabin Siparişleri', nav.startswith('/membrane/kabin')),
       ('/membrane/urunler', '🗄️ Ürünler', nav.startswith('/membrane/urunler') or nav.startswith('/membrane/gardirop')),
       ('/membrane/admin', '⚙️ Yönetici', nav.startswith('/membrane/admin')),
       ('/membrane/ayarlar', '🔧 Ayarlar', nav.startswith('/membrane/ayarlar')),
-      ('/membrane', 'Maliyet', nav == '/membrane'),
-      ('/membrane/caps', 'Kapak Modelleri', nav.startswith('/membrane/caps')),
-      ('/membrane/jobs', 'Nesting', nav.startswith('/membrane/jobs')),
   ] %}
   <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
     <div class="max-w-7xl mx-auto px-4">
       <div class="flex items-center justify-between h-14">
-        <a href="/membrane" class="font-bold text-lg whitespace-nowrap">🚪 Membran Kapak</a>
+        <a href="/membrane/kabin" class="font-bold text-lg whitespace-nowrap truncate">{{ firma().ad }}</a>
         <!-- Masaüstü menü -->
         <div class="hidden md:flex items-center gap-1">
           {% for url, label, active in items %}

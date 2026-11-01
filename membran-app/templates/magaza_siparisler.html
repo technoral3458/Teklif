@@ -1,5 +1,5 @@
 {% extends "magaza_base.html" %}
-{% block title %}Siparişlerim — Ersan Mobilya{% endblock %}
+{% block title %}Siparişlerim — {{ firma().ad }}{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">Siparişlerim</h1>
 {% if not orders and not kabin %}

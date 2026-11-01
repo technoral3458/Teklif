@@ -36,6 +36,14 @@ async def akis_kaydet(kabin_onay: str = Form("yonetici"), magaza_asama: str = Fo
     return RedirectResponse("/membrane/ayarlar?mesaj=Sipariş akışı kaydedildi", status_code=303)
 
 
+@router.post("/membrane/ayarlar/firma")
+async def firma_kaydet(ad: str = Form("")):
+    ad = " ".join(ad.split())[:60]
+    if ad:
+        _ayar_yaz("firma", {"ad": ad})
+    return RedirectResponse("/membrane/ayarlar?mesaj=Firma adı kaydedildi", status_code=303)
+
+
 @router.post("/membrane/ayarlar/musteri/{uid}")
 async def musteri_onay(uid: int, onay_sekli: str = Form("")):
     db.execute("UPDATE membrane_users SET onay_sekli=? WHERE id=? AND role='customer'",
