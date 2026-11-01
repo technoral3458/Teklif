@@ -44,6 +44,29 @@
   .kart-sec { border: 2px solid #e2e8f0; border-radius: 16px; padding: 10px; text-align: center; font-size: 13px; font-weight: 600; background: #fff; }
   .kart-sec.sec { border-color: #10b981; background: #ecfdf5; color: #047857; }
   .yuzer { box-shadow: 0 4px 16px #0f172a1f; }
+  #panel { display: none; }
+  .p-baslik { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; }
+  .p-arac { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .p-arac .dock-btn { min-width: 0; height: 68px; padding: 0 4px; }
+  #pOlcu .adim button { width: 40px; height: 40px; font-size: 20px; border-radius: 12px; }
+  #pOlcu .adim input { height: 40px; font-size: 17px; border-radius: 12px; }
+  #pOlcu .seg button { height: 36px; font-size: 13px; }
+  #pOlcu .etiket { margin-bottom: 4px; font-size: 12px; }
+  .vurgu { animation: vurgu 1.6s ease 2; border-radius: 16px; }
+  @keyframes vurgu { 50% { box-shadow: 0 0 0 4px #10b98155; } }
+  @media (min-width: 1024px) {
+    #sahne { right: 400px; bottom: 0; }
+    #dock, .yalniz-mobil { display: none !important; }
+    #panel { display: flex; }
+    #sayfa { left: auto; right: 0; top: 56px; bottom: 0; width: 400px; max-height: none; border-radius: 0;
+             transform: translateX(105%); box-shadow: -16px 0 40px #0f172a1f; }
+    #sayfa.genis { width: 640px; }
+    #sayfa.acik { transform: none; }
+    #sayfa .tutamak { display: none; }
+    #perde { display: none; }
+    #tost { bottom: 28px !important; left: calc(50% - 200px) !important; }
+    #s2 .goz:hover { fill: rgba(16, 185, 129, .09); }
+  }
   .renk-kart { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border-radius: 16px; border: 2px solid transparent; font-size: 12px; font-weight: 600; color: #334155; }
   .renk-kart .renk { width: 52px; height: 52px; border-radius: 999px; box-shadow: inset 0 0 0 1px #0000001f, 0 2px 6px #0f172a26; background-size: 220% 220%; }
   .renk-kart.sec { border-color: #10b981; background: #ecfdf5; color: #047857; }
@@ -57,7 +80,7 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg></a>
   <input id="ad" value="{{ t.ad }}" aria-label="Dolap adı" class="flex-1 min-w-0 font-semibold text-[17px] bg-transparent outline-none truncate">
   <span id="fiyat" class="hidden text-emerald-700 font-bold text-[15px] whitespace-nowrap"></span>
-  <button id="sepetBtn" class="h-10 px-4 rounded-full bg-emerald-600 text-white font-semibold text-sm whitespace-nowrap disabled:opacity-40">Sepete ekle</button>
+  <button id="sepetBtn" class="yalniz-mobil h-10 px-4 rounded-full bg-emerald-600 text-white font-semibold text-sm whitespace-nowrap disabled:opacity-40">Sepete ekle</button>
 </header>
 
 <!-- Sahne -->
@@ -79,10 +102,27 @@
   <div id="dockIc" class="flex gap-2 px-3 py-3 overflow-x-auto" style="height: var(--dock)"></div>
 </nav>
 
+<!-- Sağ panel (masaüstü): ölçü, düzenleme, renk, fiyat -->
+<aside id="panel" class="fixed right-0 top-14 bottom-0 z-20 bg-white border-l flex-col" style="width:400px">
+  <div class="flex-1 overflow-y-auto px-6 py-5 space-y-7">
+    <section><div class="p-baslik">Düzenle</div><p id="pIpucu" class="text-sm text-slate-600 mb-3"></p><div id="pAraclar" class="p-arac"></div></section>
+    <section id="pOlcuAlan"><div class="p-baslik">Ölçüler</div><div id="pOlcu" class="space-y-3"></div></section>
+    <section id="pRenkAlan"><div class="p-baslik">Renk</div><div id="pRenk" class="space-y-4"></div></section>
+  </div>
+  <div class="border-t px-6 py-4 space-y-3">
+    <div class="flex items-baseline justify-between"><span class="text-sm text-slate-500">Fiyat</span><span id="pFiyat" class="text-2xl font-extrabold text-slate-900">—</span></div>
+    <div class="flex gap-2">
+      <button id="pRender" class="h-12 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold">📸 Render al</button>
+      <button id="pSepet" class="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-40">Sepete ekle</button>
+    </div>
+    <div class="text-[11px] text-slate-400">Kısayollar: Ctrl+Z geri · Ctrl+Y ileri · Delete sil · Esc bırak</div>
+  </div>
+</aside>
+
 <!-- Alt sayfa -->
 <div id="perde" class="fixed inset-0 bg-slate-900/40 z-40"></div>
 <section id="sayfa" class="fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-[28px] shadow-2xl max-h-[86dvh] flex flex-col" style="padding-bottom: env(safe-area-inset-bottom)">
-  <div class="pt-2 pb-1 grid place-items-center"><div class="w-10 h-1.5 rounded-full bg-slate-200"></div></div>
+  <div class="tutamak pt-2 pb-1 grid place-items-center"><div class="w-10 h-1.5 rounded-full bg-slate-200"></div></div>
   <div class="flex items-center justify-between px-5 pb-2"><h2 id="sayfaBaslik" class="text-[19px] font-bold"></h2>
     <button id="sayfaKapat" class="w-9 h-9 grid place-items-center rounded-full bg-slate-100" aria-label="Kapat">✕</button></div>
   <div id="sayfaIc" class="px-5 pb-3 overflow-y-auto space-y-5"></div>
@@ -102,6 +142,9 @@ const UST = /^(ust|üst)\b/i.test({{ t.sablon|tojson }});   // duvar (üst) dola
 const $ = id => document.getElementById(id);
 const S = { v: null, goz: null, parca: null, onGizli: false, gorunum: '2b' };
 let k3 = null;
+const MASA = window.matchMedia('(min-width: 1024px)');
+const masa = () => MASA.matches;
+const dokun = m => masa() ? m.replace(/dokunun/g, 'tıklayın').replace(/Dokun/g, 'Tıkla') : m;
 
 const IK = {   // ikonlar
   olcu: '<path d="M3 17l14-14 4 4L7 21H3z"/><path d="M14 6l2 2M11 9l2 2M8 12l2 2"/>',
@@ -115,6 +158,7 @@ const IK = {   // ikonlar
   sil: '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/>',
   duzenle: '<path d="M4 20h4l11-11-4-4L4 16z"/>',
   kapat: '<path d="M6 6l12 12M18 6L6 18"/>',
+  kamera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
 };
 const ikon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IK[n]}</svg>`;
 const sayi = n => (Math.round(n * 10) / 10).toLocaleString('tr-TR');
@@ -148,7 +192,8 @@ function ciz() {
   const hat = new Set(); for (const b of S.v.doktor) if (b.seviye === 'hata') for (const p of b.parcalar) { hat.add(p); if (p.split('.')[1]) hat.add(p.split('.')[1]); }
   K.ciz2B($('s2'), S.v, {seciliGoz: S.goz ? [S.goz] : [], seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat,
                         kapakSec: true, gizli: gizliler(), etiket: true});
-  if (k3) k3.guncelle(S.v, {seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat, gizli: gizliler(), gorunum: GOR, ust: UST});
+  if (k3) k3.guncelle(S.v, {seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat, gizli: gizliler(), gorunum: GOR, ust: UST,
+                           seciliGoz: S.goz ? S.goz.i : null});
 }
 function uygula(v) {
   S.v = v;
@@ -159,7 +204,9 @@ function uygula(v) {
   }
   const f = v.fiyat && v.fiyat.toplam;
   $('fiyat').textContent = f ? tl(f) : ''; $('fiyat').classList.toggle('hidden', !f);
-  $('sepetBtn').disabled = v.hata_var;
+  $('sepetBtn').disabled = v.hata_var; $('pSepet').disabled = v.hata_var;
+  $('pFiyat').textContent = f ? tl(f) : '—';
+  panelOlcuGuncelle(); panelRenkCiz();
   const h = v.doktor.find(b => b.seviye === 'hata');
   $('hataBant').textContent = h ? '⚠ ' + h.mesaj : ''; $('hataBant').classList.toggle('hidden', !h);
   ciz(); dock(); ipucu();
@@ -172,7 +219,7 @@ function ipucu() {
   if (p) m = `${p.ad} · ${sayi(p.kutu.y2 - p.kutu.y1)} × ${sayi(p.kutu.x2 - p.kutu.x1)} mm`;
   else if (S.goz) m = `Bölme seçildi · ${sayi(S.goz.z.x2 - S.goz.z.x1)} × ${sayi(S.goz.z.y2 - S.goz.z.y1)} mm`;
   else m = S.v.parcalar2b.length > 4 ? 'Değiştirmek için bir bölmeye ya da parçaya dokunun' : 'Raf, kapak eklemek için bir bölmeye dokunun';
-  $('ipucu').textContent = m;
+  $('ipucu').textContent = dokun(m); $('pIpucu').textContent = dokun(m);
 }
 
 // ── alt şerit ──────────────────────────────────────────────────────────
@@ -196,19 +243,28 @@ function dock() {
     h += dbtn('olcu', 'Ölçü', 'olcu', 'ana');
     if ((IZIN.has('govde.malzeme') || IZIN.has('parca.malzeme')) && panelMalzemeleri().length > 1) h += dbtn('malzeme', 'Renk', 'malzeme');
     h += dbtn('geri', 'Geri al', 'geri', '', !d.geri) + dbtn('ileri', 'İleri al', 'ileri', '', !d.ileri);
+    h += dbtn('render', 'Render', 'kamera');
   }
   $('dockIc').innerHTML = h;
+  // masaüstü panel: ölçü ve renk zaten açık; seçim yokken geri / ileri
+  const d = S.v.durum || {};
+  $('pAraclar').innerHTML = (p || S.goz) ? h.replace('<span>Kapat</span>', '<span>Bırak</span>')
+    : dbtn('geri', 'Geri al', 'geri', '', !d.geri) + dbtn('ileri', 'İleri al', 'ileri', '', !d.ileri) + dbtn('gizle', S.onGizli ? 'Kapakları göster' : 'Kapakları gizle', 'kapak');
 }
-$('dockIc').addEventListener('click', async e => {
+async function aracTik(e) {
   const b = e.target.closest('[data-k]'); if (!b || b.disabled) return;
   const k = b.dataset.k;
+  if (k === 'render') return renderSayfa();
+  if (k === 'gizle') return $('icGoster').click();
   if (k === 'bırak') { S.goz = null; S.parca = null; ciz(); dock(); ipucu(); }
   else if (k === 'geri' || k === 'ileri') { const v = await istek('/' + k, {}); if (v) { uygula(v); tost(k === 'geri' ? 'Geri alındı' : 'İleri alındı'); } }
   else if (k === 'sil') { const id = S.parca; S.parca = null; if (await islem({tip: 'sil', id})) tost('Silindi'); }
   else if (k === 'konum') konumSayfa(S.v.parcalar2b.find(x => x.id === S.parca));
   else if (k === 'duzenle') { const p = S.v.parcalar2b.find(x => x.id === S.parca); p.tur === 'kapak' ? kapakSayfa(p) : cekmeceSayfa(p); }
   else ({olcu: olcuSayfa, malzeme: malzemeSayfa, raf: rafSayfa, bolme: bolmeSayfa, kapak: () => kapakSayfa(), cekmece: () => cekmeceSayfa()})[k]();
-});
+}
+$('dockIc').addEventListener('click', aracTik);
+$('pAraclar').addEventListener('click', aracTik);
 
 function yakinParca(e) {
   const svg = $('s2'), m = svg.getScreenCTM(); if (!m) return null;
@@ -242,15 +298,21 @@ document.querySelectorAll('[data-gor]').forEach(b => b.addEventListener('click',
   S.gorunum = b.dataset.gor;
   document.querySelectorAll('[data-gor]').forEach(x => x.classList.toggle('sec', x === b));
   $('s2').classList.toggle('hidden', S.gorunum === '3b'); $('v3').classList.toggle('hidden', S.gorunum !== '3b');
-  if (S.gorunum === '3b' && !k3) k3 = new KabinGercek.KabinGercek($('v3'), id => { if (id && id !== S.parca) { S.parca = id; S.goz = null; dock(); ipucu(); ciz(); } });
+  if (S.gorunum === '3b' && !k3) k3 = new KabinGercek.KabinGercek($('v3'), (id, e, goz) => {
+    if (goz != null) { S.goz = gozNesne(goz); S.parca = null; }
+    else if (id) { const p = S.v.parcalar2b.find(x => x.id === id); if (p && ['govde', 'arkalik'].includes(p.tur)) return; S.parca = id; S.goz = null; }
+    else { S.goz = null; S.parca = null; }
+    ciz(); dock(); ipucu();
+  });
   ciz(); setTimeout(() => { if (k3 && S.gorunum === '3b') { k3.elle = false; k3.boyut(); k3.sigdir(); } }, 30);   // her açılışta önden
 }));
 $('ad').addEventListener('change', () => istek('/ad', {ad: $('ad').value}));
 
 // ── alt sayfa ──────────────────────────────────────────────────────────
 let sayfaKapaninca = null;
-function sayfaAc(baslik, ic, alt, kapaninca) {
+function sayfaAc(baslik, ic, alt, kapaninca, genis) {
   const si = $('sayfaIc'); si.oninput = si.onchange = si.onclick = null;   // önceki pencerenin dinleyicileri kalmasın
+  $('sayfa').classList.toggle('genis', !!genis);
   $('sayfaBaslik').textContent = baslik; si.innerHTML = ic; $('sayfaAlt').innerHTML = alt;
   sayfaKapaninca = kapaninca || null;
   $('sayfa').classList.add('acik'); $('perde').classList.add('acik');
@@ -269,12 +331,12 @@ const seg = (ad, secenek, deger) => `<div class="seg" data-seg="${ad}">${secenek
   `<button type="button" data-d="${v}" class="${String(v) === String(deger) ? 'sec' : ''}">${l}</button>`).join('')}<input type="hidden" name="${ad}" value="${deger}"></div>`;
 const birincil = (ad, id = 'uygula') => `<button id="${id}" class="flex-1 h-14 rounded-2xl bg-emerald-600 text-white font-bold text-[16px] disabled:opacity-40">${ad}</button>`;
 const ikincil = (ad, id) => `<button id="${id}" class="h-14 px-5 rounded-2xl bg-slate-100 font-semibold">${ad}</button>`;
-function deger() {
-  const o = {}; $('sayfaIc').querySelectorAll('[name]').forEach(i => {
+function deger(kok = $('sayfaIc')) {
+  const o = {}; kok.querySelectorAll('[name]').forEach(i => {
     o[i.name] = i.type === 'checkbox' ? i.checked : (i.closest('[data-adim]') ? +String(i.value).replace(',', '.') : i.value);
   }); return o;
 }
-$('sayfaIc').addEventListener('click', e => {
+function kontrolTik(e) {
   const a = e.target.closest('[data-a]');
   if (a) {
     const k = a.closest('[data-adim]'), i = k.querySelector('input');
@@ -286,26 +348,35 @@ $('sayfaIc').addEventListener('click', e => {
     const g = s.closest('[data-seg]'); g.querySelectorAll('button').forEach(x => x.classList.toggle('sec', x === s));
     const h = g.querySelector('input'); h.value = s.dataset.d; h.dispatchEvent(new Event('change', {bubbles: true}));
   }
-});
+}
+$('sayfaIc').addEventListener('click', kontrolTik);
 
 // Ölçü (canlı: 300 ms; Tamam tek geri alma adımı, Vazgeç açılış hali)
-async function olcuSayfa() {
-  const d = S.v.ozellik, sn = SINIR;
+function olcuAlanlari(d) {
+  const sn = SINIR;
   let ic = `<div><div class="etiket"><span>Genişlik (mm)</span><span class="font-normal text-slate-400">${sn.en[0]}–${sn.en[1]}</span></div>${adim('en', d.en, sn.en[0], sn.en[1], 10)}</div>
     <div><div class="etiket"><span>Yükseklik (mm)</span><span class="font-normal text-slate-400">${sn.boy[0]}–${sn.boy[1]}</span></div>${adim('boy', d.boy, sn.boy[0], sn.boy[1], 10)}</div>
     <div><div class="etiket"><span>Derinlik (mm)</span><span class="font-normal text-slate-400">${sn.derinlik[0]}–${sn.derinlik[1]}</span></div>${adim('derinlik', d.derinlik, sn.derinlik[0], sn.derinlik[1], 10)}</div>`;
   if (IZIN.has('ayaktipi')) ic += `<div><div class="etiket">Alt kısım</div>${seg('ayaktipi', [['YOK', 'Düz'], ['AYAK', 'Ayaklı'], ['BAZA', 'Bazalı']], d.ayaktipi)}</div>`;
-  if (IZIN.has('ayakyuksekligi')) ic += `<div id="ayakAlan" class="${d.ayaktipi === 'YOK' ? 'hidden' : ''}"><div class="etiket">Ayak / baza yüksekliği (mm)</div>${adim('ayakyuksekligi', d.ayakyuksekligi, 0, 500, 10)}</div>`;
+  if (IZIN.has('ayakyuksekligi')) ic += `<div data-ayak-alan class="${d.ayaktipi === 'YOK' ? 'hidden' : ''}"><div class="etiket">Ayak / baza yüksekliği (mm)</div>${adim('ayakyuksekligi', d.ayakyuksekligi, 0, 500, 10)}</div>`;
+  return ic;
+}
+function olcuDegeri(kok) {
+  const f = deger(kok); const alan = {en: f.en, boy: f.boy, derinlik: f.derinlik};
+  const ay = kok.querySelector('[data-ayak-alan]');
+  if ('ayaktipi' in f) { alan.ayaktipi = f.ayaktipi; ay && ay.classList.toggle('hidden', f.ayaktipi === 'YOK'); }
+  if ('ayakyuksekligi' in f && f.ayaktipi !== 'YOK') alan.ayakyuksekligi = f.ayakyuksekligi;
+  return alan;
+}
+async function olcuSayfa() {
+  const ic = olcuAlanlari(S.v.ozellik);
   await istek('/panel/ac', {});
   sayfaAc('Ölçüler', ic, ikincil('Vazgeç', 'vazgec') + birincil('Tamam'), async neden => {
     const v = await istek('/panel/' + (neden === 'iptal' ? 'iptal' : 'tamam'), {}); if (v) uygula(v);
   });
   let z = null;
   const canli = () => { clearTimeout(z); z = setTimeout(() => {
-    const f = deger(); const alan = {en: f.en, boy: f.boy, derinlik: f.derinlik};
-    if ('ayaktipi' in f) { alan.ayaktipi = f.ayaktipi; $('ayakAlan') && $('ayakAlan').classList.toggle('hidden', f.ayaktipi === 'YOK'); }
-    if ('ayakyuksekligi' in f && f.ayaktipi !== 'YOK') alan.ayakyuksekligi = f.ayakyuksekligi;
-    islem({tip: 'ozellik', alanlar: alan}, {panel: true});
+    islem({tip: 'ozellik', alanlar: olcuDegeri($('sayfaIc'))}, {panel: true});
   }, 300); };
   $('sayfaIc').oninput = canli; $('sayfaIc').onchange = canli;
   $('uygula').onclick = () => sayfaKapat('tamam');
@@ -331,19 +402,19 @@ function onMalzemesi() {
 function onEki(isl) {             // seçilmiş ön rengi yeni kapak / çekmeceye de uygulansın (tek geri alma adımı)
   return S.onMal && IZIN.has('parca.malzeme') ? [isl, {tip: 'parca', idler: ['tum:on'], alanlar: {malzeme: S.onMal}}] : isl;
 }
-function malzemeSayfa() {
+function renkIcerik() {
   const liste = panelMalzemeleri();
   const kartlar = (hedef, d) => `<div class="grid grid-cols-4 gap-1">${liste.map(m => `<button type="button" class="renk-kart ${m.kod === d ? 'sec' : ''}" data-mal="${K.esc(m.kod)}" data-hedef="${hedef}">
       <span class="renk" style="${renkStil(m.kod)}"></span><span class="leading-tight text-center">${K.esc((GOR[m.kod] || {}).ad || m.ad)}</span></button>`).join('')}</div>`;
   let ic = '';
   if (IZIN.has('govde.malzeme')) ic += `<div><div class="etiket">Gövde</div>${kartlar('govde', S.v.ozellik['govde.malzeme'])}</div>`;
   if (IZIN.has('parca.malzeme')) ic += `<div><div class="etiket">Kapak ve çekmece önleri</div>${kartlar('on', onMalzemesi())}</div>`;
-  ic += `<p class="text-xs text-slate-400">Seçtiğiniz renk gerçek görünümde hemen görünür.</p>`;
-  sayfaAc('Renk ve malzeme', ic, birincil('Tamam'));
-  $('sayfaIc').onclick = async e => {
+  return ic;
+}
+async function renkTik(e, kok) {
     const b = e.target.closest('[data-mal]'); if (!b) return;
     const hedef = b.dataset.hedef, kod = b.dataset.mal;
-    $('sayfaIc').querySelectorAll(`[data-hedef="${hedef}"]`).forEach(x => x.classList.toggle('sec', x === b));
+    kok.querySelectorAll(`[data-hedef="${hedef}"]`).forEach(x => x.classList.toggle('sec', x === b));
     let v;
     if (hedef === 'govde') v = await islem({tip: 'ozellik', alanlar: {'govde.malzeme': kod}});
     else {
@@ -351,9 +422,79 @@ function malzemeSayfa() {
       v = S.v.parcalar2b.some(x => ONLER.has(x.tur)) ? await islem({tip: 'parca', idler: ['tum:on'], alanlar: {malzeme: kod}}) : true;
     }
     if (v) tost('Renk değişti');
-  };
+}
+function malzemeSayfa() {
+  sayfaAc('Renk ve malzeme', renkIcerik() + `<p class="text-xs text-slate-400">Seçtiğiniz renk gerçek görünümde hemen görünür.</p>`, birincil('Tamam'));
+  $('sayfaIc').onclick = e => renkTik(e, $('sayfaIc'));
   $('uygula').onclick = () => sayfaKapat();
 }
+
+// ── masaüstü panel: ölçü (her zaman açık, canlı) ve renk ─────────────────
+function panelOlcuGuncelle() {
+  const kok = $('pOlcu');
+  if (kok.contains(document.activeElement) || panelOlcuGuncelle.bekliyor) return;   // yazarken üzerine yazma
+  kok.innerHTML = olcuAlanlari(S.v.ozellik);
+}
+$('pOlcu').addEventListener('click', kontrolTik);
+{
+  let z = null;
+  const canli = () => { clearTimeout(z); panelOlcuGuncelle.bekliyor = true; z = setTimeout(async () => {
+    const v = await islem({tip: 'ozellik', alanlar: olcuDegeri($('pOlcu'))});
+    panelOlcuGuncelle.bekliyor = false;
+    if (!v) { panelOlcuGuncelle(); }
+  }, 550); };
+  $('pOlcu').addEventListener('input', canli); $('pOlcu').addEventListener('change', canli);
+  $('pOlcu').addEventListener('focusout', () => setTimeout(() => { if (!panelOlcuGuncelle.bekliyor) panelOlcuGuncelle(); }, 600));
+}
+function panelRenkCiz() {
+  const var_ = (IZIN.has('govde.malzeme') || IZIN.has('parca.malzeme')) && panelMalzemeleri().length > 1;
+  $('pRenkAlan').classList.toggle('hidden', !var_);
+  if (var_) $('pRenk').innerHTML = renkIcerik();
+}
+$('pRenk').addEventListener('click', e => renkTik(e, $('pRenk')));
+$('pSepet').addEventListener('click', () => $('sepetBtn').click());
+$('pRender').addEventListener('click', () => renderSayfa());
+
+// ── gerçek render: oda / stüdyo, yüksek çözünürlük; indir / paylaş ──────
+function renderSayfa() {
+  const paylasVar = !!(navigator.share && navigator.canShare);
+  sayfaAc('Gerçekçi görüntü', `<div><div class="etiket">Ortam</div>${seg('ortam', [['oda', 'Odada'], ['studyo', 'Stüdyo']], 'oda')}</div>
+    <div id="rAlan" class="rounded-2xl overflow-hidden bg-slate-100 grid place-items-center text-sm text-slate-500" style="min-height:240px">Hazırlanıyor…</div>
+    <p class="text-xs text-slate-400">Görüntü cihazınızda oluşturulur; ölçü, renk ve kapaklar şu anki tasarımınızla aynıdır.</p>`,
+    (paylasVar ? ikincil('Paylaş', 'paylas') : '') + birincil('İndir'), null, true);
+  let url = null;
+  const yap = () => {
+    url = null; $('rAlan').textContent = 'Hazırlanıyor…'; $('uygula').disabled = true;
+    setTimeout(() => {
+      try {
+        url = KabinGercek.render({...S.v, ust: UST}, GOR, {ortam: deger().ortam, olcek: masa() ? 1.5 : 1, gizli: gizliler()});
+      } catch (e) { console.error(e); }
+      if (!$('rAlan')) return;
+      if (!url) { $('rAlan').textContent = 'Görüntü oluşturulamadı'; return; }
+      $('rAlan').innerHTML = `<img src="${url}" alt="Dolap" class="w-full h-auto block">`;
+      $('uygula').disabled = false;
+    }, 320);                                   // pencere açılış animasyonu bitsin (render kısa süre ekranı meşgul eder)
+  };
+  $('sayfaIc').onchange = yap; yap();
+  const ad = () => (($('ad').value || 'dolap').replace(/[^\wçğıöşüÇĞİÖŞÜ -]+/g, '').trim() || 'dolap') + '.jpg';
+  $('uygula').onclick = () => { if (!url) return; const a = document.createElement('a'); a.href = url; a.download = ad(); document.body.appendChild(a); a.click(); a.remove(); };
+  if (paylasVar) $('paylas').onclick = async () => {
+    if (!url) return;
+    const blob = await (await fetch(url)).blob(), dosya = new File([blob], ad(), {type: 'image/jpeg'});
+    if (navigator.canShare({files: [dosya]})) { try { await navigator.share({files: [dosya], title: $('ad').value || 'Dolap'}); } catch (e) {} }
+    else $('uygula').click();
+  };
+}
+
+// ── klavye (masaüstü) ───────────────────────────────────────────────────
+document.addEventListener('keydown', async e => {
+  if (e.target.closest('input, textarea, select')) return;
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); aracTik({target: {closest: () => ({dataset: {k: 'geri'}, disabled: !(S.v.durum || {}).geri})}}); }
+  else if (ctrl && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); aracTik({target: {closest: () => ({dataset: {k: 'ileri'}, disabled: !(S.v.durum || {}).ileri})}}); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && S.parca && IZIN.has('duzenle.sil')) { e.preventDefault(); aracTik({target: {closest: () => ({dataset: {k: 'sil'}, disabled: false})}}); }
+  else if (e.key === 'Escape') { if ($('sayfa').classList.contains('acik')) sayfaKapat('dis'); else { S.goz = null; S.parca = null; ciz(); dock(); ipucu(); } }
+});
 
 function gozYok() { if (!S.goz) { tost('Önce bir bölmeye dokunun', true); return true; } return false; }
 
@@ -525,7 +666,8 @@ $('sepetBtn').addEventListener('click', () => {
   uygula(v);
   if (!(v.durum || {}).geri && v.parcalar2b.length <= 6) {      // yeni dolap: önce ölçü
     $('ipucu').textContent = 'Önce dolabın ölçüsünü verin';
-    setTimeout(olcuSayfa, 350);
+    if (masa()) { $('pIpucu').textContent = 'Önce sağdaki ölçüleri girin, sonra dolapta bir bölmeye tıklayın.'; $('pOlcuAlan').classList.add('vurgu'); }
+    else setTimeout(olcuSayfa, 350);
   }
 })();
 </script>

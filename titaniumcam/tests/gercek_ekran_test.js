@@ -16,7 +16,7 @@ async function yerel(ctx) {
   const a = await d.newPage(); a.on('pageerror', e => hat.push('admin: ' + e.message));
   await a.goto(B + '/login'); await a.fill('[name=username]', 'admin'); await a.fill('[name=password]', 'admin123');
   await Promise.all([a.waitForNavigation(), a.click('button')]);
-  await a.goto(B + '/titaniumcam/kabin/tanimlar');
+  await a.goto(B + '/membrane/kabin/tanimlar');
   await a.fill('[name="g:MDF16:ad"]', 'Antrasit'); await a.$eval('[name="g:MDF16:renk"]', i => i.value = '#3b3f45');
   await a.selectOption('[name="g:MDF16:doku"]', 'parlak');
   await a.fill('[name="g:SUNTA18:ad"]', 'Ceviz'); await a.$eval('[name="g:SUNTA18:renk"]', i => i.value = '#9a6a43');
@@ -24,7 +24,7 @@ async function yerel(ctx) {
   await Promise.all([a.waitForNavigation(), a.click('button:has-text("Kaydet") >> nth=-1')]);
   ok((await a.inputValue('[name="g:MDF16:ad"]')) === 'Antrasit', 'Yönetici malzeme görünümünü kaydetti');
 
-  for (const [ad, vp] of [['tel', {width: 390, height: 844, isMobile: true, hasTouch: true}], ['masa', {width: 1280, height: 860}]]) {
+  for (const [ad, vp] of [['tel', {width: 390, height: 844, isMobile: true, hasTouch: true}], ['tablet', {width: 1000, height: 800}]]) {
     const m = await br.newContext({viewport: {width: vp.width, height: vp.height}, isMobile: !!vp.isMobile, hasTouch: !!vp.hasTouch, deviceScaleFactor: 2});
     await yerel(m);
     const t = await m.newPage(); t.on('pageerror', e => hat.push(e.message));
@@ -64,8 +64,8 @@ async function yerel(ctx) {
     // renk: gövde ceviz, önler antrasit parlak
     await tik('#dockIc [data-k=malzeme]'); await t.waitForTimeout(400);
     await t.screenshot({path: O + `51_${ad}_renk.png`});
-    await Promise.all([yanit(), tik('[data-hedef=govde][data-mal=SUNTA18]')]); await t.waitForTimeout(200);
-    await Promise.all([yanit(), tik('[data-hedef=on][data-mal=MDF16]')]); await t.waitForTimeout(200);
+    await Promise.all([yanit(), tik('#sayfaIc [data-hedef=govde][data-mal=SUNTA18]')]); await t.waitForTimeout(200);
+    await Promise.all([yanit(), tik('#sayfaIc [data-hedef=on][data-mal=MDF16]')]); await t.waitForTimeout(200);
     await tik('#uygula'); await t.waitForTimeout(300);
     ok(await t.evaluate(() => S.v.parcalar2b.filter(p => p.tur === 'kapak' || p.tur === 'cekmece').every(p => p.malzeme === 'MDF16')), ad + ': bütün önler antrasit');
     // gerçek görünüm

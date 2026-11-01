@@ -39,6 +39,30 @@ window.KabinGercek = (() => {
     return (_dokular[renk] = tex);
   }
 
+  // ── oda: parke zemin (tahtalar, derz) ──
+  let _parke = null;
+  function parkeDoku() {
+    if (_parke) return _parke;
+    const N = 1024, c = document.createElement('canvas'); c.width = c.height = N;
+    const x = c.getContext('2d'), kaynak = ahsapDoku('#b48a5f').image, rr = rastgele(21);
+    const sira = 8, h = N / sira;                       // 1 m karede 8 tahta (125 mm)
+    for (let i = 0; i < sira; i++) {
+      let px = -rr() * N;
+      while (px < N) {
+        const L = N * (0.45 + rr() * 0.4), sx = rr() * (1024 - 200), sy = rr() * (1024 - h);
+        x.drawImage(kaynak, sx, sy, 200, h, px, i * h, L, h);
+        x.fillStyle = `rgba(${rr() < 0.5 ? '255,240,220' : '60,35,15'},${0.04 + rr() * 0.08})`;
+        x.fillRect(px, i * h, L, h);
+        x.fillStyle = 'rgba(40,25,10,0.55)'; x.fillRect(px, i * h, 2, h);   // uç derzi
+        px += L;
+      }
+      x.fillStyle = 'rgba(40,25,10,0.5)'; x.fillRect(0, i * h, N, 2);      // boy derzi
+    }
+    const t = new T.CanvasTexture(c);
+    t.wrapS = t.wrapT = T.RepeatWrapping; t.encoding = T.sRGBEncoding; t.anisotropy = 8;
+    return (_parke = t);
+  }
+
   // ── kutu geometrisi: yüz başına normal + damar yönünde metre cinsinden UV ──
   function kutuGeo(a, b, damarEkseni, kayma) {
     const pos = [], nor = [], uv = [], idx = [];
@@ -68,8 +92,9 @@ window.KabinGercek = (() => {
   const ozet = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) | 0; return (Math.abs(h) % 1000) / 1000; };
 
   class KabinGercek {
-    constructor(kap, tikla) {
+    constructor(kap, tikla, secenek = {}) {
       this.kap = kap; this.tikla = tikla; this.gorunum = {};
+      this.oda = secenek.ortam === 'oda'; this.cevrimdisi = !!secenek.cevrimdisi;
       if (!T) { kap.innerHTML = '<p style="padding:1rem;color:#64748b">3B görünüm yüklenemedi.</p>'; return; }
       const r = this.r = new T.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
       r.setClearColor(0x000000, 0);
@@ -98,6 +123,11 @@ window.KabinGercek = (() => {
       this.temas = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({map: new T.CanvasTexture(cg), transparent: true, depthWrite: false}));
       this.temas.rotation.x = -Math.PI / 2; this.temas.renderOrder = -1;
       s.add(this.zemin, this.temas);
+      if (this.oda) this._odaKur();
+      // seçili / üzerine gelinen bölme vurgusu
+      this.vurguMat = new T.MeshBasicMaterial({color: 0x10b981, transparent: true, opacity: 0.16, depthWrite: false});
+      this.uzerMat = new T.MeshBasicMaterial({color: 0x10b981, transparent: true, opacity: 0.08, depthWrite: false});
+      this.gozMat = new T.MeshBasicMaterial({transparent: true, opacity: 0, depthWrite: false});
       this.grup = new T.Group(); s.add(this.grup);
       this.c = new T.PerspectiveCamera(32, 1, 20, 60000);
       this.ctl = T.OrbitControls ? new T.OrbitControls(this.c, r.domElement) : null;
@@ -109,13 +139,21 @@ window.KabinGercek = (() => {
       }
       this.elle = false;
       this.ray = new T.Raycaster();
+      this._mats = {};
+      if (this.cevrimdisi) return;                         // render için: etkileşim ve döngü yok
       let bas = null;
+      r.domElement.addEventListener('pointermove', e => {    // fare ile üzerine gelinen bölme (masaüstü)
+        if (e.pointerType !== 'mouse' || e.buttons) return;
+        const h = this._isabet(e), i = h && h.object.userData.goz;
+        const yeni = i === undefined || i === null ? null : i;
+        if (yeni !== this.uzerGoz) { this.uzerGoz = yeni; this._vurguGuncelle(); }
+        r.domElement.style.cursor = h && (h.object.userData.id || h.object.userData.goz != null) ? 'pointer' : 'grab';
+      });
       r.domElement.addEventListener('pointerdown', e => { bas = [e.clientX, e.clientY]; });
       r.domElement.addEventListener('pointerup', e => {     // sürükleme değil, dokunma ise seç
         if (bas && Math.hypot(e.clientX - bas[0], e.clientY - bas[1]) < 6) this._tik(e);
         bas = null;
       });
-      this._mats = {};
       new ResizeObserver(() => this.boyut()).observe(kap);
       const don = () => {
         requestAnimationFrame(don);
@@ -123,6 +161,32 @@ window.KabinGercek = (() => {
         this.ctl && this.ctl.update(); r.render(s, this.c);
       };
       don();
+    }
+
+    _odaKur() {
+      const s = this.s;
+      this.zemin.material = new T.MeshStandardMaterial({map: parkeDoku(), roughness: 0.55, envMapIntensity: 0.6});
+      this.zemin.material.map.repeat.set(12, 12);
+      this.duvar = new T.Mesh(new T.PlaneGeometry(12000, 6000), new T.MeshStandardMaterial({color: lin('#ebe5dc'), roughness: 0.95}));
+      this.duvar.receiveShadow = true;
+      this.supurge = new T.Mesh(new T.BoxGeometry(12000, 80, 14), new T.MeshStandardMaterial({color: lin('#f4f1ec'), roughness: 0.6}));
+      this.supurge.receiveShadow = true; this.supurge.castShadow = true;
+      s.add(this.duvar, this.supurge);
+      s.background = lin('#e9e3da');
+    }
+
+    _isabet(e) {
+      const b = this.r.domElement.getBoundingClientRect();
+      const p = new T.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+      this.ray.setFromCamera(p, this.c);
+      return this.ray.intersectObjects(this.grup.children.filter(x => x.visible !== false))[0] || null;
+    }
+
+    _vurguGuncelle() {
+      for (const m of this.gozKutular || []) {
+        const i = m.userData.goz;
+        m.material = i === this.seciliGoz ? this.vurguMat : i === this.uzerGoz ? this.uzerMat : this.gozMat;
+      }
     }
 
     boyut() {
@@ -252,8 +316,24 @@ window.KabinGercek = (() => {
         this._ekle(bz);
       }
 
-      // zemin ve temas gölgesi (üst dolapta zemin yok)
-      this.zemin.visible = this.temas.visible = !o.ust;
+      // bölmeler: görünmez tıklama kutuları (+ seçili / üzerine gelinen vurgusu)
+      this.gozKutular = [];
+      this.seciliGoz = o.seciliGoz == null ? null : o.seciliGoz;
+      if (o.gozler !== false) (v.gozler || []).forEach((z, i) => {
+        const m = new T.Mesh(kutuGeo([z.x1 - W / 2 + 1, H - z.y2 + oy + 1, -Dp / 2 + 22], [z.x2 - W / 2 - 1, H - z.y1 + oy - 1, Dp / 2 - 1], 0, 0),
+                             this.gozMat);
+        m.userData.goz = i; m.renderOrder = 2;
+        this.grup.add(m); this.gozKutular.push(m);
+      });
+      this._vurguGuncelle();
+
+      // zemin ve temas gölgesi (stüdyoda üst dolapta zemin yok; odada zemin ve duvar hep var)
+      this.zemin.visible = this.temas.visible = this.oda || !o.ust;
+      if (this.oda) {
+        this.duvar.position.set(0, 3000, -Dp / 2 - 1);
+        this.supurge.position.set(0, 40, -Dp / 2 + 6);
+        this.temas.visible = !o.ust;
+      }
       this.temas.scale.set(W * 1.35 + 200, Dp * 1.6 + 200, 1); this.temas.position.set(0, 0.5, 0);
       // ana ışık: sol-üst-önden; gölge arkaya düşer
       const R = Math.max(W, H + oy, Dp);
@@ -275,9 +355,10 @@ window.KabinGercek = (() => {
       const b = this.r.domElement.getBoundingClientRect();
       const p = new T.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
       this.ray.setFromCamera(p, this.c);
-      const hit = this.ray.intersectObjects(this.grup.children)[0];
+      const hit = this._isabet(e);
+      if (hit && hit.object.userData.goz != null) return this.tikla(null, e, hit.object.userData.goz);
       if (hit && !hit.object.userData.id) return;         // kulp / ayak: seçimi bozma
-      this.tikla(hit ? hit.object.userData.id : null, e);
+      this.tikla(hit ? hit.object.userData.id : null, e, null);
     }
   }
   // Vitrin / katalog kartı: tek görünmez çizici her kabin için bir resim (PNG, saydam) üretir;
@@ -297,7 +378,7 @@ window.KabinGercek = (() => {
     if (!k.r) return null;
     k.kap.style.width = w + 'px'; k.kap.style.height = h + 'px';
     k.elle = false; k.olcu = null;
-    k.guncelle(v, {gorunum: gorunum || {}, ust: !!v.ust});
+    k.guncelle(v, {gorunum: gorunum || {}, ust: !!v.ust, gozler: false});
     k.r.render(k.s, k.c);
     return k.r.domElement.toDataURL('image/png');
   }
@@ -313,5 +394,43 @@ window.KabinGercek = (() => {
     };
     adim();
   }
-  return {KabinGercek, ahsapDoku, resim, kartlariDoldur};
+  // Yüksek çözünürlüklü "gerçek render": oda (duvar, parke, süpürgelik) ya da stüdyo. JPEG dataURL döner.
+  function render(v, gorunum, secenek = {}) {
+    if (!T || !v || !v.govde) return null;
+    const ortam = secenek.ortam === 'studyo' ? 'studyo' : 'oda';
+    const g = v.govde, dik = g.boy > g.en * 1.3;
+    const olcek = secenek.olcek || 1;
+    const w = Math.round((dik ? 1200 : 1600) * olcek), h = Math.round((dik ? 1600 : 1200) * olcek);
+    const d = document.createElement('div');
+    d.style.cssText = `position:fixed;left:-20000px;top:0;width:${w}px;height:${h}px;pointer-events:none`;
+    document.body.appendChild(d);
+    const k = new KabinGercek(d, null, {ortam, cevrimdisi: true});
+    try {
+      k.kartModu = ortam === 'studyo';
+      k.r.setPixelRatio(1);
+      k.gun.shadow.mapSize.set(4096, 4096); k.gun.shadow.radius = 10;
+      k.guncelle(v, {gorunum: gorunum || {}, ust: !!v.ust, gizli: secenek.gizli, gozler: false});
+      if (ortam === 'oda') {                          // biraz daha geniş kadraj: ortam görünsün
+        const [W, H, D] = k.olcu, R = Math.max(W, H);
+        const hedef = new T.Vector3(0, k.oy + H * 0.5, 0);
+        const yon = new T.Vector3(0.34, 0.12, 1).normalize();
+        const uz = (R * 0.5 / Math.tan(T.MathUtils.degToRad(k.c.fov) / 2)) * 1.9 + D;
+        k.c.position.copy(hedef).add(yon.multiplyScalar(uz)); k.c.lookAt(hedef);
+      }
+      k.r.render(k.s, k.c);
+      let kaynak = k.r.domElement;
+      if (ortam === 'studyo') {                       // saydam fonu stüdyo degradesiyle birleştir
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const x = c.getContext('2d'), gr = x.createRadialGradient(w / 2, h * 0.38, 0, w / 2, h * 0.45, Math.max(w, h) * 0.75);
+        gr.addColorStop(0, '#fbfaf8'); gr.addColorStop(0.55, '#efebe5'); gr.addColorStop(1, '#ddd7ce');
+        x.fillStyle = gr; x.fillRect(0, 0, w, h); x.drawImage(kaynak, 0, 0, w, h);
+        kaynak = c;
+      }
+      return kaynak.toDataURL('image/jpeg', 0.92);
+    } finally {
+      k.r.dispose(); try { k.r.forceContextLoss(); } catch (e) {}
+      d.remove();
+    }
+  }
+  return {KabinGercek, ahsapDoku, resim, kartlariDoldur, render};
 })();
