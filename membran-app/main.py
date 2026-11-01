@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import db
@@ -29,8 +29,8 @@ async def auth_middleware(request: Request, call_next):
     path = request.url.path
     user = verify_session(request.cookies.get("session", ""))
     request.state.user = user
-    is_public = any(path == p or path.startswith(p + "/") or path.startswith(p)
-                    for p in PUBLIC_PATHS)
+    is_public = path == "/" or any(path == p or path.startswith(p + "/") or path.startswith(p)
+                                   for p in PUBLIC_PATHS)          # "/" = mağaza ana sayfası
     if not is_public and user is None:
         return RedirectResponse("/login", status_code=303)
     return await call_next(request)
@@ -54,6 +54,7 @@ app.include_router(magaza_router)
 app.include_router(kabin_router)
 
 
-@app.get("/")
-async def root():
-    return RedirectResponse("/membrane")
+# Ana sayfa = mağaza (müşteri vitrini). Yönetici paneli: /login → /membrane
+from routers.magaza import magaza_home  # noqa: E402
+
+app.add_api_route("/", magaza_home, methods=["GET"], response_class=HTMLResponse)

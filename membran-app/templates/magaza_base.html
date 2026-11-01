@@ -10,11 +10,11 @@
   {% set nav = request.url.path %}
   <header class="bg-white border-b sticky top-0 z-40 shadow-sm">
     <div class="max-w-6xl mx-auto px-4 py-2 sm:py-0 sm:h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 gap-y-1">
-      <a href="/magaza" class="font-extrabold text-xl text-slate-900 whitespace-nowrap">
+      <a href="/" class="font-extrabold text-xl text-slate-900 whitespace-nowrap">
         🪵 Ersan <span class="text-emerald-600">Mobilya</span>
       </a>
       <nav class="flex items-center gap-1 sm:gap-2 text-sm whitespace-nowrap w-full sm:w-auto overflow-x-auto -mx-1 px-1">
-        <a href="/magaza" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav == '/magaza' %}font-semibold text-emerald-700{% endif %}">Ürünler</a>
+        <a href="/" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav in ('/', '/magaza') %}font-semibold text-emerald-700{% endif %}">Ürünler</a>
         {% if cust %}
           <a href="/magaza/siparislerim" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav.startswith('/magaza/siparis') %}font-semibold text-emerald-700{% endif %}">Siparişlerim</a>
         {% endif %}
