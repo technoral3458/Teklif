@@ -441,3 +441,37 @@ def test_siparis_duzenle_sil(o):
     assert o["TC"](o["app"]).get(f"/api/titanium/v1/cabinet-orders/K-{oid2}", headers=_h(k)).status_code == 404
     # API bölümü Ayarlar'da
     assert 'href="/titaniumcam/api"' in a.get("/titaniumcam/ayarlar").text
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hazır katalog: en çok satılan kabin tipleri motorla kurulur
+# ══════════════════════════════════════════════════════════════════════════
+def test_hazir_katalog(o):
+    import hazir_katalog as HK
+    a, db = o["admin"], o["db"]
+    adlar = [m["ad"] for m in HK.MODELLER]
+    assert len(adlar) == len(set(adlar)) >= 15
+    t = a.get("/titaniumcam/kabinler").text
+    assert "Hazır katalog" in t and "4 Çekmeceli Şifonyer" in t
+    r = a.post("/titaniumcam/kabinler/hazir-katalog", data={"ad": adlar, "satis": "1"})
+    assert f"{len(adlar)} kabin eklendi ve satışa açıldı" in r.text and "kurulamayan" not in r.text, r.text[:400]
+    for m in HK.MODELLER:
+        k = db.one("SELECT * FROM kabin_model WHERE ad=?", (m["ad"],))
+        g = json.loads(k["gorsel_json"])
+        assert k["acik"] == 1 and k["kategori"] == m["kategori"] and g["parcalar3b"], m["ad"]
+    sif = json.loads(db.one("SELECT gorsel_json FROM kabin_model WHERE ad='4 Çekmeceli Şifonyer'")["gorsel_json"])
+    assert len([p for p in sif["parcalar2b"] if p["tur"] == "cekmece"]) == 4 and sif["govde"]["en"] == 800
+    # ikinci kez: çoğalmaz
+    r = a.post("/titaniumcam/kabinler/hazir-katalog", data={"ad": adlar, "satis": "1"})
+    assert "0 kabin eklendi" in r.text and f"{len(adlar)} kabin zaten vardı" in r.text
+    # vitrinde gruplar; müşteri komodinden başlayıp ölçüyü değiştirir
+    v = o["TC"](o["app"]).get("/").text
+    assert 'data-grup="Yatak odası"' in v and "TV Ünitesi 180 cm" in v
+    g = o["TC"](o["app"])
+    mid = db.one("SELECT id FROM kabin_model WHERE ad='2 Çekmeceli Komodin'")["id"]
+    url = g.post("/kabin/yeni", data={"model": mid}, follow_redirects=False).headers["location"]
+    r = g.post(url + "/islem", json={"islem": {"tip": "olcu", "en": 550}})
+    assert r.status_code == 200 and r.json()["govde"]["en"] == 550
+    assert len([p for p in r.json()["parcalar2b"] if p["tur"] == "cekmece"]) == 2 and not r.json()["hata_var"]
+    for ad in adlar:
+        db.execute("DELETE FROM kabin_model WHERE ad=?", (ad,))

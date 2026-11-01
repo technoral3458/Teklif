@@ -1202,7 +1202,10 @@ async def y_kabinler(request: Request, sekme: str = "katalog", mesaj: str = ""):
         ("Bağlantı elemanları", "baglanti", "₺/adet", [(x["kod"], x["ad"], "") for x in bil["baglantilar"]]),
     ]
     ark = {x["ad"]: oto_arkalik(x["ad"], bil) for x in bil["kabin_sablonlari"]}
-    return templates.TemplateResponse(request, "kabinler.html", {
+    import hazir_katalog as HK
+    var = {m["ad"] for m in modeller}
+    hazir = [{"ad": m["ad"], "kategori": m["kategori"], "aciklama": m["aciklama"], "var": m["ad"] in var} for m in HK.MODELLER]
+    return templates.TemplateResponse(request, "kabinler.html", {"hazir": hazir,
         "request": request, "sekme": sekme, "mesaj": mesaj, "modeller": modeller, "gruplar": _gruplar(modeller),
         "sablonlar": bil["kabin_sablonlari"], "arkaliklar": bil["arkaliklar"], "oto_ark": ark,
         "gorunum": gorunumler(bil), "fiyat": fiyat_ayar(), "birim": birim, "fy": fy,
@@ -1225,6 +1228,53 @@ async def y_kabin_fiyatlar(request: Request):
                    "ON CONFLICT(tur, kod) DO UPDATE SET fiyat=excluded.fiyat", (parca[1], parca[2][:80], v))
     _fiyat_ayar_yaz(f)
     return _git_katalog("Fiyatlar kaydedildi", "maliyet")
+
+
+@router.post(KATALOG + "/hazir-katalog")
+async def y_hazir_katalog(request: Request):
+    """Hazır katalogdaki seçilen kabinleri motorla kurar ve (isteğe bağlı) satışa açar.
+    Aynı adlı kabin varsa atlanır (iki kez basılırsa çoğalmaz)."""
+    import hazir_katalog as HK
+    f = await request.form()
+    secilen = set(f.getlist("ad"))
+    satis = 1 if f.get("satis") else 0
+    try:
+        bil = await KI.bilgi()
+    except KI.ServisHatasi as e:
+        return _git_katalog(e.mesaj)
+    iz = izinler("yonetici")
+
+    async def islem(kabin, islemler):
+        return await KI.islem(kabin, islemler, "yonetici", iz)
+
+    var = {m["ad"] for m in db.query("SELECT ad FROM kabin_model")}
+    sira = (db.one("SELECT COALESCE(MAX(sira), 0) n FROM kabin_model") or {}).get("n", 0)
+    eklenen, atlanan, hatali = 0, 0, []
+    for m in HK.MODELLER:
+        if m["ad"] not in secilen:
+            continue
+        if m["ad"] in var:
+            atlanan += 1
+            continue
+        try:
+            view = await HK.kur(m, islem, ark=oto_arkalik(m["sablon"], bil))
+            if view["hata_var"]:
+                raise ValueError("doktor hatası")
+        except (KI.ServisHatasi, ValueError, KeyError) as e:
+            hatali.append(f"{m['ad']} ({getattr(e, 'mesaj', e)})")
+            continue
+        sira += 1
+        mid = db.execute("INSERT INTO kabin_model (ad, aciklama, sablon, kategori, kabin_json, acik, sira) VALUES (?,?,?,?,?,?,?)",
+                         (m["ad"], m["aciklama"], m["sablon"], m["kategori"],
+                          json.dumps(view["kabin"], ensure_ascii=False), satis, sira))
+        _model_gorunumu_yaz(mid, view, m["sablon"])
+        eklenen += 1
+    msj = f"{eklenen} kabin eklendi" + (" ve satışa açıldı" if satis and eklenen else "")
+    if atlanan:
+        msj += f" · {atlanan} kabin zaten vardı"
+    if hatali:
+        msj += " · kurulamayan: " + ", ".join(hatali)
+    return _git_katalog(msj)
 
 
 @router.post("/titaniumcam/kabin/modeller/arkalik")
