@@ -10,6 +10,7 @@ Hesabın tamamı TitaniumCam motorundadır (kabin_servis). Bu modül:
   - siparişte .tkabin, motor sürümü ve tanım sürümünü dondurur.
 """
 import json
+import re
 import os
 import time
 from collections import defaultdict, deque
@@ -187,6 +188,30 @@ def musteri_fiyati(fiyat):
     return fiyat["toplam"]
 
 
+# ── Malzeme görünümü (yalnız 3B gerçekçi çizim için; üretime etkisi yok) ──
+DOKULAR = (("mat", "Mat"), ("parlak", "Parlak lake"), ("ahsap", "Ahşap desen"))
+
+
+def _gorunum_varsayilan(m):
+    ad = (m.get("ad") or m["kod"]).lower()
+    if "arkal" in ad or (m.get("kalinlik") or 18) < 10:
+        return {"ad": "Arkalık", "renk": "#ece8e1", "doku": "mat"}
+    if "sunta" in ad or "suntalam" in ad:
+        return {"ad": "Meşe", "renk": "#c49a6c", "doku": "ahsap"}
+    return {"ad": "Beyaz", "renk": "#f2f0eb", "doku": "mat"}
+
+
+def gorunumler(bil):
+    """Her malzeme kodu için {ad, renk, doku}: yöneticinin ayarı, yoksa addan tahmin."""
+    kayit = _ayar("gorunum", {}) or {}
+    out = {}
+    for m in bil["malzemeler"]:
+        g = _gorunum_varsayilan(m)
+        g.update({k: v for k, v in (kayit.get(m["kod"]) or {}).items() if v})
+        out[m["kod"]] = g
+    return out
+
+
 def musteri_bilgisi(bil):
     """Motor tanım listelerinden müşteriye kapalı olanları çıkarır (editör ve vitrin için)."""
     k = {t: set(v) for t, v in kapali_kodlar().items()}
@@ -333,14 +358,15 @@ async def _editor_sayfa(request, tid, rol, taban):
         satir = db.one("SELECT l.*, o.order_no, o.status FROM cabinet_order_lines l "
                        "JOIN cabinet_orders o ON o.id=l.order_id WHERE l.id=?", (t["siparis_satir_id"],))
     # müşteri: sade ekran · yönetici: ayrıntılı editör
+    gbil = bil if rol == "yonetici" else musteri_bilgisi(bil)
     return templates.TemplateResponse(request, "kabin_editor.html" if rol == "yonetici" else "kabin_basit.html", {
         "request": request, "t": t, "rol": rol, "taban": taban,
-        "bilgi": bil if rol == "yonetici" else musteri_bilgisi(bil),
+        "bilgi": gbil,
         "izinler": sorted(izinler(rol)), "sinir": sinirlar(t["sablon"]), "satir": satir,
         "geri_url": (f"/membrane/kabin/siparis/{satir['order_id']}" if satir else
                      "/membrane/kabin/modeller" if t.get("model_id") else "/membrane/kabin")
         if rol == "yonetici" else "/",
-        "fiyat_ayar": fiyat_ayar(),
+        "fiyat_ayar": fiyat_ayar(), "gorunum": gorunumler(gbil),
     })
 
 
@@ -915,7 +941,8 @@ async def y_tanimlar(request: Request, kayit: int = 0):
     return templates.TemplateResponse(request, "kabin_y_tanimlar.html", {
         "request": request, "bolumler": bolumler, "v": v, "donati": DONATI, "kayit": kayit,
         "fiyat": fiyat_ayar(), "ekle": [(t, ad, yet.get(f"ekle.{t}") == "M") for t, ad in EKLE_TURLERI],
-        "sinirlar": {x["ad"]: sinirlar(x["ad"]) for x in bil["kabin_sablonlari"]}})
+        "sinirlar": {x["ad"]: sinirlar(x["ad"]) for x in bil["kabin_sablonlari"]},
+        "gorunum": gorunumler(bil), "dokular": DOKULAR})
 
 
 @router.post("/membrane/kabin/tanimlar")
@@ -934,6 +961,18 @@ async def y_tanimlar_kaydet(request: Request):
                 pass
         else:
             r["acik"] = 1
+    gor = _ayar("gorunum", {}) or {}
+    for anahtar, deger in f.multi_items():           # g:kod:alan (malzeme görünümü)
+        parca = anahtar.split(":", 2)
+        if len(parca) != 3 or parca[0] != "g" or parca[2] not in ("ad", "renk", "doku"):
+            continue
+        deger = str(deger).strip()[:40]
+        if parca[2] == "renk" and not re.fullmatch(r"#[0-9a-fA-F]{6}", deger):
+            continue
+        if parca[2] == "doku" and deger not in dict(DOKULAR):
+            continue
+        gor.setdefault(parca[1][:80], {})[parca[2]] = deger
+    _ayar_yaz("gorunum", gor)
     for (tur, kod), r in satirlar.items():
         if tur == "donati" or tur == "baglanti":
             r["acik"] = 1                              # fiyat kalemi; müşteri seçmez

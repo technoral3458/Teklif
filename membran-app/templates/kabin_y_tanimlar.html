@@ -11,6 +11,7 @@
   <b>Müşteriye açık</b> işaretli olmayanı müşteri göremez ve seçemez (sunucu da reddeder).
   Dolap fiyatı = motorun hesapladığı miktarlar (m², metre, adet) × buradaki birim fiyatlar + kâr oranı.
   Fiyatı girilmemiş kalem varsa müşteriye toplam gösterilmez.
+  Malzemelerin <b>renk / doku / ad</b> ayarı müşterinin gerçekçi 3B görünümünde ve renk seçiminde kullanılır.
 </p>
 
 <form method="post" class="space-y-6">
@@ -56,7 +57,13 @@
         {% set d = v(tur, kod) %}
         <tr class="border-t align-top">
           <td class="py-1.5 pr-2 w-24">{% if tur != 'baglanti' %}<input type="checkbox" name="a:{{ tur }}:{{ kod }}" value="1" {% if d.acik %}checked{% endif %}>{% endif %}</td>
-          <td class="py-1.5"><span class="font-mono text-xs text-slate-500">{{ kod }}</span> {% if ad != kod %}{{ ad }}{% endif %} <span class="text-xs text-slate-400">{{ ek }}</span></td>
+          <td class="py-1.5"><span class="font-mono text-xs text-slate-500">{{ kod }}</span> {% if ad != kod %}{{ ad }}{% endif %} <span class="text-xs text-slate-400">{{ ek }}</span>
+            {% if tur == 'malzeme' %}{% set g = gorunum[kod] %}
+            <div class="flex flex-wrap items-center gap-1.5 mt-1 text-xs" title="Müşterinin 3B gerçekçi görünümünde ve renk seçiminde kullanılır">
+              <input type="color" name="g:{{ kod }}:renk" value="{{ g.renk }}" class="w-8 h-7 border rounded p-0.5">
+              <input name="g:{{ kod }}:ad" value="{{ g.ad }}" placeholder="Müşteriye görünen ad" class="border rounded px-1.5 py-1 w-28">
+              <select name="g:{{ kod }}:doku" class="border rounded px-1 py-1">{% for dk, dad in dokular %}<option value="{{ dk }}" {% if g.doku == dk %}selected{% endif %}>{{ dad }}</option>{% endfor %}</select>
+            </div>{% endif %}</td>
           <td class="py-1.5 text-right whitespace-nowrap">
             {% if fiyatli %}
               <input name="f:{{ tur }}:{{ kod }}" type="number" step="0.01" min="0" value="{{ '%g'|format(d.fiyat or 0) }}" class="border rounded px-2 py-1 w-28 text-right"> <span class="text-slate-400 text-xs">{{ birim }}</span>

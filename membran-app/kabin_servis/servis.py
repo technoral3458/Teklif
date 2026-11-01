@@ -697,6 +697,10 @@ def islem_uygula(k: Any, islem: dict, izinler: set[str]) -> dict:
         if not isinstance(idler, list) or not idler or not isinstance(alanlar, dict):
             raise Hata("Parça seçin")
         onceki = k.kopya()
+        if "tum:on" in idler:             # bütün kapak ve çekmece önleri (renk seçimi)
+            idler = [e.id for e in k.elemanlar() if isinstance(e, (M.Kapak, M.Cekmece))]
+            if not idler:
+                return sonuc
         for eid in idler:
             if isinstance(eid, str) and eid.startswith("govde."):
                 hedef = k.paneller.get(eid[6:])

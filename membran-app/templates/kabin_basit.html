@@ -8,7 +8,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
 <script src="/static/kabin_cizim.js"></script>
+<script src="/static/kabin_gercek.js"></script>
 <style>
   :root { --dock: 92px; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
@@ -42,6 +44,9 @@
   .kart-sec { border: 2px solid #e2e8f0; border-radius: 16px; padding: 10px; text-align: center; font-size: 13px; font-weight: 600; background: #fff; }
   .kart-sec.sec { border-color: #10b981; background: #ecfdf5; color: #047857; }
   .yuzer { box-shadow: 0 4px 16px #0f172a1f; }
+  .renk-kart { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border-radius: 16px; border: 2px solid transparent; font-size: 12px; font-weight: 600; color: #334155; }
+  .renk-kart .renk { width: 52px; height: 52px; border-radius: 999px; box-shadow: inset 0 0 0 1px #0000001f, 0 2px 6px #0f172a26; background-size: 220% 220%; }
+  .renk-kart.sec { border-color: #10b981; background: #ecfdf5; color: #047857; }
 </style>
 </head>
 <body class="bg-stone-100 text-slate-900">
@@ -62,7 +67,7 @@
   <div class="absolute top-3 left-3 right-3 flex items-start justify-between gap-2 pointer-events-none z-10">
     <div id="ipucu" class="yuzer pointer-events-auto bg-white rounded-full px-4 py-2 text-[13px] font-medium text-slate-700 min-w-0 max-w-[60%] truncate">Yükleniyor…</div>
     <div class="flex flex-col gap-2 items-end pointer-events-auto">
-      <div class="seg yuzer bg-white !p-1" style="width:112px"><button data-gor="2b" class="sec !h-9">2B</button><button data-gor="3b" class="!h-9">3B</button></div>
+      <div class="seg yuzer bg-white !p-1" style="width:150px"><button data-gor="2b" class="sec !h-9 !text-[13px]">Çizim</button><button data-gor="3b" class="!h-9 !text-[13px]">Gerçek</button></div>
       <button id="icGoster" class="yuzer bg-white rounded-full h-9 px-3 whitespace-nowrap text-[12px] font-semibold text-slate-700">Kapakları gizle</button>
     </div>
   </div>
@@ -92,6 +97,8 @@ const BILGI = {{ bilgi|tojson }};
 const IZIN = new Set({{ izinler|tojson }});
 const SINIR = {{ sinir|tojson }};
 const K = KabinCizim;
+const GOR = {{ gorunum|tojson }};
+const UST = !!((BILGI.kabin_sablonlari.find(x => x.ad === {{ t.sablon|tojson }}) || {}).ust);
 const $ = id => document.getElementById(id);
 const S = { v: null, goz: null, parca: null, onGizli: false, gorunum: '2b' };
 let k3 = null;
@@ -141,7 +148,7 @@ function ciz() {
   const hat = new Set(); for (const b of S.v.doktor) if (b.seviye === 'hata') for (const p of b.parcalar) { hat.add(p); if (p.split('.')[1]) hat.add(p.split('.')[1]); }
   K.ciz2B($('s2'), S.v, {seciliGoz: S.goz ? [S.goz] : [], seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat,
                         kapakSec: true, gizli: gizliler(), etiket: true});
-  if (k3) k3.guncelle(S.v, {seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat, gizli: gizliler()});
+  if (k3) k3.guncelle(S.v, {seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat, gizli: gizliler(), gorunum: GOR, ust: UST});
 }
 function uygula(v) {
   S.v = v;
@@ -186,7 +193,7 @@ function dock() {
   } else {
     const d = S.v.durum || {};
     h += dbtn('olcu', 'Ölçü', 'olcu', 'ana');
-    if (IZIN.has('govde.malzeme') && BILGI.malzemeler.length > 1) h += dbtn('malzeme', 'Malzeme', 'malzeme');
+    if ((IZIN.has('govde.malzeme') || IZIN.has('parca.malzeme')) && panelMalzemeleri().length > 1) h += dbtn('malzeme', 'Renk', 'malzeme');
     h += dbtn('geri', 'Geri al', 'geri', '', !d.geri) + dbtn('ileri', 'İleri al', 'ileri', '', !d.ileri);
   }
   $('dockIc').innerHTML = h;
@@ -218,7 +225,7 @@ document.querySelectorAll('[data-gor]').forEach(b => b.addEventListener('click',
   S.gorunum = b.dataset.gor;
   document.querySelectorAll('[data-gor]').forEach(x => x.classList.toggle('sec', x === b));
   $('s2').classList.toggle('hidden', S.gorunum === '3b'); $('v3').classList.toggle('hidden', S.gorunum !== '3b');
-  if (S.gorunum === '3b' && !k3) k3 = new K.Kabin3B($('v3'), id => { if (id && id !== S.parca) { S.parca = id; S.goz = null; dock(); ipucu(); ciz(); } });
+  if (S.gorunum === '3b' && !k3) k3 = new KabinGercek.KabinGercek($('v3'), id => { if (id && id !== S.parca) { S.parca = id; S.goz = null; dock(); ipucu(); ciz(); } });
   ciz(); setTimeout(() => k3 && k3.boyut(), 30);
 }));
 $('ad').addEventListener('change', () => istek('/ad', {ad: $('ad').value}));
@@ -288,15 +295,45 @@ async function olcuSayfa() {
   $('vazgec').onclick = () => sayfaKapat('iptal');
 }
 
+function panelMalzemeleri() { return BILGI.malzemeler.filter(m => (m.kalinlik || 0) >= 12); }
+const _desen = {};
+function renkStil(kod) {
+  const g = GOR[kod] || {renk: '#eee', doku: 'mat'};
+  if (g.doku === 'ahsap') {
+    if (!_desen[g.renk]) { const c = document.createElement('canvas'); c.width = c.height = 160;
+      c.getContext('2d').drawImage(KabinGercek.ahsapDoku(g.renk).image, 0, 0, 1024, 1024, 0, 0, 160, 160); _desen[g.renk] = c.toDataURL('image/jpeg', 0.85); }
+    return `background-image:url(${_desen[g.renk]})`;
+  }
+  const parlak = g.doku === 'parlak' ? `,radial-gradient(circle at 32% 28%, #ffffffb0 0 18%, #fff0 42%)` : '';
+  return `background:${parlak ? parlak.slice(1) + ',' : ''}${g.renk}`;
+}
+function onMalzemesi() {
+  const p = S.v.parcalar2b.find(x => ONLER.has(x.tur));
+  return S.onMal || (p && p.malzeme) || S.v.ozellik['govde.malzeme'];
+}
+function onEki(isl) {             // seçilmiş ön rengi yeni kapak / çekmeceye de uygulansın (tek geri alma adımı)
+  return S.onMal && IZIN.has('parca.malzeme') ? [isl, {tip: 'parca', idler: ['tum:on'], alanlar: {malzeme: S.onMal}}] : isl;
+}
 function malzemeSayfa() {
-  const d = S.v.ozellik['govde.malzeme'];
-  const ic = `<div class="grid grid-cols-2 gap-3">${BILGI.malzemeler.filter(m => (m.kalinlik || 0) >= 12).map(m =>
-    `<button type="button" class="kart-sec ${m.kod === d ? 'sec' : ''}" data-mal="${K.esc(m.kod)}">${K.esc(m.ad)}<div class="text-xs font-normal text-slate-500">${m.kalinlik || ''} mm</div></button>`).join('')}</div>`;
-  sayfaAc('Gövde malzemesi', ic, birincil('Kapat'));
+  const liste = panelMalzemeleri();
+  const kartlar = (hedef, d) => `<div class="grid grid-cols-4 gap-1">${liste.map(m => `<button type="button" class="renk-kart ${m.kod === d ? 'sec' : ''}" data-mal="${K.esc(m.kod)}" data-hedef="${hedef}">
+      <span class="renk" style="${renkStil(m.kod)}"></span><span class="leading-tight text-center">${K.esc((GOR[m.kod] || {}).ad || m.ad)}</span></button>`).join('')}</div>`;
+  let ic = '';
+  if (IZIN.has('govde.malzeme')) ic += `<div><div class="etiket">Gövde</div>${kartlar('govde', S.v.ozellik['govde.malzeme'])}</div>`;
+  if (IZIN.has('parca.malzeme')) ic += `<div><div class="etiket">Kapak ve çekmece önleri</div>${kartlar('on', onMalzemesi())}</div>`;
+  ic += `<p class="text-xs text-slate-400">Seçtiğiniz renk gerçek görünümde hemen görünür.</p>`;
+  sayfaAc('Renk ve malzeme', ic, birincil('Tamam'));
   $('sayfaIc').onclick = async e => {
     const b = e.target.closest('[data-mal]'); if (!b) return;
-    $('sayfaIc').querySelectorAll('[data-mal]').forEach(x => x.classList.toggle('sec', x === b));
-    if (await islem({tip: 'ozellik', alanlar: {'govde.malzeme': b.dataset.mal}})) tost('Malzeme değişti');
+    const hedef = b.dataset.hedef, kod = b.dataset.mal;
+    $('sayfaIc').querySelectorAll(`[data-hedef="${hedef}"]`).forEach(x => x.classList.toggle('sec', x === b));
+    let v;
+    if (hedef === 'govde') v = await islem({tip: 'ozellik', alanlar: {'govde.malzeme': kod}});
+    else {
+      S.onMal = kod;
+      v = S.v.parcalar2b.some(x => ONLER.has(x.tur)) ? await islem({tip: 'parca', idler: ['tum:on'], alanlar: {malzeme: kod}}) : true;
+    }
+    if (v) tost('Renk değişti');
   };
   $('uygula').onclick = () => sayfaKapat();
 }
@@ -328,22 +365,27 @@ function bolmeSayfa() {
 
 function kulpSablonu() { return (BILGI.eleman_sablonlari.kulp || []).find(a => a !== 'Kulpsuz') || null; }
 
-function kapsamNoktalari(kapsam) {
-  const z0 = S.goz.z;
-  let gz = [S.goz.z];
-  if (kapsam === 'sutun') gz = S.v.gozler.filter(z => Math.abs(z.x1 - z0.x1) < 1 && Math.abs(z.x2 - z0.x2) < 1);
-  if (kapsam === 'dolap') gz = S.v.gozler;
-  return gz.map(z => [(z.x1 + z.x2) / 2, (z.y1 + z.y2) / 2]);
+function onuKapali(z) {            // bu bölmenin önünde kapak / çekmece var mı
+  const cx = (z.x1 + z.x2) / 2, cy = (z.y1 + z.y2) / 2;
+  return S.v.parcalar2b.some(p => ONLER.has(p.tur) && cx > p.kutu.x1 && cx < p.kutu.x2 && cy > p.kutu.y1 && cy < p.kutu.y2);
 }
+function kapsamGozleri(kapsam) {  // kapak yalnız önü boş bölmelere (çekmecenin üstüne binmesin)
+  const z0 = S.goz.z;
+  if (kapsam === 'sutun') return S.v.gozler.filter(z => Math.abs(z.x1 - z0.x1) < 1 && Math.abs(z.x2 - z0.x2) < 1 && !onuKapali(z));
+  if (kapsam === 'dolap') return S.v.gozler.filter(z => !onuKapali(z));
+  return [z0];
+}
+function kapsamNoktalari(kapsam) { return kapsamGozleri(kapsam).map(z => [(z.x1 + z.x2) / 2, (z.y1 + z.y2) / 2]); }
 
 function kapakSayfa(p) {          // p: düzenlenen kapak (grup)
   if (!p && gozYok()) return;
   const grup = p ? S.v.parcalar2b.filter(x => x.tur === 'kapak' && (p.grup ? x.grup === p.grup : x.id === p.id)) : [];
   const n0 = grup.length || ((S.goz && S.goz.z.x2 - S.goz.z.x1 > 600) ? 2 : 1);
   const kulpVar = p ? (p.kulp || []).length > 0 : true;
-  const sutunVar = !p && S.v.gozler.filter(z => Math.abs(z.x1 - S.goz.z.x1) < 1 && Math.abs(z.x2 - S.goz.z.x2) < 1).length > 1;
+  const sutunVar = !p && kapsamGozleri('sutun').length > 1;
+  const dolapVar = !p && kapsamGozleri('dolap').length > kapsamGozleri('sutun').length;
   let ic = `<div><div class="etiket">Kapak sayısı</div>${seg('n', [[1, '1'], [2, '2'], [3, '3'], [4, '4']], n0)}</div>`;
-  if (!p) ic += `<div><div class="etiket">Neyi kapatsın?</div>${seg('kapsam', [['goz', 'Bu bölmeyi'], ...(sutunVar ? [['sutun', 'Bütün sütunu']] : []), ['dolap', 'Bütün dolabı']], sutunVar ? 'sutun' : 'goz')}</div>`;
+  if (!p) ic += `<div><div class="etiket">Neyi kapatsın?</div>${seg('kapsam', [['goz', 'Bu bölmeyi'], ...(sutunVar ? [['sutun', 'Bütün sütunu']] : []), ...(dolapVar ? [['dolap', 'Bütün dolabı']] : [])], sutunVar ? 'sutun' : 'goz')}</div>`;
   ic += `<div id="acilisAlan" class="${n0 === 1 ? '' : 'hidden'}"><div class="etiket">Açılış yönü</div>${seg('acilis', [['SOL', 'Sola açılır'], ['SAG', 'Sağa açılır']], p ? (p.menteseyeri === 'SAG' ? 'SAG' : 'SOL') : 'SOL')}</div>
     <div><div class="etiket">Kulp</div>${seg('kulp', [['1', 'Kulplu'], ['0', 'Kulpsuz']], kulpVar ? '1' : '0')}</div>
     <div id="onBilgi" class="text-sm text-slate-500 min-h-[20px]"></div>`;
@@ -366,7 +408,7 @@ function kapakSayfa(p) {          // p: düzenlenen kapak (grup)
       `${i + 1}. kapak: <b>${sayi(x.kutu.y2 - x.kutu.y1)} × ${sayi(x.kutu.x2 - x.kutu.x1)} mm</b> · ${x.mentese} menteşe`).join('<br>');
   }, 250); };
   $('sayfaIc').onchange = onizle; $('sayfaIc').oninput = onizle; onizle();
-  $('uygula').onclick = async () => { const v = await islem(topla()); if (v) { tost(p ? 'Kapak güncellendi' : 'Kapak eklendi'); S.goz = null; S.parca = null; dock(); ipucu(); sayfaKapat(); } };
+  $('uygula').onclick = async () => { const v = await islem(onEki(topla())); if (v) { tost(p ? 'Kapak güncellendi' : 'Kapak eklendi'); S.goz = null; S.parca = null; dock(); ipucu(); sayfaKapat(); } };
 }
 
 async function cekmeceSayfa(p) {
@@ -396,7 +438,7 @@ async function cekmeceSayfa(p) {
     $('onBilgi').innerHTML = ps.length ? `Çekmece önü: <b>${sayi(ps[0].kutu.y2 - ps[0].kutu.y1)} × ${sayi(ps[0].kutu.x2 - ps[0].kutu.x1)} mm</b>` : '';
   }, 250); };
   $('sayfaIc').onchange = onizle; $('sayfaIc').oninput = onizle; onizle();
-  $('uygula').onclick = async () => { const v = await islem(topla()); if (v) { tost(p ? 'Çekmeceler güncellendi' : 'Çekmece eklendi'); S.goz = null; S.parca = null; dock(); ipucu(); sayfaKapat(); } };
+  $('uygula').onclick = async () => { const v = await islem(onEki(topla())); if (v) { tost(p ? 'Çekmeceler güncellendi' : 'Çekmece eklendi'); S.goz = null; S.parca = null; dock(); ipucu(); sayfaKapat(); } };
 }
 
 // ── sepet ──────────────────────────────────────────────────────────────
