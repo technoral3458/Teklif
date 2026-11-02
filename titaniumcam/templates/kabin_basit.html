@@ -97,7 +97,7 @@
 <main id="sahne">
   <svg id="s2" xmlns="http://www.w3.org/2000/svg"></svg>
   <div id="v3" class="hidden"></div>
-  <div class="absolute top-3 left-3 right-3 flex items-start justify-between gap-2 pointer-events-none z-10">
+  <div id="ustBant" class="absolute top-3 left-3 right-3 flex items-start justify-between gap-2 pointer-events-none z-10">
     <div id="ipucu" class="yuzer pointer-events-auto bg-white rounded-full px-4 py-2 text-[13px] font-medium text-slate-700 min-w-0 max-w-[60%] truncate">Yükleniyor…</div>
     <div class="flex flex-col gap-2 items-end pointer-events-auto">
       <div class="seg yuzer bg-white !p-1" style="width:150px"><button data-gor="2b" class="sec !h-9 !text-[13px]">Çizim</button><button data-gor="3b" class="!h-9 !text-[13px]">Gerçek</button></div>
@@ -199,6 +199,9 @@ function gizliler() {
 }
 function ciz() {
   if (!S.v) return;
+  // Çizim üstteki düğmelerin altından başlar (dolabın üstü düğmelerin arkasında kalmasın)
+  const ub = $('ustBant'), ust = ub.offsetTop + ub.offsetHeight + 6;
+  $('s2').style.top = ust + 'px'; $('s2').style.height = `calc(100% - ${ust}px)`;
   const hat = new Set(); for (const b of S.v.doktor) if (b.seviye === 'hata') for (const p of b.parcalar) { hat.add(p); if (p.split('.')[1]) hat.add(p.split('.')[1]); }
   K.ciz2B($('s2'), S.v, {seciliGoz: S.goz ? [S.goz] : [], seciliParca: new Set(S.parca ? [S.parca] : []), hatali: hat,
                         kapakSec: true, gizli: gizliler(), etiket: true, detay: false});
