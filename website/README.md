@@ -40,6 +40,10 @@ website/
 Yeni sayfa eklemek için `app/pages/` altına dosya oluşturup `public/index.php` içindeki
 `$routes` dizisine ekleyin.
 
+## Telefondan geliştirme ve cPanel'e otomatik yayın
+
+Adım adım kurulum: [TELEFONDAN-YAYIN.md](TELEFONDAN-YAYIN.md)
+
 ## Yerelde çalıştırma
 
 ```bash

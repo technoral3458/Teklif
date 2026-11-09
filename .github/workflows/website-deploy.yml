@@ -1,0 +1,119 @@
+name: Web sitesini cPanel'e yükle
+
+# website/ klasöründe değişiklik gönderildiğinde siteyi FTP ile cPanel'e yükler.
+# GitHub mobil uygulamasından elle de çalıştırılabilir: Actions → bu iş akışı → Run workflow.
+#
+# GitHub'da tanımlanması gerekenler (Settings → Secrets and variables → Actions):
+#   Secrets   : FTP_PASSWORD   (cPanel FTP şifresi — asla koda yazmayın)
+#   Variables : FTP_SERVER     ör. ftp.alanadiniz.com.tr  (FTPS için sunucunun ana adı daha güvenlidir)
+#               FTP_USERNAME   ör. kullanici@alanadiniz.com.tr veya cPanel kullanıcı adı
+#   İsteğe bağlı variables:
+#               FTP_PROTOCOL   ftps (varsayılan) | ftp
+#               FTP_PORT       21 (varsayılan)
+#               FTP_ROOT_DIR   FTP hesabının kökünden itibaren hedef klasör, "./" (varsayılan)
+#               FTP_PUBLIC_DIR web kök klasörü adı, "public_html" (varsayılan)
+#               SITE_URL       ör. https://www.alanadiniz.com.tr (yükleme sonrası kontrol için)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - claude/titanium-cam-website-f1ij41
+    paths:
+      - "website/**"
+      - ".github/workflows/website-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: website-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Kontrol et ve yükle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: PHP kur
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+
+      - name: PHP söz dizimi kontrolü
+        run: |
+          set -e
+          find website -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+          echo "Tüm PHP dosyaları geçerli."
+
+      - name: Ayarları kontrol et
+        id: cfg
+        env:
+          FTP_SERVER: ${{ vars.FTP_SERVER }}
+          FTP_USERNAME: ${{ vars.FTP_USERNAME }}
+          HAS_PASSWORD: ${{ secrets.FTP_PASSWORD != '' }}
+        run: |
+          missing=""
+          [ -z "$FTP_SERVER" ]   && missing="$missing FTP_SERVER(variable)"
+          [ -z "$FTP_USERNAME" ] && missing="$missing FTP_USERNAME(variable)"
+          [ "$HAS_PASSWORD" != "true" ] && missing="$missing FTP_PASSWORD(secret)"
+          if [ -n "$missing" ]; then
+            echo "::warning::FTP ayarları eksik, yükleme atlandı:$missing — Settings → Secrets and variables → Actions bölümünden ekleyin."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Yükleme klasörünü hazırla
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          PUBLIC_DIR: ${{ vars.FTP_PUBLIC_DIR || 'public_html' }}
+        run: |
+          set -e
+          # Sunucudaki yerleşim:
+          #   <kök>/public_html/  ← website/public içeriği (herkese açık)
+          #   <kök>/app/          ← PHP kodu (web'den erişilemez)
+          #   <kök>/storage/      ← form mesajları (sunucuda kalır, silinmez)
+          mkdir -p deploy/"$PUBLIC_DIR" deploy/storage
+          cp -a website/public/. deploy/"$PUBLIC_DIR"/
+          cp -a website/app deploy/app
+          cp website/storage/.htaccess deploy/storage/.htaccess
+          find deploy -type f | sort
+
+      - name: FTP ile yükle
+        if: steps.cfg.outputs.ready == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ vars.FTP_SERVER }}
+          username: ${{ vars.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          port: ${{ vars.FTP_PORT || 21 }}
+          local-dir: ./deploy/
+          server-dir: ${{ vars.FTP_ROOT_DIR || './' }}
+          dangerous-clean-slate: false
+          # Yalnızca değişen dosyalar yüklenir; sunucudaki form kayıtlarına dokunulmaz.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            storage/*.jsonl
+          state-name: .titaniumcam-deploy-state.json
+          log-level: standard
+          timeout: 120000
+
+      - name: Siteyi kontrol et
+        if: steps.cfg.outputs.ready == 'true' && vars.SITE_URL != ''
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          for path in "" ozellikler iletisim; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -L --max-time 30 "$SITE_URL/$path")
+            echo "$SITE_URL/$path → $code"
+            [ "$code" = "200" ] || { echo "::error::$SITE_URL/$path $code döndü"; exit 1; }
+          done
+          echo "### Site yayında: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
