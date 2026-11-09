@@ -11,9 +11,15 @@ name: Web sitesini cPanel'e yükle
 #               FTP_PORT       varsayılan: 21
 #               SITE_URL       varsayılan: titaniumcam.com (https, olmazsa http denenir)
 #
-# Bağlantı her zaman şifreli (FTPS) ve sertifika doğrulamalıdır. Sertifika alan adına
-# değil de hosting sunucusunun adına düzenlenmişse o ad otomatik bulunup kullanılır.
-# FTP girişinin ev klasörüne mi yoksa doğrudan public_html'e mi açıldığı da algılanır.
+#               FTP_CERT_FINGERPRINT  sunucu sertifikasının SHA1 parmak izi (aşağıdaki varsayılan)
+#
+# Bağlantı her zaman şifreli (FTPS) kurulur. Hosting sunucusunun sertifikası güvenilir bir
+# kuruluşça imzalanmadığı için sertifika SABİTLENİR: yalnızca parmak izi FTP_CERT_FINGERPRINT
+# ile aynı olan sertifikaya güvenilir, başka her sertifikada bağlantı reddedilir.
+# Hosting firması sertifikayı yenilerse iş akışı yeni parmak izini kayda yazar ve durur;
+# hosting firmasıyla doğrulayıp FTP_CERT_FINGERPRINT değişkenini güncelleyin.
+#
+# FTP girişinin ev klasörüne mi yoksa doğrudan public_html'e mi açıldığı otomatik algılanır.
 
 on:
   push:
@@ -64,90 +70,54 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: FTP bağlantısını test et ve klasör yapısını algıla
-        id: ftp
+      - name: FTP'ye bağlan, klasör yapısını algıla ve yükle
         if: steps.cfg.outputs.ready == 'true'
         env:
           FTP_SERVER: ${{ vars.FTP_SERVER || 'ftp.titaniumcam.com' }}
           FTP_USERNAME: ${{ vars.FTP_USERNAME || 'skttitan' }}
           FTP_PORT: ${{ vars.FTP_PORT || '21' }}
+          FTP_CERT_FINGERPRINT: ${{ vars.FTP_CERT_FINGERPRINT || '4C:E4:76:B9:3D:51:0B:EC:E2:F3:0D:2A:9B:1A:D2:22:79:BB:38:71' }}
           LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
+          set -e
           sudo apt-get install -y -qq lftp > /dev/null
 
-          try_login() {  # $1 = sunucu adı; sertifika doğrulaması açık
-            timeout 60 lftp -c "set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate yes; set net:max-retries 1; set net:timeout 20; open --env-password -u \"$FTP_USERNAME\" -p $FTP_PORT $1; cls -1" 2>err.txt
-          }
+          # Ortak bağlantı ayarları: FTPS zorunlu; yalnızca sabitlenmiş sertifikaya güven.
+          conn="set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate yes"
+          conn="$conn; set ssl:verify-certificate/$FTP_CERT_FINGERPRINT no"
+          conn="$conn; set net:max-retries 2; set net:timeout 30"
+          conn="$conn; open --env-password -u \"$FTP_USERNAME\" -p $FTP_PORT $FTP_SERVER"
 
-          server="$FTP_SERVER"
-          if ! listing=$(try_login "$server"); then
-            echo "Bağlantı $server ile olmadı: $(tr '\n' ' ' < err.txt)"
-            # Sertifikadaki asıl sunucu adını bul (paylaşımlı hostinglerde yaygın).
-            cert_name=$(echo | timeout 20 openssl s_client -connect "$FTP_SERVER:$FTP_PORT" -starttls ftp 2>/dev/null \
-              | openssl x509 -noout -subject 2>/dev/null | sed -n 's/.*CN *= *\([^,/]*\).*/\1/p' | tr -d ' ')
-            if [ -n "$cert_name" ] && [ "$cert_name" != "$FTP_SERVER" ] && [ "${cert_name#\*}" = "$cert_name" ]; then
-              echo "Sunucu sertifikası '$cert_name' adına düzenlenmiş; bu adla deneniyor."
-              server="$cert_name"
-              listing=$(try_login "$server") || server=""
-            else
-              server=""
+          if ! listing=$(lftp -c "$conn; cls -1" 2>err.txt); then
+            echo "::error::FTP bağlantısı kurulamadı: $(tr '\n' ' ' < err.txt)"
+            if grep -qi 'certificate' err.txt; then
+              echo "::error::Sunucu sertifikası sabitlenen sertifikadan farklı. Hosting firması sertifikayı yenilemiş olabilir; yeni parmak izini firmayla doğrulayıp FTP_CERT_FINGERPRINT değişkenine girin."
+            elif grep -qiE 'login|530' err.txt; then
+              echo "::error::Kullanıcı adı ($FTP_USERNAME) veya şifre (FTP_PASSWORD) hatalı."
             fi
-          fi
-
-          if [ -z "$server" ]; then
-            echo "::error::FTP'ye güvenli bağlantı kurulamadı. Son hata: $(tr '\n' ' ' < err.txt) — Şifreyi (FTP_PASSWORD) ve kullanıcı adını ($FTP_USERNAME) kontrol edin."
             exit 1
           fi
-
-          echo "Bağlantı başarılı: $server"
+          echo "Bağlantı başarılı (FTPS, sabitlenmiş sertifika)."
           echo "FTP kökündeki öğeler:"; echo "$listing" | sed 's/^/  /'
-          echo "server=$server" >> "$GITHUB_OUTPUT"
-          if echo "$listing" | grep -qE '^public_html/?$'; then
-            echo "Giriş ev klasörüne açılıyor → site public_html/ içine, kod ve kayıtlar yanına yüklenecek."
-            echo "layout=home" >> "$GITHUB_OUTPUT"
-          else
-            echo "Giriş doğrudan web klasörüne açılıyor → dosyalar buraya yüklenecek (app/ ve storage/ .htaccess ile korunur)."
-            echo "layout=webroot" >> "$GITHUB_OUTPUT"
-          fi
 
-      - name: Yükleme klasörünü hazırla
-        if: steps.cfg.outputs.ready == 'true'
-        env:
-          LAYOUT: ${{ steps.ftp.outputs.layout }}
-        run: |
-          set -e
-          if [ "$LAYOUT" = "home" ]; then
-            web=deploy/public_html   # /home/kullanici/{public_html,app,storage}
+          # Sunucudaki yerleşimi belirle ve yükleme klasörünü hazırla.
+          rm -rf deploy
+          if echo "$listing" | grep -qE '^public_html/?$'; then
+            echo "Giriş ev klasörüne açılıyor → site public_html/ içine, app/ ve storage/ yanına."
+            web=deploy/public_html
           else
-            web=deploy               # public_html/{index.php,app,storage}
+            echo "Giriş doğrudan web klasörüne açılıyor → app/ ve storage/ burada, .htaccess ile korumalı."
+            web=deploy
           fi
           mkdir -p "$web" deploy/storage
           cp -a website/public/. "$web"/
           cp -a website/app deploy/app
           cp website/storage/.htaccess deploy/storage/.htaccess
-          find deploy -type f | sort
+          echo "Yüklenecek dosyalar:"; find deploy -type f | sort | sed 's/^/  /'
 
-      - name: FTP ile yükle
-        if: steps.cfg.outputs.ready == 'true'
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ steps.ftp.outputs.server }}
-          username: ${{ vars.FTP_USERNAME || 'skttitan' }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          security: strict
-          port: ${{ vars.FTP_PORT || 21 }}
-          local-dir: ./deploy/
-          server-dir: ./
-          dangerous-clean-slate: false
-          # Yalnızca değişen dosyalar yüklenir; sunucudaki form kayıtlarına dokunulmaz.
-          exclude: |
-            **/.git*
-            **/.git*/**
-            storage/*.jsonl
-          state-name: .titaniumcam-deploy-state.json
-          log-level: standard
-          timeout: 120000
+          # Yükle. --delete kullanılmaz: sunucudaki form kayıtları (storage/*.jsonl) korunur.
+          lftp -c "$conn; mirror --reverse --verbose=1 --parallel=4 --no-perms deploy/ ./"
+          echo "### Dosyalar FTP ile yüklendi ($FTP_SERVER)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Siteyi kontrol et
         if: steps.cfg.outputs.ready == 'true'
