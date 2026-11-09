@@ -25,7 +25,10 @@ jobs:
     steps:
       - name: DNS
         run: |
-          for h in $HOSTS; do echo "$h → $(getent hosts "$h" | awk '{print $1}' | tr '\n' ' ')"; done
+          for h in $HOSTS ftp.titaniumcam.com; do echo "$h → $(getent hosts "$h" | awk '{print $1}' | tr '\n' ' ')"; done
+          echo "Ad sunucuları: $(dig +short NS titaniumcam.com | tr '\n' ' ')"
+          echo "A kaydı (1.1.1.1): $(dig +short A titaniumcam.com @1.1.1.1 | tr '\n' ' ')"
+          echo "A kaydı (8.8.8.8): $(dig +short A titaniumcam.com @8.8.8.8 | tr '\n' ' ')"
 
       - name: HTTP / HTTPS yanıtları
         run: |
@@ -36,14 +39,19 @@ jobs:
             done
           done
 
-      - name: IP ile geçici erişim
+      - name: cPanel sunucusu (93.89.225.78) üzerinden doğrudan deneme
         run: |
-          ip=$(getent hosts titaniumcam.com | awk '{print $1; exit}')
-          for path in "/" "/~skttitan/" "/~skttitan/ozellikler" "/~skttitan/assets/css/style.css"; do
-            out=$(curl -sS -o /tmp/body -w '%{http_code} → %{url_effective}' -L --max-time 30 "http://$ip$path" 2>&1 || true)
-            title=$(grep -o '<title>[^<]*' /tmp/body 2>/dev/null | head -1 | sed 's/<title>//')
-            echo "http://$ip$path  :  $out  ${title:+[başlık: $title]}"
+          for h in $HOSTS; do
+            for scheme in http https; do
+              port=$([ $scheme = https ] && echo 443 || echo 80)
+              out=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 30 --resolve "$h:$port:93.89.225.78" "$scheme://$h/ozellikler" 2>&1 || true)
+              title=$(grep -o '<title>[^<]*' /tmp/body 2>/dev/null | head -1 | sed 's/<title>//')
+              echo "$scheme://$h/ozellikler @93.89.225.78  :  $out  ${title:+[başlık: $title]}"
+            done
           done
+          echo "== Sertifika (93.89.225.78)"
+          echo | timeout 20 openssl s_client -connect 93.89.225.78:443 -servername titaniumcam.com 2>/dev/null \
+            | openssl x509 -noout -subject -issuer -dates 2>/dev/null || echo "sertifika alınamadı"
 
       - name: SSL sertifikası
         run: |
