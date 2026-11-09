@@ -1,0 +1,14 @@
+# /etc/apache2/sites-available/titaniumcam.conf
+<VirtualHost *:80>
+    ServerName www.ornek.com.tr
+    ServerAlias ornek.com.tr
+    DocumentRoot /var/www/titaniumcam/website/public
+
+    <Directory /var/www/titaniumcam/website/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/titaniumcam-error.log
+    CustomLog ${APACHE_LOG_DIR}/titaniumcam-access.log combined
+</VirtualHost>
