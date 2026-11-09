@@ -35,7 +35,7 @@ $routes = [
 ];
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-$base = parse_url(cfg('base_url'), PHP_URL_PATH) ?: '';
+$base = base_path();
 if ($base !== '' && str_starts_with($path, $base)) {
     $path = substr($path, strlen($base));
 }
@@ -44,7 +44,7 @@ if ($slug === 'index.php') {
     $slug = '';
 }
 
-$host = cfg('base_url') ?: ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+$host = cfg('base_url') ?: ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $base);
 
 if ($slug === 'robots.txt') {
     header('Content-Type: text/plain; charset=UTF-8');

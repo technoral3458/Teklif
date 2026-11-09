@@ -32,10 +32,29 @@ function cfg(string $key, $default = null)
     return $config[$key] ?? $default;
 }
 
+/**
+ * Sitenin sunulduğu alt klasör ('' veya ör. '/~skttitan').
+ * base_url ayarlıysa ondan, değilse çalışan index.php'nin konumundan bulunur.
+ */
+function base_path(): string
+{
+    static $base = null;
+    if ($base === null) {
+        if (cfg('base_url')) {
+            $base = rtrim((string) parse_url(cfg('base_url'), PHP_URL_PATH), '/');
+        } else {
+            $dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+            $base = rtrim($dir, '/.');
+        }
+    }
+    return $base;
+}
+
 /** Site içi bağlantı üretir. */
 function url(string $path = ''): string
 {
-    return cfg('base_url') . '/' . ltrim($path, '/');
+    $prefix = cfg('base_url') ?: base_path();
+    return $prefix . '/' . ltrim($path, '/');
 }
 
 function asset(string $path): string

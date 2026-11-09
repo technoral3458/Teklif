@@ -36,6 +36,15 @@ jobs:
             done
           done
 
+      - name: IP ile geçici erişim
+        run: |
+          ip=$(getent hosts titaniumcam.com | awk '{print $1; exit}')
+          for path in "/" "/~skttitan/" "/~skttitan/ozellikler" "/~skttitan/assets/css/style.css"; do
+            out=$(curl -sS -o /tmp/body -w '%{http_code} → %{url_effective}' -L --max-time 30 "http://$ip$path" 2>&1 || true)
+            title=$(grep -o '<title>[^<]*' /tmp/body 2>/dev/null | head -1 | sed 's/<title>//')
+            echo "http://$ip$path  :  $out  ${title:+[başlık: $title]}"
+          done
+
       - name: SSL sertifikası
         run: |
           for h in $HOSTS; do
