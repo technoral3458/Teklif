@@ -14,7 +14,12 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
-require dirname(__DIR__) . '/app/bootstrap.php';
+// Uygulama klasörü: önerilen yerleşimde bir üst klasörde (../app), FTP girişi doğrudan
+// public_html'e açılan hostinglerde ise bu klasörün içindedir (./app).
+define('PUBLIC_DIR', __DIR__);
+define('APP_DIR', is_dir(__DIR__ . '/app') ? __DIR__ . '/app' : dirname(__DIR__) . '/app');
+
+require APP_DIR . '/bootstrap.php';
 
 $routes = [
     ''            => ['home',     'Ana Sayfa'],
@@ -71,7 +76,7 @@ $pageDescription = cfg('tagline');
 
 // Sayfa içeriğini önce tamponla (formlar yönlendirme yapabilir).
 ob_start();
-require dirname(__DIR__) . '/app/pages/' . $page . '.php';
+require APP_DIR . '/pages/' . $page . '.php';
 $content = ob_get_clean();
 
-require dirname(__DIR__) . '/app/partials/layout.php';
+require APP_DIR . '/partials/layout.php';

@@ -40,7 +40,7 @@ function url(string $path = ''): string
 
 function asset(string $path): string
 {
-    $file = dirname(__DIR__) . '/public/assets/' . ltrim($path, '/');
+    $file = (defined('PUBLIC_DIR') ? PUBLIC_DIR : dirname(__DIR__) . '/public') . '/assets/' . ltrim($path, '/');
     $v = is_file($file) ? filemtime($file) : 1;
     return url('assets/' . ltrim($path, '/')) . '?v=' . $v;
 }
