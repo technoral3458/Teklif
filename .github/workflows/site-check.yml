@@ -1,0 +1,47 @@
+name: Site ve SSL kontrolü
+
+# titaniumcam.com'un HTTP/HTTPS durumunu ve SSL sertifikasını kontrol eder.
+# Hiçbir şey yüklemez veya değiştirmez; yalnızca okur.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - claude/titanium-cam-website-f1ij41
+    paths:
+      - ".github/workflows/site-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Siteyi kontrol et
+    runs-on: ubuntu-latest
+    env:
+      HOSTS: titaniumcam.com www.titaniumcam.com
+    steps:
+      - name: DNS
+        run: |
+          for h in $HOSTS; do echo "$h → $(getent hosts "$h" | awk '{print $1}' | tr '\n' ' ')"; done
+
+      - name: HTTP / HTTPS yanıtları
+        run: |
+          for h in $HOSTS; do
+            for scheme in http https; do
+              out=$(curl -sS -o /dev/null -w '%{http_code} → %{url_effective}' -L --max-time 30 "$scheme://$h/" 2>&1 || true)
+              echo "$scheme://$h/  :  $out"
+            done
+          done
+
+      - name: SSL sertifikası
+        run: |
+          for h in $HOSTS; do
+            echo "== $h:443"
+            echo | timeout 20 openssl s_client -connect "$h:443" -servername "$h" -verify_return_error 2>/tmp/err \
+              | openssl x509 -noout -subject -issuer -dates -ext subjectAltName 2>/dev/null \
+              || echo "sertifika alınamadı"
+            grep -iE 'verify|error' /tmp/err | head -3 || true
+          done
