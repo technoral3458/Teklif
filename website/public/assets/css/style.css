@@ -151,6 +151,12 @@ button { font: inherit; color: inherit; }
 .checklist li { position: relative; padding: 7px 0 7px 30px; color: #c3d0e3; }
 .checklist li::before { content: ""; position: absolute; left: 0; top: 12px; width: 18px; height: 18px; border-radius: 50%; background: rgba(34, 211, 238, .14) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='3'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/12px no-repeat; }
 
+/* Tanıtım videosu (dikey) */
+.intro-video { display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 64px; align-items: center; justify-content: center; }
+.intro-video > * { min-width: 0; }
+.intro-player video { width: 100%; aspect-ratio: 9 / 16; border-radius: 22px; border: 1px solid var(--border-strong); background: #000; box-shadow: var(--shadow); }
+@media (max-width: 960px) { .intro-video { grid-template-columns: 1fr; gap: 32px; } .intro-player { max-width: 360px; margin-inline: auto; width: 100%; } }
+
 /* Kullanım videoları */
 .tutorial { display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: center; padding: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; }
 .tutorial + .tutorial { margin-top: 24px; }

@@ -4,6 +4,7 @@ $intro = content('intro');
 $render = content('render');
 $langs = content('languages');
 $yt = youtube_embed((string) cfg('youtube_url'));
+$iv = content('intro_video');
 ?>
 <section class="hero">
   <div class="container hero-grid">
@@ -13,11 +14,7 @@ $yt = youtube_embed((string) cfg('youtube_url'));
       <p class="lead"><?= e($hero['text']) ?></p>
       <div class="hero-actions">
         <a class="btn btn-primary btn-lg" href="#moduller">Özellikleri incele</a>
-        <?php if ($yt): ?>
-          <a class="btn btn-ghost btn-lg" href="#video">▶ Tanıtım videosu</a>
-        <?php else: ?>
-          <a class="btn btn-ghost btn-lg" href="<?= e(url('demo')) ?>">Demo iste</a>
-        <?php endif; ?>
+        <a class="btn btn-ghost btn-lg" href="#video">▶ Tanıtım videosu</a>
       </div>
     </div>
     <figure class="hero-visual">
@@ -164,18 +161,30 @@ $yt = youtube_embed((string) cfg('youtube_url'));
   </div>
 </section>
 
-<?php if ($yt): ?>
 <section class="section section-alt" id="video">
-  <div class="container narrow center">
-    <span class="eyebrow">Video</span>
-    <h2>3 dakikada Titanium Cam</h2>
-    <p>Çizimden makineye bütün akışı kısa videoda izleyin.</p>
-    <div class="video-frame">
-      <iframe src="<?= e($yt) ?>" title="Titanium Cam tanıtım videosu" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+  <div class="container intro-video">
+    <div class="intro-player reveal">
+      <?php if ($yt): ?>
+        <div class="video-frame"><iframe src="<?= e($yt) ?>" title="Titanium Cam tanıtım videosu" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+      <?php else: ?>
+        <video controls playsinline preload="none" width="720" height="1280"
+               poster="<?= e(asset("anim/{$iv['file']}_poster.webp")) ?>" aria-label="<?= e($iv['title']) ?>">
+          <source src="<?= e(asset("anim/{$iv['file']}_720p.mp4")) ?>" type="video/mp4">
+        </video>
+      <?php endif; ?>
+    </div>
+    <div class="reveal">
+      <span class="eyebrow">Tanıtım videosu</span>
+      <h2><?= e($iv['title']) ?></h2>
+      <p class="lead"><?= e($iv['text']) ?></p>
+      <ul class="checklist">
+        <?php foreach (content('modules') as $m): ?><li><?= e($m['title']) ?></li><?php endforeach; ?>
+      </ul>
+      <p class="muted small">Sesli video · <?= e($iv['duration']) ?></p>
+      <a class="btn btn-primary" href="<?= e(url('demo')) ?>">Canlı demo iste</a>
     </div>
   </div>
 </section>
-<?php endif; ?>
 
 <section class="section">
   <div class="container narrow center reveal">

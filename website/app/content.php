@@ -132,6 +132,40 @@ return [
             ],
             'duration' => '49 sn',
         ],
+        [
+            'file'  => 'kapak_model_duzenleme',
+            'tag'   => 'Kapak',
+            'title' => 'Kapak modelini düzenle',
+            'text'  => 'Ölçüler resim üzerinde, harflerle. Değeri değiştirin, resim anında güncellensin; siparişteki bütün kapaklar yeni ayarla çizilsin.',
+            'steps' => [
+                'Modele sağ tıklayın → Düzenle',
+                'Resimdeki harfli ölçüye (A, B, C…) tıklayıp yeni değeri yazın',
+                'Bıçakları seçin ve kaydedin; ayar modele kaydedilir',
+                'Gerekirse Çizim\'e açın: kapak parametrik olarak açılır',
+            ],
+            'duration' => '1 dk 11 sn',
+        ],
+        [
+            'file'  => 'nesting_elle_duzenleme',
+            'tag'   => 'Nesting',
+            'title' => 'Yerleşimi elle düzenle',
+            'text'  => 'Sürükle, döndür, başka levhaya taşı. Otomatik yerleşimi fareyle son haline getirin; NC kodu her zaman güncel yerleşimden çıkar.',
+            'steps' => [
+                'Parçayı sürükleyin; çakışırsa kırmızı görünür',
+                'Sürüklerken R tuşu ya da sağ tık: 90° döndürür',
+                'Yer yoksa parçayı levha dışında bekletin',
+                'Sağ tık → Başka plakaya taşı; Geri al ile son taşımayı geri alın',
+            ],
+            'duration' => '1 dk 5 sn',
+        ],
+    ],
+
+    // 3 dakikalık tanıtım videosu (dikey). Dosyalar: public/assets/anim/tanitim_3dk_720p.mp4 ve _poster.webp
+    'intro_video' => [
+        'file'  => 'tanitim_3dk',
+        'title' => '3 dakikada Titanium Cam',
+        'text'  => 'Çizimden makineye bütün akışı kısa videoda izleyin: parametrik çizim, kapak, kabin, mutfak, nesting ve makine.',
+        'duration' => '2 dk 56 sn',
     ],
 
     'steps' => [
