@@ -23,10 +23,7 @@ require APP_DIR . '/bootstrap.php';
 
 $routes = [
     ''            => ['home',     'Ana Sayfa'],
-    'ozellikler'  => ['features', 'Özellikler'],
-    'nasil-calisir' => ['how',    'Nasıl Çalışır'],
-    'mobil'       => ['mobile',   'Mobil Uygulama'],
-    'paketler'    => ['packages', 'Lisans Paketleri'],
+    'galeri'      => ['gallery',  'Ekranlar ve Görseller'],
     'sss'         => ['faq',      'Sık Sorulan Sorular'],
     'hakkimizda'  => ['about',    'Hakkımızda'],
     'iletisim'    => ['contact',  'İletişim'],
@@ -43,6 +40,14 @@ $slug = trim($path, '/');
 if ($slug === 'index.php') {
     $slug = '';
 }
+
+// Eski adresler (ilk sürüm) → yeni yerleri
+$redirects = [
+    'ozellikler'    => '#moduller',
+    'nasil-calisir' => '#nasil',
+    'mobil'         => '',
+    'paketler'      => 'demo',
+];
 
 $host = cfg('base_url') ?: ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $base);
 
@@ -63,6 +68,11 @@ if ($slug === 'sitemap.xml') {
     exit;
 }
 
+if (isset($redirects[$slug])) {
+    header('Location: ' . url($redirects[$slug]), true, 301);
+    exit;
+}
+
 if (!isset($routes[$slug])) {
     http_response_code(404);
     [$page, $title] = ['404', 'Sayfa Bulunamadı'];
@@ -72,11 +82,11 @@ if (!isset($routes[$slug])) {
 
 $current = $slug;
 $pageTitle = $title;
-$pageDescription = cfg('tagline');
+$pageDescription = content('seo')['description'];
 
 // Sayfa içeriğini önce tamponla (formlar yönlendirme yapabilir).
 ob_start();
 require APP_DIR . '/pages/' . $page . '.php';
-$content = ob_get_clean();
+$pageContent = ob_get_clean();
 
 require APP_DIR . '/partials/layout.php';

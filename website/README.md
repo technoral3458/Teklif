@@ -25,17 +25,21 @@ website/
 
 | URL | Dosya |
 |---|---|
-| `/` | `app/pages/home.php` |
-| `/ozellikler` | `features.php` |
-| `/nasil-calisir` | `how.php` |
-| `/mobil` | `mobile.php` |
-| `/paketler` | `packages.php` |
+| `/` | `app/pages/home.php` (hero, sayaçlar, modüller + animasyonlar, adımlar, çıktılar, render) |
+| `/galeri` | `gallery.php` (program ekranları ve render'lar, büyütülebilir) |
 | `/sss` | `faq.php` |
 | `/hakkimizda` | `about.php` |
 | `/iletisim` | `contact.php` (iletişim formu) |
-| `/demo` | `demo.php` (demo talep formu) |
+| `/demo` | `demo.php` (demo talep formu, modül seçimi) |
 | `/kvkk` | `kvkk.php` |
 | `/sitemap.xml`, `/robots.txt` | otomatik üretilir |
+
+Eski adresler (`/ozellikler`, `/nasil-calisir`, `/mobil`, `/paketler`) yeni yerlerine 301 ile yönlendirilir.
+
+**Metinler** `app/content.php` dosyasında, **görseller** `public/assets/img/`, **animasyonlar**
+`public/assets/anim/` altındadır (kaynak: `TitaniumCam_Web_Paketi`). Tanıtım videosu YouTube'a
+yüklendiğinde bağlantısını `app/config.php` → `youtube_url` alanına yazmak, ana sayfaya video
+bölümünü ekler.
 
 Yeni sayfa eklemek için `app/pages/` altına dosya oluşturup `public/index.php` içindeki
 `$routes` dizisine ekleyin.

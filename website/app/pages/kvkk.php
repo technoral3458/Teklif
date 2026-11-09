@@ -3,7 +3,6 @@ $pageDescription = cfg('company') . ' KVKK aydınlatma metni.';
 ?>
 <section class="section">
   <div class="container narrow prose">
-    <p class="alert alert-info">Bu metin bir şablondur. Yayına almadan önce hukuk danışmanınızla gözden geçirip şirket bilgilerinizle güncelleyin.</p>
     <h2>Veri Sorumlusu</h2>
     <p>6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca kişisel verileriniz, veri sorumlusu sıfatıyla <?= e(cfg('company')) ?> ("Şirket") tarafından aşağıda açıklanan kapsamda işlenmektedir.</p>
     <h2>İşlenen Kişisel Veriler</h2>

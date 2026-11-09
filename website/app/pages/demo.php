@@ -1,10 +1,10 @@
 <?php
 require_once dirname(__DIR__) . '/partials/form_helpers.php';
-$pageDescription = 'Titanium Cam için ücretsiz demo talep edin. Kendi kapak ölçülerinizle canlı nesting ve G-code gösterimi.';
+$pageDescription = 'Titanium Cam için ücretsiz demo talep edin: kendi parçalarınızla kapak, kabin, mutfak, nesting ve makine modüllerini canlı görün.';
 
-$packageOptions = ['Henüz bilmiyorum', 'Başlangıç', 'Profesyonel', 'Kurumsal'];
+$moduleOptions = array_column(content('modules'), 'title');
 $errors = [];
-$old = ['package' => in_array($_GET['paket'] ?? '', $packageOptions, true) ? $_GET['paket'] : ''];
+$old = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ['errors' => $errors, 'old' => $old] = handle_form('demo', [
@@ -13,13 +13,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'email'    => ['E-posta', true, 160],
         'phone'    => ['Telefon', true, 30],
         'city'     => ['Şehir', false, 60],
-        'machines' => ['CNC tezgâh sayısı', false, 10],
-        'package'  => ['İlgilenilen paket', false, 40],
+        'machines' => ['CNC makine sayısı', false, 10],
+        'controller' => ['Makine kontrol ünitesi', false, 80],
+        'modules'  => ['İlgilenilen modüller', false, 300],
         'message'  => ['Notlar', false, 4000],
     ], 'demo');
-    if (!in_array($old['package'] ?? '', $packageOptions, true)) {
-        $old['package'] = '';
-    }
 }
 ?>
 <section class="section">
@@ -27,11 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div>
       <p class="lead">Formu doldurun, ekibimiz sizi arayarak uygun bir zamanda canlı demo planlasın.</p>
       <ul class="checklist">
-        <li>Kendi kapak ölçülerinizle canlı nesting gösterimi</li>
-        <li>Tezgâhınıza uygun G-code çıktısının incelenmesi</li>
-        <li>Bayi portalı ve onay akışının tanıtımı</li>
-        <li>Android uygulamasının sahada kullanımı</li>
-        <li>İhtiyacınıza özel lisans teklifi</li>
+        <li>Kendi kapak modelleriniz ve ölçülerinizle canlı gösterim</li>
+        <li>Kabin ve mutfak tasarımından parça listesine geçiş</li>
+        <li>Nesting, artık deposu ve barkodlu etiketler</li>
+        <li>Makinenize uygun profil ve NC kodu çıktısı</li>
+        <li>İhtiyacınız olan modüllere göre lisans teklifi</li>
       </ul>
       <p class="muted small">Demo görüşmesi yaklaşık 30–45 dakika sürer; çevrim içi veya yerinde yapılabilir.</p>
     </div>
@@ -48,16 +46,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
       <div class="row-3">
         <label>Şehir<input name="city" maxlength="60" autocomplete="address-level1" value="<?= e($old['city'] ?? '') ?>"></label>
-        <label>CNC tezgâh sayısı<input type="number" name="machines" min="0" max="999" inputmode="numeric" value="<?= e($old['machines'] ?? '') ?>"></label>
-        <label>Paket
-          <select name="package">
-            <?php foreach ($packageOptions as $opt): ?>
-              <option<?= ($old['package'] ?? '') === $opt ? ' selected' : '' ?>><?= e($opt) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </label>
+        <label>CNC makine sayısı<input type="number" name="machines" min="0" max="999" inputmode="numeric" value="<?= e($old['machines'] ?? '') ?>"></label>
+        <label>Makine kontrol ünitesi<input name="controller" maxlength="80" placeholder="ör. Mach3, Syntec, NC Studio" value="<?= e($old['controller'] ?? '') ?>"></label>
       </div>
-      <label>Notlar<textarea name="message" rows="4" maxlength="4000" placeholder="Kullandığınız tezgâh markası, aylık üretim adedi vb."><?= e($old['message'] ?? '') ?></textarea></label>
+      <fieldset class="checks">
+        <legend>İlgilendiğiniz modüller</legend>
+        <?php $picked = array_map('trim', explode(',', $old['modules'] ?? '')); ?>
+        <?php foreach ($moduleOptions as $opt): ?>
+          <label class="check"><input type="checkbox" name="modules[]" value="<?= e($opt) ?>"<?= in_array($opt, $picked, true) ? ' checked' : '' ?>> <span><?= e($opt) ?></span></label>
+        <?php endforeach; ?>
+      </fieldset>
+      <label>Notlar<textarea name="message" rows="4" maxlength="4000" placeholder="Ürettiğiniz ürünler, şu an kullandığınız program, aylık üretim adedi vb."><?= e($old['message'] ?? '') ?></textarea></label>
       <?= form_footer($errors, 'Demo Talebi Gönder') ?>
     </form>
   </div>

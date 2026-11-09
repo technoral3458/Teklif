@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 $config = require __DIR__ . '/config.php';
+$content = require __DIR__ . '/content.php';
 
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
@@ -64,6 +65,33 @@ function asset(string $path): string
     return url('assets/' . ltrim($path, '/')) . '?v=' . $v;
 }
 
+/** content.php içeriğine erişim. */
+function content(string $key)
+{
+    global $content;
+    return $content[$key] ?? null;
+}
+
+/** YouTube bağlantısından gömme adresi üretir (geçersizse ''). */
+function youtube_embed(string $link): string
+{
+    if (preg_match('~(?:youtu\.be/|v=|/shorts/|/embed/)([A-Za-z0-9_-]{11})~', $link, $m)) {
+        return 'https://www.youtube-nocookie.com/embed/' . $m[1];
+    }
+    return '';
+}
+
+/** Sessiz, döngülü tanıtım klibi (yalnız görünürken oynar; bkz. main.js). */
+function loop_video(string $name, string $label): string
+{
+    $poster = asset("anim/{$name}_poster.webp");
+    return '<video class="loop" muted loop playsinline preload="none" width="1280" height="720"'
+        . ' poster="' . e($poster) . '" aria-label="' . e($label) . '">'
+        . '<source src="' . e(asset("anim/{$name}_720p.webm")) . '" type="video/webm">'
+        . '<source src="' . e(asset("anim/{$name}_720p.mp4")) . '" type="video/mp4">'
+        . '</video>';
+}
+
 function csrf_token(): string
 {
     if (empty($_SESSION['csrf'])) {
@@ -103,6 +131,9 @@ function redirect(string $path): void
 function post_str(string $key, int $max = 2000): string
 {
     $v = $_POST[$key] ?? '';
+    if (is_array($v)) {   // çoklu seçim (ör. modül kutucukları)
+        $v = implode(', ', array_filter($v, 'is_string'));
+    }
     if (!is_string($v)) {
         return '';
     }

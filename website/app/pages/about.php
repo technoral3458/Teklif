@@ -1,18 +1,18 @@
 <?php
-$pageDescription = cfg('company') . ' ve Titanium Cam: membran kapak üreticileri için geliştirilen yerli CAM ve üretim yönetimi yazılımı.';
+$pageDescription = 'Titanium Cam, ' . cfg('company') . ' tarafından mobilya atölyeleri için geliştirilen Türkçe CAD/CAM yazılımıdır.';
 ?>
 <section class="section">
-  <div class="container split">
+  <div class="container split split-top">
     <div>
       <span class="eyebrow">Biz kimiz?</span>
       <h2><?= e(cfg('company')) ?></h2>
-      <p>Titanium Cam'i, membran kapak üretiminde her gün karşılaşılan sorunlara çözüm olsun diye geliştirdik: telefonla alınan ve karışan siparişler, elle hazırlanan kesim planları, plakada kalan fireler ve tezgâh başında kaybedilen zaman.</p>
-      <p>Amacımız; bayiden tezgâha kadar tüm süreci tek bir yazılımda toplayarak üreticilerin daha az fireyle, daha hızlı ve hatasız üretim yapmasını sağlamak.</p>
+      <p class="lead">Titanium Cam'i, mobilya atölyelerinin tasarımdan CNC makinesine kadar bütün işini tek programda toplamak için geliştirdik.</p>
+      <p>Kapak modeli çizmek, kabin kurmak, mutfak planlamak, parçaları levhaya yerleştirmek ve makineye NC kodu göndermek için ayrı ayrı programlar arasında dosya taşımaya gerek kalmasın istedik. Ölçü değiştiğinde her şeyin kendiliğinden yeniden hesaplandığı, atölyenin diliyle konuşan bir yazılım.</p>
     </div>
     <div class="cards">
-      <article class="card card-sm"><h3>Sahadan gelen çözümler</h3><p>Özelliklerimizi atölyelerde operatörler ve bayilerle birlikte şekillendiriyoruz.</p></article>
-      <article class="card card-sm"><h3>Yerli yazılım, yerel destek</h3><p>Türkçe arayüz, Türkçe dokümantasyon ve aynı dili konuşan bir destek ekibi.</p></article>
-      <article class="card card-sm"><h3>Sürekli gelişim</h3><p>Web, mobil ve CNC tarafında düzenli güncellemelerle ürünü sürekli geliştiriyoruz.</p></article>
+      <article class="card card-sm"><h3>Atölyeye göre</h3><p>Özellikleri, gerçek üretim akışına göre: sipariş, parça listesi, nesting, etiket ve makine.</p></article>
+      <article class="card card-sm"><h3>Türkçe ve çok dilli</h3><p>Türkçe arayüzün yanında İngilizce, Çince, Romence ve Portekizce.</p></article>
+      <article class="card card-sm"><h3>Makinenize uyumlu</h3><p>ISO / Fanuc, Mach3 / Mach4, GRBL ve LinuxCNC için hazır profiller; diğerleri için profil düzenleyici.</p></article>
     </div>
   </div>
 </section>

@@ -1,6 +1,6 @@
 <?php
 require_once dirname(__DIR__) . '/partials/form_helpers.php';
-$pageDescription = cfg('company') . ' ile iletişime geçin: Titanium Cam hakkında sorularınız, teklif ve destek talepleriniz için.';
+$pageDescription = 'Titanium Cam ve ' . cfg('company') . ' ile iletişime geçin: soru, lisans teklifi ve destek talepleri.';
 
 $errors = [];
 $old = [];
@@ -17,12 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <section class="section">
   <div class="container split split-top">
     <div>
-      <p class="lead">Sorularınız, teklif talepleriniz veya destek ihtiyaçlarınız için bize ulaşın.</p>
+      <p class="lead">Titanium Cam hakkında sorularınız, lisans teklifi veya destek için bize yazın; en kısa sürede dönüş yapalım.</p>
       <ul class="contact-list">
-        <li><span>E-posta</span><a href="mailto:<?= e(cfg('email')) ?>"><?= e(cfg('email')) ?></a></li>
-        <li><span>Telefon</span><a href="tel:<?= e(preg_replace('/[^0-9+]/', '', cfg('phone'))) ?>"><?= e(cfg('phone')) ?></a></li>
-        <li><span>Adres</span><?= e(cfg('address')) ?></li>
-        <li><span>Çalışma saatleri</span>Hafta içi 09:00 – 18:00</li>
+        <li><span>Firma</span><?= e(cfg('company')) ?></li>
+        <?php if (cfg('email')): ?><li><span>E-posta</span><a href="mailto:<?= e(cfg('email')) ?>"><?= e(cfg('email')) ?></a></li><?php endif; ?>
+        <?php if (cfg('phone')): ?><li><span>Telefon</span><a href="tel:<?= e(preg_replace('/[^0-9+]/', '', cfg('phone'))) ?>"><?= e(cfg('phone')) ?></a></li><?php endif; ?>
+        <?php if (cfg('address')): ?><li><span>Adres</span><?= e(cfg('address')) ?></li><?php endif; ?>
       </ul>
     </div>
     <form class="form card" method="post" action="<?= e(url('iletisim')) ?>" novalidate>
