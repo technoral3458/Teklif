@@ -1,8 +1,8 @@
 # Telefondan Geliştirme ve cPanel'e Yayın
 
-Bu sistemde bilgisayar gerekmez. Akış şöyledir:
-
 Canlı site: **titaniumcam.com** · Yükleme kayıtları: GitHub → Actions → "Web sitesini cPanel'e yükle"
+
+Bu sistemde bilgisayar gerekmez. Akış şöyledir:
 
 ```
 Telefon (Claude Code) ──değişiklik──▶ GitHub ──otomatik──▶ GitHub Actions ──FTP──▶ cPanel (public_html)
