@@ -100,7 +100,35 @@ $yt = youtube_embed((string) cfg('youtube_url'));
   </div>
 </section>
 
-<section class="section section-alt">
+<section class="section section-alt" id="videolar">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Kullanım videoları</span>
+      <h2>Adım adım, programın içinden</h2>
+    </div>
+    <?php foreach (content('tutorials') as $tv): ?>
+      <article class="tutorial reveal">
+        <div class="tutorial-media">
+          <video controls playsinline preload="none" width="1280" height="720"
+                 poster="<?= e(asset("anim/{$tv['file']}_poster.webp")) ?>" aria-label="<?= e($tv['title']) ?> videosu">
+            <source src="<?= e(asset("anim/{$tv['file']}_720p.mp4")) ?>" type="video/mp4">
+          </video>
+        </div>
+        <div class="tutorial-copy">
+          <span class="pill"><?= e($tv['tag']) ?></span>
+          <h3><?= e($tv['title']) ?></h3>
+          <p class="lead"><?= e($tv['text']) ?></p>
+          <ol class="mini-steps">
+            <?php foreach ($tv['steps'] as $st): ?><li><?= e($st) ?></li><?php endforeach; ?>
+          </ol>
+          <p class="muted small">Sesli video · <?= e($tv['duration']) ?></p>
+        </div>
+      </article>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+<section class="section">
   <div class="container">
     <div class="section-head reveal">
       <span class="eyebrow">Atölyeye hazır</span>

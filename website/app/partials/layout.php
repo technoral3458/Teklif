@@ -4,6 +4,7 @@ $seo = content('seo');
 $nav = [
     '#moduller' => 'Modüller',
     '#nasil'    => 'Nasıl çalışır',
+    '#videolar' => 'Videolar',
     'galeri'    => 'Ekranlar',
     'sss'       => 'SSS',
     'iletisim'  => 'İletişim',

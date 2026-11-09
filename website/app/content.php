@@ -118,6 +118,22 @@ return [
         ],
     ],
 
+    // Kullanım videoları (sesli, oynat düğmesiyle). Dosyalar: public/assets/anim/<ad>_720p.mp4 ve <ad>_poster.webp
+    'tutorials' => [
+        [
+            'file'  => 'kose_keskinlestirme',
+            'tag'   => 'Çizim · Frezeleme',
+            'title' => 'Köşeleri keskinleştir',
+            'text'  => 'Profil bıçağıyla çıta gibi gönyeli köşe. Yuvarlak kalan iç köşeleri ince uçlu bir köşe takımıyla otomatik temizleyin.',
+            'steps' => [
+                'Çizimi seçin, İşlemler → Frezeleme',
+                '"Köşeleri keskinleştir" kutusunu işaretleyin',
+                'İnce uçlu köşe takımını seçin (ör. R1,5 küre)',
+            ],
+            'duration' => '49 sn',
+        ],
+    ],
+
     'steps' => [
         ['Tasarla', 'Kapağı seçin, kabini kurun ya da mutfağı planlayın.'],
         ['Parçala', 'Parça listesi, delikler ve bantlar kendiliğinden çıkar.'],
