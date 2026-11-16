@@ -102,6 +102,7 @@ class NavigationEngine(private val speak: (String) -> Unit) {
             }
         }
 
+        val (snapped, _) = Geo.projectOnSegment(p, shape[bestI], shape[bestI + 1])
         return Progress(
             shapeIndex = bestI,
             distanceAlongM = along,
@@ -112,6 +113,8 @@ class NavigationEngine(private val speak: (String) -> Unit) {
             nextBorder = border,
             distanceToBorderM = distToBorder,
             offRoute = offRoute,
+            snapped = snapped,
+            routeBearing = Geo.bearing(shape[bestI], shape[bestI + 1]),
         )
     }
 

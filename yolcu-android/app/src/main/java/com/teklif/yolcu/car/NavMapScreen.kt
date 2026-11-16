@@ -35,6 +35,8 @@ import com.teklif.yolcu.map.TileCache
 import com.teklif.yolcu.nav.Nav
 import com.teklif.yolcu.nav.NavSnapshot
 import com.teklif.yolcu.nav.TurnType
+import com.teklif.yolcu.nav.displayHeading
+import com.teklif.yolcu.nav.displayPosition
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
@@ -136,14 +138,14 @@ class NavMapScreen(carContext: CarContext) : Screen(carContext), SurfaceCallback
     private fun render() {
         val surf = surface ?: return
         val s = Nav.state.value
-        if (follow) s.location?.let { center = it }
-        val bearing = if (s.navigating && follow) (s.heading ?: 0f).toDouble() else 0.0
+        if (follow) s.displayPosition?.let { center = it }
+        val bearing = if (s.navigating && follow) (s.displayHeading ?: 0f).toDouble() else 0.0
         val camera = Camera(center, zoom, bearing)
         val overlay = MapOverlay(
             route = s.route?.shape ?: emptyList(),
             travelledUntilIndex = s.progress?.shapeIndex ?: 0,
-            position = s.location,
-            heading = s.heading,
+            position = s.displayPosition,
+            heading = s.displayHeading,
             destination = s.route?.destination?.position,
             borderPoints = s.route?.borders?.map { it.point to (it.crossingName ?: "${it.toName} sınırı") } ?: emptyList(),
         )

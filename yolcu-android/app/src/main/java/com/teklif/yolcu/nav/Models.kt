@@ -67,6 +67,10 @@ data class Progress(
     val nextBorder: BorderEvent?,
     val distanceToBorderM: Double,
     val offRoute: Boolean,
+    /** Konumun rota çizgisi üzerine oturtulmuş hali (rotadayken ok yolun üstünde dursun). */
+    val snapped: LatLon,
+    /** Bulunulan rota parçasının yönü (derece). */
+    val routeBearing: Double,
 )
 
 data class CountryInfo(val iso: String, val name: String, val flag: String)
@@ -79,6 +83,10 @@ data class TripStats(
     val sinceBorderM: Double = 0.0,
     val startedAt: Long = 0L,
 )
+
+/** Haritada gösterilecek konum ve yön: rotadayken rota üzerine oturtulmuş. */
+val NavSnapshot.displayPosition: LatLon? get() = progress?.takeIf { navigating && !it.offRoute }?.snapped ?: location
+val NavSnapshot.displayHeading: Float? get() = progress?.takeIf { navigating && !it.offRoute }?.routeBearing?.toFloat() ?: heading
 
 data class NavSnapshot(
     val location: LatLon? = null,

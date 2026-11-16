@@ -73,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import com.teklif.yolcu.geo.BorderCrossings
 import com.teklif.yolcu.geo.Geo
 import com.teklif.yolcu.geo.LatLon
 import com.teklif.yolcu.map.Camera
@@ -82,6 +81,8 @@ import com.teklif.yolcu.nav.Nav
 import com.teklif.yolcu.nav.NavSnapshot
 import com.teklif.yolcu.nav.Place
 import com.teklif.yolcu.nav.TurnType
+import com.teklif.yolcu.nav.displayHeading
+import com.teklif.yolcu.nav.displayPosition
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -102,15 +103,18 @@ fun MainScreen(state: NavSnapshot, hasPermission: Boolean, onRequestPermission: 
         val loc = state.location ?: return@LaunchedEffect
         if (!follow) return@LaunchedEffect
         camera = if (state.navigating) {
-            Camera(loc, 16.3, (state.heading ?: 0f).toDouble())
+            Camera(state.displayPosition ?: loc, 16.3, (state.displayHeading ?: 0f).toDouble())
         } else {
             Camera(loc, if (camera.zoom < 12) 14.0 else camera.zoom, 0.0)
         }
     }
-    // Rota gelince tüm rotayı göster.
+    // Rota gelince tüm rotayı göster; navigasyon başlayınca takibe dön.
     LaunchedEffect(state.route?.shape?.size, state.navigating) {
         val r = state.route ?: return@LaunchedEffect
-        if (state.navigating) return@LaunchedEffect
+        if (state.navigating) {
+            follow = true
+            return@LaunchedEffect
+        }
         follow = false
         camera = fitCamera(r.shape)
     }
@@ -118,8 +122,8 @@ fun MainScreen(state: NavSnapshot, hasPermission: Boolean, onRequestPermission: 
     val overlay = MapOverlay(
         route = state.route?.shape ?: emptyList(),
         travelledUntilIndex = state.progress?.shapeIndex ?: 0,
-        position = state.location,
-        heading = state.heading,
+        position = state.displayPosition,
+        heading = state.displayHeading,
         destination = state.route?.destination?.position,
         borderPoints = state.route?.borders?.map { it.point to (it.crossingName ?: "${it.toName} sınırı") } ?: emptyList(),
     )
@@ -140,7 +144,7 @@ fun MainScreen(state: NavSnapshot, hasPermission: Boolean, onRequestPermission: 
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        placeholder = { Text("Nereye? Şehir, adres, sınır kapısı…") },
+                        placeholder = { Text("Nereye?") },
                         leadingIcon = { Icon(Icons.Default.Search, null) },
                         trailingIcon = {
                             if (query.isNotEmpty()) IconButton(onClick = { query = ""; results = emptyList() }) {
@@ -202,7 +206,6 @@ fun MainScreen(state: NavSnapshot, hasPermission: Boolean, onRequestPermission: 
                 Card(Modifier.padding(12.dp).fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Text("Konum izni gerekli", fontWeight = FontWeight.Bold)
-                        Text("Harita ve yol tarifi için GPS konumunuz kullanılır.", style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = onRequestPermission) { Text("İzin ver") }
                     }
@@ -278,33 +281,20 @@ private fun BottomPanel(state: NavSnapshot) {
 @Composable
 private fun RoutePreviewPanel(state: NavSnapshot) {
     val r = state.route ?: return
-    Text(r.destination.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-    if (r.destination.detail.isNotBlank()) Text(r.destination.detail, style = MaterialTheme.typography.bodySmall)
-    Spacer(Modifier.height(6.dp))
+    Text(r.destination.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1)
     Text("${Geo.formatDistance(r.lengthM)} · ${Geo.formatDuration(r.timeS)}", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
     if (r.borders.isNotEmpty()) {
-        Spacer(Modifier.height(8.dp))
-        Text("Sınır geçişleri", fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
         r.borders.forEach { b ->
             Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(flagOf(b.toIso), fontSize = 18.sp)
                 Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("${b.toName} sınırı", fontWeight = FontWeight.Medium)
-                    Text(
-                        listOfNotNull(b.crossingName, if (b.schengenInternal) "Schengen içi" else "Pasaport kontrolü")
-                            .joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Text("${(b.distanceAlongM / 1000).toInt()}. km", fontWeight = FontWeight.SemiBold)
+                Text(b.crossingName ?: b.toName, Modifier.weight(1f), maxLines = 1)
+                Text("${(b.distanceAlongM / 1000).toInt()} km", fontWeight = FontWeight.SemiBold)
             }
         }
-    } else {
-        Spacer(Modifier.height(4.dp))
-        Text("Bu rotada ülke sınırı geçilmiyor.", style = MaterialTheme.typography.bodySmall)
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { Nav.startNavigation() }, modifier = Modifier.weight(1f)) {
             Icon(Icons.Default.Navigation, null); Spacer(Modifier.width(6.dp)); Text("Başlat")
@@ -316,40 +306,26 @@ private fun RoutePreviewPanel(state: NavSnapshot) {
 @Composable
 private fun NavigatingPanel(state: NavSnapshot) {
     val p = state.progress
-    val r = state.route
     val eta = p?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + (it.remainingS * 1000).toLong())) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(
-                if (p != null) "${Geo.formatDistance(p.remainingM)} · ${Geo.formatDuration(p.remainingS)} · varış $eta" else "…",
+                if (p != null) "${Geo.formatDistance(p.remainingM)} · ${Geo.formatDuration(p.remainingS)} · $eta" else "…",
                 fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
             )
-            Text(r?.destination?.name ?: "", style = MaterialTheme.typography.bodySmall)
+            val b = p?.nextBorder
+            if (b != null) {
+                Text(
+                    "${flagOf(b.toIso)} ${b.crossingName ?: b.toName} · ${Geo.formatDistance(p.distanceToBorderM)}",
+                    fontSize = 16.sp, color = Color(0xFFE65100), fontWeight = FontWeight.SemiBold, maxLines = 1,
+                )
+            }
+            TripLine(state)
         }
         Button(onClick = { Nav.stopNavigation() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
             Text("Durdur")
         }
     }
-    val b = p?.nextBorder
-    Spacer(Modifier.height(8.dp))
-    if (b != null) {
-        Row(
-            Modifier.fillMaxWidth().background(Color(0xFFFFF3E0), RoundedCornerShape(10.dp)).padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(flagOf(b.toIso), fontSize = 22.sp)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("${b.toName} sınırı", fontWeight = FontWeight.Bold, color = Color(0xFF4E342E))
-                Text(b.crossingName ?: if (b.schengenInternal) "Schengen içi geçiş" else "Sınır kapısı", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4E342E))
-            }
-            Text(Geo.formatDistance(p?.distanceToBorderM ?: 0.0), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
-        }
-    } else {
-        Text("Hedefe kadar sınır geçişi yok.", style = MaterialTheme.typography.bodySmall)
-    }
-    Spacer(Modifier.height(8.dp))
-    TripLine(state)
 }
 
 @Composable
@@ -359,49 +335,24 @@ private fun IdlePanel(state: NavSnapshot) {
         Text(c?.flag ?: "🌍", fontSize = 30.sp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(c?.name ?: if (state.gpsReady) "Ülke belirlenemedi" else "GPS bekleniyor…", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("${state.speedKmh.toInt()} km/sa", style = MaterialTheme.typography.bodySmall)
+            Text(c?.name ?: if (state.gpsReady) "—" else "GPS bekleniyor…", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            TripLine(state)
         }
-        TextButton(onClick = { Nav.resetTrip() }) { Text("Sayacı sıfırla") }
-    }
-    Spacer(Modifier.height(6.dp))
-    TripLine(state)
-    val loc = state.location
-    if (loc != null && c != null) {
-        val near = remember(c.iso, (loc.lat * 100).toInt(), (loc.lon * 100).toInt()) { BorderCrossings.nearestFrom(loc, c.iso, 3) }
-        if (near.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text("En yakın sınır kapıları (kuş uçuşu)", fontWeight = FontWeight.SemiBold)
-            near.forEach { (x, d) ->
-                val other = if (x.a == c.iso) x.b else x.a
-                Row(Modifier.padding(vertical = 2.dp)) {
-                    Text("${flagOf(other)} ${x.name}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    Text(Geo.formatDistance(d), fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
+        TextButton(onClick = { Nav.resetTrip() }) { Text("Sıfırla") }
     }
 }
 
+/** Tek satır: toplam km ve bulunulan ülkedeki km. */
 @Composable
 private fun TripLine(state: NavSnapshot) {
     val t = state.trip
     val c = state.country
     val inCountry = c?.let { t.byCountryM[it.iso] } ?: 0.0
     Text(
-        buildString {
-            append("Toplam ${Geo.formatDistance(t.totalM)}")
-            if (c != null) append(" · ${c.flag} ${c.name}: ${Geo.formatDistance(inCountry)}")
-            if (t.sinceBorderM > 0 && c != null) append(" · son sınırdan ${Geo.formatDistance(t.sinceBorderM)}")
-        },
+        if (c != null) "Toplam ${Geo.formatDistance(t.totalM)} · ${c.flag} ${Geo.formatDistance(inCountry)}"
+        else "Toplam ${Geo.formatDistance(t.totalM)}",
         style = MaterialTheme.typography.bodyMedium,
     )
-    if (t.byCountryM.size > 1) {
-        Text(
-            t.byCountryM.entries.sortedByDescending { it.value }.joinToString("  ") { "${flagOf(it.key)} ${(it.value / 1000).toInt()} km" },
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
 }
 
 fun flagOf(iso: String): String =
