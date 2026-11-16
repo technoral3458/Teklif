@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsBoat
+import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.ForkLeft
@@ -424,5 +424,5 @@ fun turnIcon(t: TurnType): ImageVector = when (t) {
     TurnType.EXIT_RIGHT, TurnType.KEEP_RIGHT -> Icons.Default.ForkRight
     TurnType.MERGE -> Icons.Default.Merge
     TurnType.ROUNDABOUT, TurnType.ROUNDABOUT_EXIT -> Icons.Default.RoundaboutLeft
-    TurnType.FERRY -> Icons.AutoMirrored.Filled.DirectionsBoat
+    TurnType.FERRY -> Icons.Default.DirectionsBoat
 }
