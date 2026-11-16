@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ForkLeft
 import androidx.compose.material.icons.filled.ForkRight
 import androidx.compose.material.icons.filled.Merge
@@ -67,6 +68,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -96,7 +99,9 @@ fun MainScreen(state: NavSnapshot, hasPermission: Boolean, onRequestPermission: 
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Place>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
+    var showInfo by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    if (showInfo) AndroidAutoInfoDialog { showInfo = false }
 
     // Takip modu: konumu ortala; navigasyonda gidiş yönü yukarı ve yakın.
     LaunchedEffect(state.location, state.heading, state.navigating, follow) {
@@ -149,6 +154,8 @@ fun MainScreen(state: NavSnapshot, hasPermission: Boolean, onRequestPermission: 
                         trailingIcon = {
                             if (query.isNotEmpty()) IconButton(onClick = { query = ""; results = emptyList() }) {
                                 Icon(Icons.Default.Close, "Temizle")
+                            } else IconButton(onClick = { showInfo = true }) {
+                                Icon(Icons.Default.Info, "Android Auto")
                             }
                         },
                         singleLine = true,
@@ -376,4 +383,33 @@ fun turnIcon(t: TurnType): ImageVector = when (t) {
     TurnType.MERGE -> Icons.Default.Merge
     TurnType.ROUNDABOUT, TurnType.ROUNDABOUT_EXIT -> Icons.Default.RoundaboutLeft
     TurnType.FERRY -> Icons.Default.DirectionsBoat
+}
+
+/** Android Auto kurulu mu, hangi sürüm; görünmüyorsa yapılacaklar. */
+@Composable
+private fun AndroidAutoInfoDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val info = remember {
+        runCatching {
+            val pi = context.packageManager.getPackageInfo("com.google.android.projection.gearhead", 0)
+            "Android Auto kurulu: sürüm ${pi.versionName}"
+        }.getOrElse { "Android Auto bu telefonda kurulu değil (Play Store'dan yükleyin)." }
+    }
+    val me = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tamam") } },
+        title = { Text("Android Auto") },
+        text = {
+            Text(
+                "$info\nYolcu sürümü: $me\n\n" +
+                    "Araç ekranında görünmesi için (bir kez):\n" +
+                    "1. Android Auto ayarları → en alttaki Sürüm satırına 10 kez dokunun.\n" +
+                    "2. ⋮ menü → Geliştirici ayarları → Bilinmeyen kaynaklar: AÇIK.\n" +
+                    "3. Ayarlar → Uygulamalar → Android Auto → Durmaya zorla; telefonu araca yeniden bağlayın.",
+            )
+        },
+    )
 }

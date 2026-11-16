@@ -29,8 +29,8 @@ jobs:
       - name: APK derle
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk "Yolcu-v1.0.${{ github.run_number }}.apk"
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "Yolcu-v1.0.${{ github.run_number }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
