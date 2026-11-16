@@ -74,14 +74,14 @@ object Router {
         val maneuvers = ArrayList<Maneuver>(ms.length())
         for (i in 0 until ms.length()) {
             val m = ms.getJSONObject(i)
-            val instruction = m.optString("instruction")
+            val instruction = tidy(m.optString("instruction"))
             val names = m.optJSONArray("street_names")
             maneuvers.add(
                 Maneuver(
                     type = valhallaType(m.optInt("type")),
                     instruction = instruction,
-                    verbalAlert = m.optString("verbal_transition_alert_instruction").ifBlank { instruction },
-                    verbalPre = m.optString("verbal_pre_transition_instruction").ifBlank { instruction },
+                    verbalAlert = tidy(m.optString("verbal_transition_alert_instruction")).ifBlank { instruction },
+                    verbalPre = tidy(m.optString("verbal_pre_transition_instruction")).ifBlank { instruction },
                     streetName = if (names != null && names.length() > 0) names.optString(0) else "",
                     beginShapeIndex = m.optInt("begin_shape_index"),
                     lengthM = m.optDouble("length", 0.0) * 1000,
@@ -95,6 +95,21 @@ object Router {
     }
 
     private fun loc(p: LatLon) = JSONObject().put("lat", p.lat).put("lon", p.lon)
+
+    private val doubledRoad = Regex("\\b(Caddesi|Sokağı|Sokak|Bulvarı|Yolu|Köprüsü|Otoyolu|Meydanı) caddesi(ne|nde|n)\\b")
+
+    /** Valhalla'nın "Alayköşkü Caddesi caddesine" gibi tekrarlarını "Alayköşkü Caddesi'ne" yapar. */
+    private fun tidy(text: String): String = doubledRoad.replace(text) { mr ->
+        val road = mr.groupValues[1]
+        val suffix = mr.groupValues[2]
+        val back = road.lowercase().lastOrNull { it in "aeıioöuü" }?.let { it in "aıou" } ?: false
+        val ek = when (suffix) {
+            "ne" -> if (back) "'na" else "'ne"
+            "nde" -> if (back) "'nda" else "'nde"
+            else -> if (back) "'nı" else "'ni"
+        }
+        road + ek
+    }
 
     private fun valhallaType(t: Int): TurnType = when (t) {
         1, 2, 3 -> TurnType.DEPART
@@ -211,7 +226,11 @@ object Router {
             ref.isNotBlank() -> ref
             else -> ""
         }
-        val toward = dest.takeIf { it.isNotBlank() }?.let { " – ${it.replace(",", ", ")} yönü" } ?: ""
+        // Tabela hedefleri: ilk ikisi yeter, Kiril/Yunan harfli olanlar atlanır (okunamaz).
+        val towardNames = dest.split(",").map { it.trim() }
+            .filter { it.isNotBlank() && it.none { ch -> Character.UnicodeScript.of(ch.code) == Character.UnicodeScript.CYRILLIC || Character.UnicodeScript.of(ch.code) == Character.UnicodeScript.GREEK } }
+            .take(2)
+        val toward = if (towardNames.isNotEmpty()) " – ${towardNames.joinToString(", ")} yönü" else ""
         val onto = if (road.isNotBlank()) ", $road$toward" else toward
         return when (type) {
             TurnType.DEPART -> if (road.isNotBlank()) "$road üzerinde yola çıkın" else "Yola çıkın"

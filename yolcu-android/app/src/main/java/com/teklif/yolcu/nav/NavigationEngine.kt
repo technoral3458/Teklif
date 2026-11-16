@@ -44,7 +44,8 @@ class NavigationEngine(private val speak: (String) -> Unit) {
 
         // En yakın parçayı bul: önce son konumun çevresinde, gerekirse tüm rotada.
         var (bestI, bestT, bestD) = nearest(p, shape, max(0, lastIndex - 10), min(n - 2, lastIndex + 400))
-        if (bestD > 60 && now - lastGlobalSearch > 5000) {
+        // Pencere dışına düşüldüyse (tünel çıkışı, uzun süre sonra devam) tüm rotada ara.
+        if (bestD > 60 && (bestD > 500 || now - lastGlobalSearch > 5000)) {
             lastGlobalSearch = now
             val g = nearest(p, shape, 0, n - 2)
             if (g.third < bestD) { bestI = g.first; bestT = g.second; bestD = g.third }
