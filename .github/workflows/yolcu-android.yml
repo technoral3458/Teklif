@@ -29,13 +29,16 @@ jobs:
       - name: APK derle
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+          ./gradlew --no-daemon assembleRelease bundleRelease
           cp app/build/outputs/apk/release/app-release.apk "Yolcu-v1.0.${{ github.run_number }}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "Yolcu-v1.0.${{ github.run_number }}.aab"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Yolcu-apk
-          path: yolcu-android/Yolcu-*.apk
+          path: |
+            yolcu-android/Yolcu-*.apk
+            yolcu-android/Yolcu-*.aab
 
       - name: Sürüm (Release) olarak yayınla
         uses: softprops/action-gh-release@v2
@@ -44,7 +47,9 @@ jobs:
           name: Yolcu v1.0.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
-          files: yolcu-android/Yolcu-v1.0.${{ github.run_number }}.apk
+          files: |
+            yolcu-android/Yolcu-v1.0.${{ github.run_number }}.apk
+            yolcu-android/Yolcu-v1.0.${{ github.run_number }}.aab
           body: |
             Avrupa için Türkçe navigasyon: sınır kapıları, km sayacı, Android Auto.
             Telefonda bu sayfayı açıp aşağıdaki .apk dosyasını indirin ve kurun.

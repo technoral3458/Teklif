@@ -24,16 +24,19 @@ kaç km kaldığını söyler, gidilen yolu ülke ülke sayar ve **Android Auto*
 2. Uygulamayı açın, **konum iznini** verin ("Uygulamayı kullanırken"). Android 13+ bildirim izni de ister.
 3. Arama kutusuna hedefi yazın → sonuçtan seçin → rota, süre ve sınır geçişleri görünür → **Başlat**.
 
-### Android Auto'da görünmesi için (bir kez)
+### Android Auto'da görünmesi için
 
-Play Store dışından kurulan uygulamaları Android Auto varsayılan olarak listelemez. Şunu yapın:
+Android Auto 17.7 ve sonrası, Play Store dışından (APK ile) kurulan Car App Library uygulamalarını
+araç ekranında **göstermez**; geliştirici ayarlarındaki "Bilinmeyen kaynaklar" yalnızca müzik/mesaj
+türü uygulamaları kapsar. Araçta çalışması için uygulamanın Google Play üzerinden kurulmuş olması gerekir:
 
-1. Telefonda **Android Auto** ayarlarını açın (Ayarlar → Bağlı cihazlar → Bağlantı tercihleri → Android Auto,
-   ya da Android Auto uygulamasını açın).
-2. En alttaki **Sürüm** satırına art arda **10 kez** dokunun → "Geliştirici ayarları etkinleştirilsin mi?" → **Tamam**.
-3. Sağ üstteki ⋮ menüden **Geliştirici ayarları** → **Bilinmeyen kaynaklar** seçeneğini açın.
-4. Telefonu arabaya bağlayın; Yolcu, Android Auto uygulama listesinde (navigasyon simgesi) çıkar.
-   Çıkmazsa Android Auto'yu kapatıp açın veya telefonu yeniden başlatın.
+1. Google Play Console'da geliştirici hesabı açın (tek seferlik ücret).
+2. Yeni uygulama oluşturun (paket adı `com.teklif.yolcu`), **Test → Dahili test** kanalına Releases'teki
+   `Yolcu-v1.0.x.aab` dosyasını yükleyin, kendi Gmail adresinizi test kullanıcısı yapın.
+3. Test bağlantısını telefonda açıp uygulamayı Play Store'dan kurun. Android Auto artık kabul eder.
+
+Alternatif (dongle): AAWireless gibi kablosuz adaptörlerin "geliştirici modu", Android Auto'nun kurulum
+kaynağı kontrolünü atlatır; APK ile kurulu Yolcu o durumda araçta görünür.
 
 ### Gereksinimler
 

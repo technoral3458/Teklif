@@ -405,10 +405,9 @@ private fun AndroidAutoInfoDialog(onDismiss: () -> Unit) {
         text = {
             Text(
                 "$info\nYolcu sürümü: $me\n\n" +
-                    "Araç ekranında görünmesi için (bir kez):\n" +
-                    "1. Android Auto ayarları → en alttaki Sürüm satırına 10 kez dokunun.\n" +
-                    "2. ⋮ menü → Geliştirici ayarları → Bilinmeyen kaynaklar: AÇIK.\n" +
-                    "3. Ayarlar → Uygulamalar → Android Auto → Durmaya zorla; telefonu araca yeniden bağlayın.",
+                    "Android Auto 17.7 ve sonrası, Play Store dışından kurulan navigasyon uygulamalarını " +
+                    "araç ekranında göstermez (\"Bilinmeyen kaynaklar\" ayarı bunu kapsamaz). " +
+                    "Araçta görünmesi için uygulamanın Play Store iç test sürümü olarak kurulması gerekir.",
             )
         },
     )
