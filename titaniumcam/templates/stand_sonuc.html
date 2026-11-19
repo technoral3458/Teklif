@@ -1,0 +1,110 @@
+{% extends "magaza_base.html" %}
+{% block title %}Stand alternatifleri — {{ firma().ad }}{% endblock %}
+{% block content %}
+<a href="/stand" class="text-sm text-slate-500">← Yeni stand</a>
+<div class="flex flex-wrap items-end justify-between gap-3 mt-1 mb-5">
+  <div>
+    <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Stand alternatifleriniz</h1>
+    <p class="text-slate-500">{{ '%g'|format(g.en / 1000) }} × {{ '%g'|format(g.derinlik / 1000) }} m · duvar {{ '%g'|format(g.yukseklik / 1000) }} m ·
+      {{ tip }} · açık: {% for c in g.acik %}{{ CEPHE_AD[c] }}{{ ', ' if not loop.last }}{% endfor %}{% if g.sektor %} · {{ g.sektor }}{% endif %}</p>
+  </div>
+  <span class="text-xs font-semibold rounded-full px-3 py-1.5 {{ 'bg-violet-100 text-violet-700' if p.kaynak == 'ai' else 'bg-slate-100 text-slate-600' }}">
+    {{ '✨ Yapay zekâ ile tasarlandı' if p.kaynak == 'ai' else 'Hazır yerleşim kurallarıyla tasarlandı' }}</span>
+</div>
+{% if request.query_params.get('hata') %}<div class="bg-red-50 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ request.query_params.get('hata') }}</div>{% endif %}
+{% if g.uyari %}<div class="bg-amber-50 text-amber-800 rounded-xl px-4 py-3 mb-4 text-sm">Not: {{ g.uyari }}; hazır yerleşim kurallarıyla tasarlandı.</div>{% endif %}
+
+<div class="space-y-6">
+{% for a in p.alternatifler %}
+  {% set i = loop.index0 %}
+  <article class="bg-white rounded-2xl border overflow-hidden {% if p.secilen == i %}ring-2 ring-emerald-500{% endif %}">
+    <div class="grid lg:grid-cols-5">
+      <div class="lg:col-span-3 bg-slate-50 relative min-w-0">
+        <div class="absolute top-3 left-3 z-10 bg-white/90 rounded-full p-1 shadow text-sm flex">
+          <button type="button" data-gor="plan" data-i="{{ i }}" class="gor px-3 py-1.5 rounded-full font-semibold bg-slate-900 text-white">Plan</button>
+          <button type="button" data-gor="3b" data-i="{{ i }}" class="gor px-3 py-1.5 rounded-full font-semibold text-slate-600">3B</button>
+        </div>
+        <div data-plan="{{ i }}" class="p-4 pt-14">{{ a.svg|safe }}</div>
+        <div data-3b="{{ i }}" class="hidden h-[360px] sm:h-[460px] lg:h-full lg:min-h-[480px]"></div>
+      </div>
+      <div class="lg:col-span-2 p-5 flex flex-col min-w-0">
+        <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Alternatif {{ i + 1 }}</div>
+        <h2 class="text-xl font-bold leading-tight">{{ a.ad }}</h2>
+        {% if a.konsept %}<p class="text-sm text-slate-600 mt-1">{{ a.konsept }}</p>{% endif %}
+        <div class="mt-4 text-sm">
+          <div class="font-semibold mb-1">Kabin modülleri</div>
+          {% for k in a.kabinler %}
+          <div class="flex items-start justify-between gap-2 py-1.5 border-t">
+            <div class="flex items-start gap-2"><span class="mt-1.5 w-2.5 h-2.5 rounded-sm shrink-0" style="background:{{ MODULLER[k.tip].renk }}"></span>
+              <div>{{ k.ad }}<div class="text-xs text-slate-400">{{ '%g'|format(k.olcu[0]) }} × {{ '%g'|format(k.olcu[1]) }} × {{ '%g'|format(k.olcu[2]) }} mm (G × Y × D) · {{ k.ozet.parca or 0 }} parça</div></div></div>
+            <div class="text-right whitespace-nowrap"><b>{{ k.adet }}</b> adet
+              {% if a.fiyat.kabin_goster %}<div class="text-xs text-slate-500">{{ "{:,.0f}".format(k.fiyat * k.adet).replace(',','.') }} ₺</div>{% endif %}</div>
+          </div>
+          {% endfor %}
+          <div class="font-semibold mt-3 mb-1">Kabin dışı</div>
+          {% for e in a.fiyat.ekstralar %}
+          <div class="flex justify-between gap-2 py-1 border-t text-slate-600"><span>{{ e.ad }}</span><span class="whitespace-nowrap">{{ '%g'|format(e.miktar) }} {{ e.birim }}</span></div>
+          {% endfor %}
+          {% if a.notlar %}<ul class="mt-2 text-xs text-amber-700 list-disc list-inside">{% for n in a.notlar %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="mt-auto pt-4">
+          {% if a.fiyat.toplam_goster %}
+          <div class="flex items-end justify-between mb-3"><span class="text-sm text-slate-500">Tahmini toplam</span>
+            <span class="text-2xl font-extrabold text-emerald-700">{{ "{:,.0f}".format(a.fiyat.toplam).replace(',','.') }} ₺</span></div>
+          {% elif a.fiyat.kabin_goster %}
+          <div class="flex items-end justify-between mb-3"><span class="text-sm text-slate-500">Kabinler</span>
+            <span class="text-2xl font-extrabold text-emerald-700">{{ "{:,.0f}".format(a.fiyat.kabin).replace(',','.') }} ₺</span></div>
+          <p class="text-xs text-slate-400 -mt-2 mb-3">Duvar, zemin ve aydınlatma fiyatı sipariş onayında bildirilir.</p>
+          {% else %}
+          <p class="text-xs text-slate-400 mb-3">Fiyat sipariş onayında bildirilir.</p>
+          {% endif %}
+          <form method="post" action="/stand/{{ p.id }}/sec/{{ i }}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Sepete ekleniyor…'">
+            <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl py-3">
+              {{ '✓ Seçildi — tekrar sepete ekle' if p.secilen == i else 'Bu tasarımı seç ve sepete ekle' }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </article>
+{% endfor %}
+</div>
+<form method="post" action="/stand/uret" class="mt-6 text-center">
+  <input type="hidden" name="en" value="{{ g.en / 1000 }}"><input type="hidden" name="derinlik" value="{{ g.derinlik / 1000 }}">
+  <input type="hidden" name="yukseklik" value="{{ g.yukseklik / 1000 }}">
+  {% for c in g.acik %}<input type="hidden" name="acik" value="{{ c }}">{% endfor %}
+  <input type="hidden" name="sektor" value="{{ g.sektor }}"><input type="hidden" name="istek" value="{{ g.istek }}">
+  <button class="border rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-white" onclick="this.textContent='⏳ Yeni alternatifler hazırlanıyor…'">↻ Başka alternatifler üret</button>
+</form>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="/static/kabin_gercek.js"></script>
+<script src="/static/stand_3b.js"></script>
+<script>
+(() => {
+  const SAHNE = {{ sahneler|tojson }}, GIRDI = {{ g|tojson }}, GORUNUM = {{ gorunum|tojson }};
+  let gor = null, kap = null;                 // tek 3B pencere; seçilen karta taşınır
+  document.querySelectorAll('.gor').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.i, uc = b.dataset.gor === '3b';
+    document.querySelectorAll(`.gor[data-i="${i}"]`).forEach(x => {
+      const s = x === b; x.classList.toggle('bg-slate-900', s); x.classList.toggle('text-white', s); x.classList.toggle('text-slate-600', !s);
+    });
+    document.querySelector(`[data-plan="${i}"]`).classList.toggle('hidden', uc);
+    const hedef = document.querySelector(`[data-3b="${i}"]`);
+    hedef.classList.toggle('hidden', !uc);
+    if (!uc) return;
+    // başka kartta açık 3B varsa o kart plana döner
+    document.querySelectorAll('[data-3b]').forEach(d => { if (d !== hedef && !d.classList.contains('hidden')) {
+      const j = d.dataset['3b']; d.classList.add('hidden'); document.querySelector(`[data-plan="${j}"]`).classList.remove('hidden');
+      document.querySelectorAll(`.gor[data-i="${j}"]`).forEach(x => { const s = x.dataset.gor === 'plan';
+        x.classList.toggle('bg-slate-900', s); x.classList.toggle('text-white', s); x.classList.toggle('text-slate-600', !s); });
+    }});
+    if (!kap) { kap = document.createElement('div'); kap.className = 'w-full h-full overflow-hidden'; }
+    hedef.appendChild(kap);
+    if (!gor) gor = new Stand3B.Gorunum(kap);
+    gor.goster(GIRDI, SAHNE[i], GORUNUM);
+  }));
+})();
+</script>
+{% endblock %}

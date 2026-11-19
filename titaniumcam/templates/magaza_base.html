@@ -15,6 +15,7 @@
       </a>
       <nav class="flex items-center gap-1 sm:gap-2 text-sm whitespace-nowrap w-full sm:w-auto overflow-x-auto -mx-1 px-1">
         <a href="/" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav in ('/', '/magaza') %}font-semibold text-emerald-700{% endif %}">Dolap tasarla</a>
+        <a href="/stand" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav.startswith('/stand') %}font-semibold text-emerald-700{% endif %}">Stand tasarla</a>
         {% if cust %}
           <a href="/magaza/siparislerim" class="px-3 py-2 rounded-lg hover:bg-slate-100 {% if nav.startswith('/magaza/siparis') %}font-semibold text-emerald-700{% endif %}">Siparişlerim</a>
         {% endif %}

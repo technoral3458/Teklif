@@ -1,0 +1,113 @@
+{% extends "magaza_base.html" %}
+{% block title %}Stand tasarla — {{ firma().ad }}{% endblock %}
+{% block content %}
+<style>
+  .cephe { position: absolute; display: grid; place-items: center; font-size: 12px; font-weight: 600; border-radius: 10px;
+           cursor: pointer; user-select: none; transition: background .15s, color .15s; }
+  .cephe input { position: absolute; opacity: 0; pointer-events: none; }
+  .cephe.kapali { background: #334155; color: #fff; }
+  .cephe.acik { background: #d1fae5; color: #047857; outline: 2px dashed #10b981; outline-offset: -2px; }
+  .cephe:focus-within { box-shadow: 0 0 0 3px #a7f3d0; }
+</style>
+<div class="grid lg:grid-cols-5 gap-6">
+  <div class="lg:col-span-3">
+    <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Fuar standınızı tasarlayalım</h1>
+    <p class="text-slate-500 mt-1 mb-5">Ölçüleri ve koridora açık cepheleri girin. Yapay zekâ size birkaç farklı stand yerleşimi hazırlasın;
+      beğendiğinizi seçin, banko, raf ve dolaplar üretime hazır olarak sepetinize gelsin.</p>
+    {% if hata %}<div class="bg-red-50 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ hata }}</div>{% endif %}
+    {% if not ayar.acik %}<div class="bg-amber-50 text-amber-800 rounded-xl px-4 py-3 mb-4 text-sm">Stand tasarımı şu an kapalı.</div>{% endif %}
+
+    <form id="standForm" method="post" action="/stand/uret" class="bg-white rounded-2xl border p-5 sm:p-6 space-y-6">
+      <div>
+        <div class="font-semibold mb-2">1 · Stand ölçüsü</div>
+        <div class="grid grid-cols-3 gap-3 text-sm">
+          <label>Genişlik (m)<input name="en" inputmode="decimal" required value="{{ '%g'|format(g.en / 1000) }}" class="mt-1 border rounded-xl px-3 py-2.5 w-full text-lg font-semibold"></label>
+          <label>Derinlik (m)<input name="derinlik" inputmode="decimal" required value="{{ '%g'|format(g.derinlik / 1000) }}" class="mt-1 border rounded-xl px-3 py-2.5 w-full text-lg font-semibold"></label>
+          <label>Duvar yüksekliği (m)
+            <select name="yukseklik" class="mt-1 border rounded-xl px-3 py-2.5 w-full text-lg font-semibold bg-white">
+              {% for h in (2.5, 3, 3.5, 4, 4.5, 5) %}<option value="{{ h }}" {% if (g.yukseklik / 1000) == h %}selected{% endif %}>{{ '%g'|format(h) }} m</option>{% endfor %}
+            </select></label>
+        </div>
+        <p class="text-xs text-slate-400 mt-2">Genişlik: koridora bakan ön kenar. 2–20 m arası.</p>
+      </div>
+
+      <div>
+        <div class="font-semibold mb-1">2 · Hangi cepheler açık?</div>
+        <p class="text-sm text-slate-500 mb-3">Koridora bakan kenarlara dokunun. <span class="text-emerald-700 font-medium">Yeşil</span> = açık (koridor), <span class="font-medium text-slate-700">koyu</span> = duvar / komşu stand.</p>
+        <div class="flex flex-col sm:flex-row items-center gap-5">
+          <div id="kutu" class="relative w-64 h-48 shrink-0">
+            <div class="absolute inset-7 rounded-lg bg-slate-50 border border-slate-200 grid place-items-center text-xs text-slate-400 text-center px-2" id="kutuYazi">Stand</div>
+            {% for c, ad, cls in (('arka','Arka','left-7 right-7 top-0 h-6'), ('on','Ön','left-7 right-7 bottom-0 h-6'), ('sol','Sol','top-7 bottom-7 left-0 w-6'), ('sag','Sağ','top-7 bottom-7 right-0 w-6')) %}
+            <label class="cephe {{ cls }} {{ 'acik' if c in g.acik else 'kapali' }}" data-cephe="{{ c }}">
+              <input type="checkbox" name="acik" value="{{ c }}" {% if c in g.acik %}checked{% endif %}>
+              <span class="{{ '[writing-mode:vertical-rl]' if c in ('sol','sag') else '' }}">{{ ad }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <div class="text-sm">
+            <div id="tipAd" class="font-bold text-lg text-slate-900"></div>
+            <div id="tipAciklama" class="text-slate-500 mt-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="font-semibold mb-2">3 · Firmanız <span class="font-normal text-slate-400 text-sm">(isteğe bağlı, tasarımı kişiselleştirir)</span></div>
+        <input name="sektor" maxlength="120" value="{{ g.sektor or '' }}" placeholder="Sektör / ürünler — ör. mutfak aksesuarları, kozmetik, makine" class="border rounded-xl px-3 py-2.5 w-full text-sm">
+        <textarea name="istek" maxlength="600" rows="2" placeholder="İstekleriniz — ör. çok ürün sergilemek istiyoruz, küçük bir toplantı alanı olsun" class="mt-2 border rounded-xl px-3 py-2.5 w-full text-sm">{{ g.istek or '' }}</textarea>
+      </div>
+
+      <button id="uretBtn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl px-8 py-4 text-lg disabled:opacity-60" {% if not ayar.acik %}disabled{% endif %}>
+        ✨ Alternatif tasarımlar üret</button>
+      <p id="bekle" class="hidden text-sm text-slate-500">Tasarımlar hazırlanıyor ve her modül üretim programında kuruluyor… Bu 20–60 saniye sürebilir.</p>
+    </form>
+  </div>
+
+  <aside class="lg:col-span-2 space-y-4">
+    <div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-2xl p-5">
+      <div class="font-bold text-lg mb-2">Nasıl çalışır?</div>
+      <ol class="space-y-2 text-sm text-emerald-50 list-decimal list-inside">
+        <li>Ölçüleri ve açık cepheleri girin.</li>
+        <li>Yapay zekâ 3 farklı yerleşim önerir: plan, 3B görünüm ve fiyat.</li>
+        <li>Beğendiğinizi seçin; banko, teşhir rafları ve dolaplar sepetinize gelir.</li>
+        <li>İsterseniz her dolabı tek tek düzenleyin, sonra siparişi verin.</li>
+      </ol>
+    </div>
+    {% if gecmis %}
+    <div class="bg-white rounded-2xl border p-4">
+      <div class="font-semibold mb-2">Son tasarımlarınız</div>
+      {% for s in gecmis %}
+      <a href="/stand/{{ s.id }}" class="flex items-center justify-between py-2 border-t first:border-0 text-sm hover:text-emerald-700">
+        <span>{{ '%g'|format(s.girdi.en / 1000) }} × {{ '%g'|format(s.girdi.derinlik / 1000) }} m · {{ s.tip.split(' (')[0] }}</span>
+        <span class="text-slate-400">{{ s.created_at[:10] }}{% if s.secilen >= 0 %} · seçildi{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+</div>
+<script>
+(() => {
+  const TIP = {1: ['Sıra stand', 'Tek cephe koridora açık; üç kenar duvar. Duvarlar raf ve teşhir için kullanılır.'],
+               2: ['Köşe stand', 'İki cephe açık; köşeden iki koridora görünür.'],
+               3: ['Yarımada stand', 'Üç cephe açık; yalnız arka kenar duvar.'],
+               4: ['Ada stand', 'Dört cephe açık; her yönden ziyaretçi gelir, duvar yok.']};
+  const guncelle = () => {
+    const secili = [...document.querySelectorAll('.cephe input')].filter(i => i.checked);
+    document.querySelectorAll('.cephe').forEach(c => {
+      const a = c.querySelector('input').checked; c.classList.toggle('acik', a); c.classList.toggle('kapali', !a);
+    });
+    const t = TIP[secili.length];
+    document.getElementById('tipAd').textContent = t ? t[0] : 'Bir cephe seçin';
+    document.getElementById('tipAciklama').textContent = t ? t[1] : 'En az bir kenar koridora açık olmalı.';
+    document.getElementById('uretBtn').disabled = !t || {{ 'false' if ayar.acik else 'true' }};
+  };
+  document.querySelectorAll('.cephe input').forEach(i => i.addEventListener('change', guncelle));
+  guncelle();
+  document.getElementById('standForm').addEventListener('submit', () => {
+    const b = document.getElementById('uretBtn'); b.disabled = true; b.textContent = '⏳ Tasarımlar hazırlanıyor…';
+    document.getElementById('bekle').classList.remove('hidden');
+  });
+})();
+</script>
+{% endblock %}

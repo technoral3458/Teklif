@@ -63,6 +63,7 @@ def _absorb_guest_cart(request: Request, username: str):
         # misafirken tasarlanan dolaplar hesaba geçer
         db.execute("UPDATE kabin_taslak SET musteri=? WHERE musteri=?",
                    (username, f"guest:{token}"))
+        db.execute("UPDATE stand_proje SET sahip=? WHERE sahip=?", (username, f"guest:{token}"))
 
 
 def _ctx(request, cust, **extra):
@@ -264,8 +265,9 @@ async def sepet(request: Request):
                         (owner,)) if owner else []
     for d in dolaplar:
         d["ozet"] = json.loads(d["ozet_json"] or "{}")
+    from routers.stand import sepet_standlari
     return templates.TemplateResponse(request, "magaza_sepet.html",
-                                      _ctx(request, cust, dolaplar=dolaplar))
+                                      _ctx(request, cust, dolaplar=dolaplar, standlar=sepet_standlari(dolaplar)))
 
 
 # --------------------------------------------------------------------------

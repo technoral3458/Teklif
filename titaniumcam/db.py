@@ -119,6 +119,16 @@ CREATE TABLE IF NOT EXISTS kabin_model (
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
+-- Fuar standı tasarımı: girdi + üretilen alternatifler (her modülün motorda kurulmuş kabini dahil)
+CREATE TABLE IF NOT EXISTS stand_proje (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sahip TEXT NOT NULL,               -- müşteri kullanıcı adı ya da misafir anahtarı
+    girdi_json TEXT NOT NULL,
+    alternatifler_json TEXT NOT NULL DEFAULT '[]',
+    kaynak TEXT DEFAULT 'kural',       -- ai | kural
+    secilen INTEGER DEFAULT -1,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 -- Kapak siparişinin karşılığı
 CREATE TABLE IF NOT EXISTS cabinet_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -164,6 +174,8 @@ MIGRATIONS = [
     ("kabin_model", "kategori", "TEXT DEFAULT ''"),          # vitrin grubu (boşsa şablon adı)
     ("kabin_model", "gorsel_json", "TEXT DEFAULT ''"),       # gerçekçi 3B görsel verisi
     ("kabin_model", "maliyet_json", "TEXT DEFAULT ''"),      # motorun maliyet miktarları
+    ("kabin_taslak", "stand_id", "INTEGER DEFAULT 0"),       # fuar standının modülü
+    ("cabinet_orders", "stand_json", "TEXT DEFAULT ''"),     # siparişteki standlar (kabin dışı kalemler dahil)
 ]
 
 # Kaldırılan eski sistemin tabloları (maliyet, kapak modelleri, nesting, Vardar, eski mağaza / konfigüratör)

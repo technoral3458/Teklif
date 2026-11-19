@@ -95,7 +95,8 @@ def _siparis_json(o):
     return {"id": f"K-{o['id']}", "order_no": o["order_no"], "customer": o["musteri_ad"] or o["musteri"],
             "project": o["proje"] or "", "approved_at": _zaman(o["approved_at"]), "note": o["note"] or "",
             "claimed_by": o["claimed_by"] or None, "production_status": o["production_status"] or None,
-            "changed_after_claim": bool(o["degisti"]), "lines": lines}
+            "changed_after_claim": bool(o["degisti"]), "lines": lines,
+            "stands": json.loads(o.get("stand_json") or "[]")}   # fuar standı: plan + kabin dışı kalemler
 
 
 async def _govde(request):

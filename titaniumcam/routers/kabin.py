@@ -690,6 +690,18 @@ def _satir_alanlari(view):
                                      "fiyat_eksik": bool(fiyat_hesapla(view.get("maliyet"))["eksik"])})}
 
 
+def _stand_bilgisi(oid, taslaklar):
+    """Siparişteki stand modüllerinin standlarını (kabin dışı kalemler dahil) siparişe yazar."""
+    from routers.stand import secili_stand
+    standlar = [s for s in (secili_stand(sid) for sid in sorted({t.get("stand_id") or 0 for t in taslaklar} - {0})) if s]
+    if not standlar:
+        return
+    o = db.one("SELECT note FROM cabinet_orders WHERE id=?", (oid,))
+    not_ = "\n\n".join(([o["note"]] if o and o["note"] else []) + [s["ozet"] for s in standlar])
+    db.execute("UPDATE cabinet_orders SET stand_json=?, note=? WHERE id=?",
+               (json.dumps(standlar, ensure_ascii=False), not_[:5000], oid))
+
+
 @router.post("/kabin/siparis")
 async def kabin_siparis(request: Request, proje: str = Form(""), note: str = Form("")):
     cust = current_customer(request)
@@ -716,12 +728,14 @@ async def kabin_siparis(request: Request, proje: str = Form(""), note: str = For
     for i, (t, view) in enumerate(satirlar, 1):
         a = _satir_alanlari(view)
         db.execute("INSERT INTO cabinet_order_lines (order_id, line_no, cabinet_no, name, qty, width_mm, "
-                   "height_mm, depth_mm, tkabin, engine_version, definitions_version, ozet_json) "
-                   "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                   "height_mm, depth_mm, tkabin, engine_version, definitions_version, ozet_json, note) "
+                   "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                    (oid, i, a["cabinet_no"] or f"K-{i}", t["ad"] or t["sablon"], a["qty"], a["width_mm"],
                     a["height_mm"], a["depth_mm"], a["tkabin"], a["engine_version"],
-                    a["definitions_version"], a["ozet_json"]))
+                    a["definitions_version"], a["ozet_json"],
+                    f"Fuar standı #{t['stand_id']} modülü" if t.get("stand_id") else ""))
         db.execute("UPDATE kabin_taslak SET sepette=0 WHERE id=?", (t["id"],))
+    _stand_bilgisi(oid, [t for t, _v in satirlar])
     if kabin_onay_sekli(cust["username"]) == "otomatik":   # onaylı → TitaniumCam havuzuna (API) düşer
         db.execute("UPDATE cabinet_orders SET status='onayli', approved_at=datetime('now','localtime'), "
                    "approved_by='otomatik' WHERE id=?", (oid,))
@@ -743,7 +757,7 @@ async def kabin_siparis_goster(request: Request, oid: int):
     for l in lines:
         l["ozet"] = json.loads(l["ozet_json"] or "{}")
     return templates.TemplateResponse(request, "kabin_siparis.html", _musteri_ctx(
-        request, cust, o=o, lines=lines))
+        request, cust, o=o, lines=lines, standlar=_siparis_standlari(o)))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -776,7 +790,16 @@ async def y_siparis(request: Request, oid: int, hata: str = "", mesaj: str = "")
         l["ozet"] = json.loads(l["ozet_json"] or "{}")
         l.pop("tkabin", None)
     return templates.TemplateResponse(request, "kabin_y_siparis.html", {
-        "request": request, "o": o, "lines": lines, "DURUM_AD": DURUM_AD, "hata": hata, "mesaj": mesaj})
+        "request": request, "o": o, "lines": lines, "DURUM_AD": DURUM_AD, "hata": hata, "mesaj": mesaj,
+        "standlar": _siparis_standlari(o)})
+
+
+def _siparis_standlari(o):
+    import stand as S
+    out = json.loads(o.get("stand_json") or "[]")
+    for st in out:
+        st["svg"] = S.plan_svg(st["girdi"], st["alternatif"]["moduller"])
+    return out
 
 
 @router.get("/titaniumcam/kabin/satir/{lid}/veri")

@@ -4,4 +4,5 @@ jinja2
 python-multipart
 httpx
 cryptography>=41   # acil lisans: Ed25519 imza
+anthropic          # fuar standı: yapay zekâ ile alternatif yerleşim (anahtar yoksa kurallı)
 maxminddb          # acil lisans: yerel GeoIP (veritabanı yoksa konum boş kalır)

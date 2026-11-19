@@ -45,6 +45,24 @@ Onaylı ve alınmamış siparişler, eskiden yeniye. `unclaimed=0&station=CNC-1`
 - `tkabin.kabin.adet` her zaman `qty` ile aynıdır. Ölçüler sayıdır. `tkabin.kabin.uid` satır başına tekildir.
 - `engine_version` / `definitions_version`: siparişin donduruldüğü motor ve tanım dosyası sürümü (dosya özetinin ilk 12 karakteri).
 
+- `stands`: siparişte fuar standı varsa standın bilgisi (yoksa `[]`). Standın kabin modülleri (banko, raf, dolap)
+  normal `lines` satırlarıdır; satır `note`u `"Fuar standı #ID modülü"` olur. Kabin olmayan kalemler (duvar paneli,
+  zemin, spot aydınlatma, grafik) yalnız burada ve sipariş `note`unda yazılıdır:
+
+```json
+"stands": [{"id": 7, "tip": "Köşe stand (iki cephe açık)",
+  "girdi": {"en": 6000, "derinlik": 4000, "yukseklik": 3000, "acik": ["on", "sol"], "sektor": "Kozmetik"},
+  "alternatif": {"ad": "Klasik", "konsept": "...",
+    "moduller": [{"tip": "banko", "ad": "Karşılama bankosu", "en": 1600, "boy": 1050, "derinlik": 600,
+                  "x": 2200, "y": 3100, "yon": "arka"}],
+    "ekstralar": [{"kod": "duvar", "ad": "Duvar paneli", "miktar": 30.0, "birim": "m²",
+                   "detay": "Arka duvar 6 × 3 m, Sağ duvar 4 × 3 m", "birim_fiyat": 450.0, "tutar": 13500.0}]},
+  "fiyat": {"kabin": 0, "ekstra": 13500.0, "toplam": 13500.0, "goster": false},
+  "ozet": "FUAR STANDI #7 — Klasik\n..."}]
+```
+
+  Plan koordinatı mm: `x` soldan, `y` arka kenardan öne; `yon` modülün yüzünün baktığı taraf (`on` = koridor).
+
 `GET /cabinet-orders/{id}` tek siparişi aynı biçimde döner.
 
 ## POST /cabinet-orders/{id}/claim

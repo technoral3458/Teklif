@@ -20,7 +20,7 @@ async def lifespan(app):
 app = FastAPI(title="Online Sipariş Sistemi", lifespan=lifespan)
 
 # Giriş gerektirmeyen yollar. /magaza ve /kabin kendi müşteri oturumunu ('csession') içeride denetler.
-PUBLIC_PATHS = ("/login", "/logout", "/static", "/magaza", "/kabin",
+PUBLIC_PATHS = ("/login", "/logout", "/static", "/magaza", "/kabin", "/stand",
                 "/api/titanium", "/gizlilik", "/kosullar")   # API: oturum değil Bearer anahtarı (routers/titanium_api.py)
 
 
@@ -50,6 +50,7 @@ from routers.kabin import router as kabin_router  # noqa: E402
 from routers.titanium_api import router as titanium_router  # noqa: E402
 from routers.ayarlar import router as ayarlar_router  # noqa: E402
 from routers.acil_lisans import router as acil_router  # noqa: E402
+from routers.stand import router as stand_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(magaza_router)
@@ -57,14 +58,16 @@ app.include_router(kabin_router)
 app.include_router(titanium_router)
 app.include_router(ayarlar_router)
 app.include_router(acil_router)
+app.include_router(stand_router)
 
 
 # Firma adı (Ayarlar → Firma) tüm şablonlarda {{ firma().ad }} olarak kullanılır
 import routers.auth_routes  # noqa: E402,F401
-import routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans  # noqa: E402,F401
+import routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans, routers.stand  # noqa: E402,F401
 from routers.kabin import firma_bilgisi  # noqa: E402
 
-for _m in (routers.auth_routes, routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans):
+for _m in (routers.auth_routes, routers.magaza, routers.kabin, routers.titanium_api, routers.ayarlar, routers.acil_lisans,
+           routers.stand):
     _m.templates.env.globals["firma"] = firma_bilgisi
 
 # Ana sayfa = mağaza (müşteri vitrini). Yönetim: /login → /titaniumcam/kabin

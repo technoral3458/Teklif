@@ -2,6 +2,7 @@
 {% block title %}Sepet — {{ firma().ad }}{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">🛒 Sepetim</h1>
+{% for st in standlar %}<div class="mb-4">{% set bag = True %}{% set fiyat_goster = st.fiyat.goster %}{% include "_stand_kart.html" %}</div>{% endfor %}
 {% if dolaplar %}
 <section class="mb-8">
   <div class="flex items-center justify-between mb-3">
@@ -30,7 +31,7 @@
       <form method="post" action="/kabin/siparis" class="space-y-2 text-sm">
         <input name="proje" placeholder="Proje adı" class="border rounded-lg px-3 py-2 w-full">
         <textarea name="note" rows="2" placeholder="Not" class="border rounded-lg px-3 py-2 w-full"></textarea>
-        <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-2.5 hover:bg-emerald-700">Dolap siparişini ver</button>
+        <button class="w-full bg-emerald-600 text-white font-semibold rounded-lg py-2.5 hover:bg-emerald-700">{{ 'Stand ve dolap siparişini ver' if standlar else 'Dolap siparişini ver' }}</button>
       </form>
       {% else %}
       <div class="text-sm font-medium mb-2">Sipariş için giriş yapın</div>

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Stand tasarımı{% endblock %}
+{% block content %}
+<a href="/titaniumcam/admin" class="text-blue-600 text-sm">← Yönetici</a>
+<div class="flex flex-wrap items-center justify-between gap-3 mt-1 mb-4">
+  <h1 class="text-2xl font-bold">🏗️ Stand tasarımı</h1>
+  <a href="/stand" target="_blank" class="text-sm text-blue-600">Müşteri sayfasını aç ↗</a>
+</div>
+{% if mesaj %}<div class="bg-emerald-50 text-emerald-700 rounded-lg px-4 py-2 mb-4 text-sm">{{ mesaj }}</div>{% endif %}
+
+<form method="post" action="/titaniumcam/stand/ayar" class="grid lg:grid-cols-2 gap-6 mb-6">
+  <div class="bg-white rounded-xl shadow p-5 space-y-3 text-sm">
+    <h2 class="font-semibold text-lg">Yapay zekâ (Claude)</h2>
+    <p class="text-slate-500">Müşterinin stand ölçülerine göre 3 farklı yerleşim önerir. Anahtar yoksa ya da yapay zekâ cevap vermezse
+      hazır yerleşim kurallarıyla tasarlanır; müşteri her durumda tasarım görür.</p>
+    <div class="rounded-lg px-3 py-2 {{ 'bg-emerald-50 text-emerald-800' if anahtar_var else 'bg-amber-50 text-amber-800' }}">
+      {% if anahtar_var %}Anahtar tanımlı (…{{ anahtar_son }}){% if anahtar_ortam %} — sunucu ortam değişkeninden (ANTHROPIC_API_KEY){% endif %}.
+      {% else %}Anahtar tanımlı değil: tasarımlar kurallarla üretiliyor.{% endif %}</div>
+    {% if not anahtar_ortam %}
+    <label class="block">Anthropic API anahtarı
+      <input name="anahtar" type="password" autocomplete="off" placeholder="{{ 'Değiştirmek için yeni anahtar girin' if anahtar_var else 'sk-ant-…' }}" class="mt-1 border rounded-lg px-3 py-2 w-full font-mono"></label>
+    <p class="text-xs text-slate-400">Anahtar bir daha gösterilmez; console.anthropic.com → API Keys'ten alınır. Her tasarım üretimi küçük bir ücret tutar.</p>
+    {% if anahtar_var %}<label class="flex items-center gap-2 text-red-600"><input type="checkbox" name="anahtar_sil" value="1"> Anahtarı sil</label>{% endif %}
+    {% endif %}
+    <label class="flex items-center gap-2"><input type="checkbox" name="ai" value="1" {% if ayar.ai %}checked{% endif %}> Yapay zekâ kullanılsın</label>
+    <label class="block">Günlük en çok yapay zekâ tasarımı <span class="text-slate-400">(maliyet sınırı · son 24 saatte {{ gunluk_ai }})</span>
+      <input name="gunluk" type="number" min="0" max="10000" value="{{ ayar.gunluk }}" class="mt-1 border rounded-lg px-3 py-2 w-32"></label>
+    <p class="text-xs text-slate-400">Model: {{ model }}. Aynı müşteri saatte en fazla 8 tasarım üretebilir.</p>
+  </div>
+  <div class="bg-white rounded-xl shadow p-5 space-y-3 text-sm">
+    <h2 class="font-semibold text-lg">Kabin dışı kalemlerin birim fiyatı</h2>
+    <p class="text-slate-500">Kabin modülleri (banko, raf, dolap) her zamanki gibi Maliyetler'deki birim fiyatlarla hesaplanır. Aşağıdakiler
+      siparişe bilgi olarak eklenir; fiyatı 0 olan kalem varsa müşteriye stand toplamı gösterilmez.</p>
+    {% for k, e in ekstra.items() %}
+    <label class="flex items-center justify-between gap-3">{{ e.ad }} <span class="flex items-center gap-2">
+      <input name="b:{{ k }}" inputmode="decimal" value="{{ '%g'|format(ayar.birim[k]) }}" class="border rounded-lg px-3 py-2 w-28 text-right"> ₺ / {{ e.birim }}</span></label>
+    {% endfor %}
+    <label class="flex items-center gap-2 pt-2 border-t"><input type="checkbox" name="acik" value="1" {% if ayar.acik %}checked{% endif %}> Mağazada "Stand tasarla" açık</label>
+  </div>
+  <div class="lg:col-span-2 flex flex-wrap gap-3">
+    <button class="bg-blue-600 text-white rounded-lg px-6 py-2.5 font-semibold">Kaydet</button>
+  </div>
+</form>
+<form method="post" action="/titaniumcam/stand/dene" class="mb-8" onsubmit="this.querySelector('button').textContent='⏳ Deneniyor (30 sn kadar)…'">
+  <button class="border rounded-lg px-5 py-2 text-sm bg-white" {% if not anahtar_var %}disabled{% endif %}>🧪 Yapay zekâyı dene</button>
+</form>
+
+<h2 class="font-semibold text-lg mb-2">Müşteri stand tasarımları</h2>
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500"><tr><th class="text-left p-3">#</th><th class="text-left p-3">Müşteri</th><th class="text-left p-3">Stand</th><th class="text-left p-3">Tasarım</th><th class="text-left p-3">Seçim</th><th class="text-left p-3">Tarih</th></tr></thead>
+    <tbody>
+    {% for p in projeler %}
+      <tr class="border-t"><td class="p-3">{{ p.id }}</td><td class="p-3">{{ 'misafir' if p.sahip.startswith('guest:') else p.sahip }}</td>
+        <td class="p-3">{{ '%g'|format(p.girdi.en / 1000) }} × {{ '%g'|format(p.girdi.derinlik / 1000) }} m · {{ p.tip.split(' (')[0] }}{% if p.girdi.sektor %} · {{ p.girdi.sektor }}{% endif %}</td>
+        <td class="p-3">{{ '✨ yapay zekâ' if p.kaynak == 'ai' else 'kurallı' }}</td>
+        <td class="p-3">{{ ('Alternatif ' ~ (p.secilen + 1)) if p.secilen >= 0 else '—' }}</td><td class="p-3 whitespace-nowrap">{{ p.created_at[:16] }}</td></tr>
+    {% else %}
+      <tr><td colspan="6" class="p-6 text-center text-slate-400">Henüz stand tasarımı yok.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
