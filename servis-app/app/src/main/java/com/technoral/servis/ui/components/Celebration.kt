@@ -215,10 +215,10 @@ fun CelebrationOverlay(celebration: Celebration, onFinish: () -> Unit) {
                         radius = r,
                     )
                 }
-                // Deli Kadir: çizgi film gibi zıplayarak gelir, sonra hafifçe sallanır
+                // Logo: çizgi film gibi zıplayarak gelir, sonra hafifçe sallanır
                 Image(
-                    painter = painterResource(R.drawable.deli_kadir),
-                    contentDescription = "Deli Kadir",
+                    painter = painterResource(R.drawable.app_logo),
+                    contentDescription = "Titanium Service Rapor",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(190.dp)

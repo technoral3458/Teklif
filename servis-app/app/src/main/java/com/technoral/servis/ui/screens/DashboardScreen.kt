@@ -100,7 +100,7 @@ fun DashboardScreen(vm: AppViewModel, nav: Navigator) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AppTopBar(
-                title = settings.company.name.ifBlank { "Deli Kadir App" },
+                title = settings.company.name.ifBlank { "Titanium Service Rapor" },
                 subtitle = settings.technicianName.ifBlank { "Servis takip paneli" },
             )
         },

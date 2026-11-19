@@ -1,4 +1,4 @@
-# Deli Kadir App — Makine Servis Raporlama Uygulaması
+# Titanium Service Rapor — Makine Servis Raporlama Uygulaması
 
 Teknisyenlerin sahada, internet olmadan servis raporu oluşturabilmesi için yazılmış
 Android uygulaması. Tüm kayıtlar telefonda tutulur; internet yalnızca mail gönderirken

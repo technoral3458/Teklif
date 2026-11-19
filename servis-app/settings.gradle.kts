@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DeliKadirApp"
+rootProject.name = "TitaniumServiceRapor"
 include(":app")

@@ -23,16 +23,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,43 +38,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.technoral.servis.R
 import kotlinx.coroutines.delay
 
 private val Ink = Color(0xFF0A0A12)
 private val Purple = Color(0xFF1E1233)
 private val Ember = Color(0xFFE23B4E)
-private val Gold = Color(0xFFFFC24B)
 
-/** Yazı animasyonunun hızları (ms). */
-private const val ICON_DELAY = 420L
-private const val CHAR_DELAY_TITLE = 48L
-private const val CHAR_DELAY_SUBTITLE = 30L
-private const val LINE_GAP = 220L
-private const val HOLD_AFTER = 800L
+/** Açılış ekranının toplam süresi (ms). */
+private const val HOLD = 1900L
 
 /**
- * Açılış ekranı: ikon yaylanarak gelir, ardından yazı daktilo efektiyle
- * harf harf yazılır. Bitince uygulama açılır; ekrana dokunarak geçilebilir.
+ * Açılış ekranı: logo yaylanarak gelir, arkasındaki hale nabız atar ve
+ * uygulama açılır. Ekrana dokunarak beklemeden geçilebilir.
  */
 @Composable
 fun SplashScreen(onFinish: () -> Unit) {
-    val title = stringResource(R.string.splash_line_one)
-    val subtitle = stringResource(R.string.splash_line_two)
-
-    var typedTitle by remember { mutableIntStateOf(0) }
-    var typedSubtitle by remember { mutableIntStateOf(0) }
     val finish by rememberUpdatedState(onFinish)
 
-    val iconScale = remember { Animatable(0.55f) }
+    val iconScale = remember { Animatable(0.62f) }
     val iconAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        iconAlpha.animateTo(1f, tween(320))
+        iconAlpha.animateTo(1f, tween(300))
     }
     LaunchedEffect(Unit) {
         iconScale.animateTo(
@@ -90,38 +73,18 @@ fun SplashScreen(onFinish: () -> Unit) {
             ),
         )
     }
-
     LaunchedEffect(Unit) {
-        delay(ICON_DELAY)
-        while (typedTitle < title.length) {
-            delay(CHAR_DELAY_TITLE)
-            typedTitle++
-        }
-        delay(LINE_GAP)
-        while (typedSubtitle < subtitle.length) {
-            delay(CHAR_DELAY_SUBTITLE)
-            typedSubtitle++
-        }
-        delay(HOLD_AFTER)
+        delay(HOLD)
         finish()
     }
 
-    // Yanıp sönen imleç ve ikon halesinin nabzı
     val transition = rememberInfiniteTransition(label = "splash")
-    val caret by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(480), RepeatMode.Reverse),
-        label = "caret",
-    )
     val halo by transition.animateFloat(
         initialValue = 0.85f,
         targetValue = 1.12f,
         animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "halo",
     )
-
-    val done = typedSubtitle >= subtitle.length
 
     Box(
         Modifier
@@ -138,21 +101,21 @@ fun SplashScreen(onFinish: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(contentAlignment = Alignment.Center) {
-                // Kızıl hale
+                // Logonun arkasındaki kızıl hale
                 Box(
                     Modifier
                         .size(260.dp)
                         .scale(halo)
                         .background(
                             Brush.radialGradient(
-                                listOf(Ember.copy(alpha = 0.45f), Color.Transparent),
+                                listOf(Ember.copy(alpha = 0.38f), Color.Transparent),
                             ),
                             CircleShape,
                         ),
                 )
                 Image(
-                    painter = painterResource(R.drawable.deli_kadir),
-                    contentDescription = "Deli Kadir",
+                    painter = painterResource(R.drawable.app_logo),
+                    contentDescription = stringResource(R.string.app_name),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(180.dp)
@@ -162,33 +125,9 @@ fun SplashScreen(onFinish: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(34.dp))
+            Spacer(Modifier.height(44.dp))
 
-            Text(
-                text = title.take(typedTitle) + caretFor(typedTitle < title.length, caret),
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 32.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(14.dp))
-
-            Text(
-                text = subtitle.take(typedSubtitle) +
-                    caretFor(typedTitle >= title.length && typedSubtitle < subtitle.length, caret),
-                color = Gold,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 24.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(40.dp))
-
+            // Yükleniyor göstergesi
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 repeat(3) { index ->
                     val dot by transition.animateFloat(
@@ -203,21 +142,11 @@ fun SplashScreen(onFinish: () -> Unit) {
                     Box(
                         Modifier
                             .size(7.dp)
-                            .alpha(if (done) 1f else dot)
+                            .alpha(dot)
                             .background(Ember, CircleShape),
                     )
                 }
             }
         }
-
-        Text(
-            text = "geçmek için dokun",
-            color = Color.White.copy(alpha = 0.32f),
-            fontSize = 12.sp,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp),
-        )
     }
 }
-
-private fun caretFor(active: Boolean, blink: Float): String =
-    if (active && blink > 0.5f) "▌" else ""
