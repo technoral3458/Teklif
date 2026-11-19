@@ -22,13 +22,14 @@ GRUPLAR = {
     "sehpa": ("Sehpa", ["masa_yuvarlak", "masa_kare"]),
     "ekran": ("Ekran / TV", ["tv", "led"]),
     "tv_standi": ("TV ayaklı standı", ["tv_standi"]),
+    "vitrin": ("Cam vitrin", ["cam_vitrin"]),
     "depo_odasi": ("Depo odası", ["depo"]),
     "brosurluk": ("Broşürlük", ["brosurluk"]),
     "bitki": ("Saksı bitki", ["bitki"]),
 }
 MODEL_AD = {"sandalye": "Sandalye", "tabure": "Tabure", "berjer": "Berjer", "kanepe": "Kanepe",
             "masa_yuvarlak": "Yuvarlak masa", "masa_kare": "Dikdörtgen masa", "tv": "TV", "led": "LED ekran",
-            "tv_standi": "TV standı", "depo": "Depo odası", "brosurluk": "Broşürlük", "bitki": "Bitki"}
+            "tv_standi": "TV standı", "cam_vitrin": "Cam vitrin", "depo": "Depo odası", "brosurluk": "Broşürlük", "bitki": "Bitki"}
 
 # (kod, ad, grup, model, en, derinlik, yükseklik, renk)
 VARSAYILAN = [
@@ -52,6 +53,8 @@ VARSAYILAN = [
     ("tv_75", 'TV 75"', "ekran", "tv", 1680, 60, 960, "#0b0f14"),
     ("led_2x15", "LED ekran 2 × 1,5 m", "ekran", "led", 2000, 150, 1500, "#0b0f14"),
     ("tv_standi", "TV ayaklı standı", "tv_standi", "tv_standi", 800, 600, 1600, "#334155"),
+    ("cam_vitrin", "Cam vitrin (ışıklı, boy)", "vitrin", "cam_vitrin", 800, 450, 1900, "#bfdbfe"),
+    ("cam_vitrin_alcak", "Alçak cam vitrin (tezgâh)", "vitrin", "cam_vitrin", 1000, 500, 1000, "#bfdbfe"),
     ("depo_odasi", "Depo odası (kapılı, 1 × 1,5 m)", "depo_odasi", "depo", 1000, 1500, 2500, "#f4f3f1"),
     ("brosurluk", "Broşürlük (ayaklı)", "brosurluk", "brosurluk", 320, 320, 1500, "#94a3b8"),
     ("bitki", "Saksı bitki (yapay)", "bitki", "bitki", 500, 500, 1300, "#15803d"),
@@ -96,6 +99,8 @@ def donati_dogrula(ham, katalog, alan_m2=24):
         "depo": str(ham.get("depo", "")) in ("1", "on", "true", "True"),
         "brosur": _int(ham.get("brosur"), (0, 3), 0),
         "bitki": _int(ham.get("bitki"), (0, 6), 0),
+        "vitrin": _int(ham.get("vitrin"), (0, 4), 0),
+        "vitrin_model": model("vitrin", ham.get("vitrin_model")),
     }
     if s["toplanti"] not in TOPLANTI:
         s["toplanti"] = min(TOPLANTI, key=lambda n: abs(n - s["toplanti"]))
@@ -180,6 +185,11 @@ def setler(secim, katalog, girdi):
             parca = [_p(b, en / 2, der / 2), _p(t, t["en"] / 2 + 10, der / 2, -90), _p(t, en - t["en"] / 2 - 10, der / 2, 90)]
             out.append({"id": f"bar_{i + 1}", "tur": "bar", "ad": "Bar masası + 2 tabure", "en": round(en),
                         "derinlik": round(der), "parcalar": parca})
+    if secim.get("vitrin_model") in K:
+        d = K[secim["vitrin_model"]]
+        for i in range(secim.get("vitrin") or 0):
+            out.append({"id": f"vitrin_{i + 1}", "tur": "vitrin", "ad": d["ad"], "en": d["en"], "derinlik": d["derinlik"],
+                        "parcalar": [_p(d, d["en"] / 2, d["derinlik"] / 2)]})
     for grup, tur, adet in (("brosurluk", "brosur", secim.get("brosur") or 0), ("bitki", "bitki", secim.get("bitki") or 0)):
         g = grup_ogeleri(K, grup)
         if g:

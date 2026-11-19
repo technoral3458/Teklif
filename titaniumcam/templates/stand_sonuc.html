@@ -80,6 +80,7 @@
   <input type="hidden" name="yukseklik" value="{{ g.yukseklik / 1000 }}">
   {% for c in g.acik %}<input type="hidden" name="acik" value="{{ c }}">{% endfor %}
   <input type="hidden" name="sektor" value="{{ g.sektor }}"><input type="hidden" name="istek" value="{{ g.istek }}">
+  {% for k, v in (g.yapi or {}).items() %}{% if v %}<input type="hidden" name="{{ 'logo_kod' if k == 'logo' else k }}" value="{{ v if k == 'logo' else 1 }}">{% endif %}{% endfor %}
   {% for k, v in (g.donati or {}).items() %}{% if v not in (False, None, '') %}<input type="hidden" name="{{ k }}" value="{{ 1 if v is sameas true else v }}">{% endif %}{% endfor %}
   <button class="border rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-white" onclick="this.textContent='⏳ Yeni alternatifler hazırlanıyor…'">↻ Başka alternatifler üret</button>
 </form>

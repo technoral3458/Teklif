@@ -45,6 +45,10 @@ MODULLER = {
                     "aciklama": "Kapaklı, raflı saklama dolabı (katalog, ikram, çanta).",
                     "en": (600, 1200), "boy": (1800, 2600), "derinlik": (450, 600), "raf": (2, 5), "kapak": (1, 2),
                     "varsayilan": {"en": 900, "boy": 2100, "derinlik": 560, "raf": 4, "kapak": 2}},
+    "ikram_tezgahi": {"ad": "İkram tezgâhı", "sablon": "Alt Dolap", "renk": "#be123c",
+                      "aciklama": "İkram / mutfak köşesi: kapaklı alt dolap ve tezgâh (kahve makinesi, su ısıtıcı için).",
+                      "en": (800, 2400), "boy": (850, 950), "derinlik": (550, 650), "raf": (1, 1), "kapak": (1, 2),
+                      "varsayilan": {"en": 1200, "boy": 900, "derinlik": 600, "raf": 1, "kapak": 2}},
     "alt_teshir": {"ad": "Teşhir / sunum ünitesi", "sablon": "Alt Dolap", "renk": "#d97706",
                    "aciklama": "Bel hizasında ürün sunum ünitesi; altı raflı ya da kapaklı.",
                    "en": (600, 2000), "boy": (750, 1000), "derinlik": (400, 800), "raf": (0, 2), "kapak": (0, 2),
@@ -57,7 +61,15 @@ EKSTRA_KALEMLER = {
     "zemin": {"ad": "Yükseltilmiş zemin / halı", "birim": "m²"},
     "spot": {"ad": "Spot aydınlatma", "birim": "adet"},
     "grafik": {"ad": "Logo / grafik baskı", "birim": "m²"},
+    "truss": {"ad": "Truss tavan (alüminyum, spot askılı)", "birim": "m"},
+    "banner": {"ad": "Askılı tavan banner'ı", "birim": "adet"},
 }
+
+
+def yapi_dogrula(ham):
+    """Stand yapısı seçimleri: truss tavan, askılı banner, ikram köşesi (logo dosya adı router'da doğrulanır)."""
+    e = lambda k: str((ham or {}).get(k, "")) in ("1", "on", "true", "True")   # noqa: E731
+    return {"truss": e("truss"), "banner": e("banner"), "ikram": e("ikram"), "logo": (ham or {}).get("logo") or ""}
 
 
 def _sayi(v, varsayilan):
@@ -164,6 +176,12 @@ def ekstralar(girdi, alt, donatilar=(), katalog=None):
     k.append({"kod": "zemin", "miktar": round(alan, 2), "detay": f"{W:g} × {D:g} m"})
     k.append({"kod": "spot", "miktar": spot, "detay": ""})
     k.append({"kod": "grafik", "miktar": round(grafik, 2), "detay": "Logo / marka yüzeyi"})
+    yapi = girdi.get("yapi") or {}
+    if yapi.get("truss"):
+        k.append({"kod": "truss", "miktar": round(2 * (W + D), 2), "detay": f"Stand çevresi, {H + 0.3:g} m yükseklikte"})
+    if yapi.get("banner"):
+        cap = round(min(3.0, min(W, D) * 0.6), 1)
+        k.append({"kod": "banner", "miktar": 1, "detay": f"Yuvarlak Ø{cap:g} m × 1 m, stand ortasında"})
     for kk in k:
         kk.update(EKSTRA_KALEMLER[kk["kod"]])
     return SD.kalemler(donatilar, katalog or {}) + k
@@ -173,6 +191,12 @@ def alternatif_duzelt(ham, girdi, setler=(), katalog=None):
     moduller, notlar = yerlesim_duzelt(ham.get("moduller"), girdi)
     if not moduller:
         return None
+    if (girdi.get("yapi") or {}).get("ikram") and not any(m["tip"] == "ikram_tezgahi" for m in moduller):
+        ik = _ikram_yer(girdi, moduller)
+        if ik:
+            moduller.append(ik)
+        else:
+            notlar.append("İkram tezgâhı standa sığmadı")
     yer = {d.get("set"): d for d in (ham.get("donatilar") or []) if isinstance(d, dict)}
     donatilar, n2 = setleri_yerlestir(girdi, setler, moduller, yer, katalog or {})
     return {"ad": (str(ham.get("ad") or "Alternatif").strip() or "Alternatif")[:60],
@@ -183,7 +207,7 @@ def alternatif_duzelt(ham, girdi, setler=(), katalog=None):
 
 # ── Donatı setlerinin yerleşimi ─────────────────────────────────────────────
 TERS = {"on": "arka", "arka": "on", "sag": "sol", "sol": "sag"}
-SET_SIRA = ("depo", "ekran", "toplanti", "oturma", "bar", "brosur", "bitki")
+SET_SIRA = ("depo", "ekran", "vitrin", "toplanti", "oturma", "bar", "brosur", "bitki")
 
 
 def _kenara_degiyor(iz, cephe, W, D):
@@ -221,6 +245,10 @@ def _puan(st, girdi):
         t = TERS[st["yon"]]
         orta = (x + w / 2 - W / 2) if t in ("arka", "on") else (y + h / 2 - D / 2)
         return abs(orta)
+    if tur == "vitrin":                     # duvara yaslı, koridordan görünür; duvar yoksa koridora bakar
+        if kapali:
+            return (0 if _duvara_sirt(st, girdi) else 4000) + 0.3 * acik_u
+        return acik_u - (400 if st["yon"] in girdi["acik"] else 0)
     if tur == "toplanti":
         return -acik_u
     if tur == "oturma":
@@ -242,7 +270,7 @@ def _puan(st, girdi):
 def _yer_bul(girdi, st, dolu):
     W, D = girdi["en"], girdi["derinlik"]
     adim = max(100, math.ceil(max(W, D) / 60 / 100) * 100)
-    pay = 100 if st["tur"] in ("bitki", "brosur") else 0 if st["tur"] in ("depo", "ekran") else 300
+    pay = 100 if st["tur"] in ("bitki", "brosur") else 0 if st["tur"] in ("depo", "ekran", "vitrin") else 300
     yonler = ("on",) if st["tur"] in ("toplanti", "bitki", "brosur") else ("on", "sag") if st["tur"] == "bar" else YONLER
     en_iyi = None
     for yon in yonler:
@@ -260,6 +288,14 @@ def _yer_bul(girdi, st, dolu):
                 if p is not None and (en_iyi is None or p < en_iyi[0]):
                     en_iyi = (p, aday)
     return en_iyi[1] if en_iyi else None
+
+
+def _ikram_yer(girdi, mevcut):
+    """İkram tezgâhı: duvarlı köşeye (yoksa ortaya), mevcut modül / setlere çarpmadan."""
+    v = MODULLER["ikram_tezgahi"]["varsayilan"]
+    a = _yer_bul(girdi, {"id": "ikram", "tur": "depo", "ad": "İkram", "en": v["en"], "derinlik": v["derinlik"]},
+                 [ayak_izi(m) for m in mevcut])
+    return modul_duzelt({"tip": "ikram_tezgahi", **v, "x": a["x"], "y": a["y"], "yon": a["yon"]}, girdi) if a else None
 
 
 def setleri_yerlestir(girdi, setler, moduller, yer=None, katalog=None):
@@ -397,12 +433,16 @@ def kurali_alternatifler(girdi, setler=(), katalog=None):
                 "depo dolabı. Ziyaretçi alanı geniş.", "moduller": m})
 
     # Sıra: koridorda banko → duvara yaslanan setler (depo odası, ekran) → duvar modülleri → serbest setler
-    duvar_set = [st for st in setler if st["tur"] in ("depo", "ekran")]
-    serbest_set = [st for st in setler if st["tur"] not in ("depo", "ekran")]
+    duvar_set = [st for st in setler if st["tur"] in ("depo", "ekran", "vitrin")]
+    serbest_set = [st for st in setler if st["tur"] not in ("depo", "ekran", "vitrin")]
     for a in alt:                         # kurallı yerleşimde sığmayan modül sessizce düşer
         banko = _banko_yerlestir(girdi, [])
         once = [modul_duzelt(banko, girdi)] if banko else []
         y1, _ = setleri_yerlestir(girdi, duvar_set, once, {}, katalog)
+        if (girdi.get("yapi") or {}).get("ikram"):
+            ik = _ikram_yer(girdi, once + y1)
+            if ik:
+                once.append(ik)
         izler = [ayak_izi(k) for k in once + y1]
         mod, _ = yerlesim_duzelt(a["moduller"], girdi)
         a["moduller"] = [m for m in mod if not any(_cakisir(ayak_izi(m), k) for k in izler)] + once
@@ -491,6 +531,8 @@ def _kullanici_istemi(girdi, setler=()):
         s += f"\nFirmanın sektörü / ürünleri: {girdi['sektor']}"
     if girdi.get("istek"):
         s += f"\nMüşterinin isteği: {girdi['istek']}"
+    if (girdi.get("yapi") or {}).get("ikram"):
+        s += "\nMüşteri ikram / mutfak köşesi istedi: bir ikram_tezgahi modülünü duvarlı bir kenara, sakin tarafa koy."
     if setler:
         s += "\nYerleştirilecek donatı setleri (plan ölçüsü yon on iken en × derinlik):"
         for st in setler:
@@ -559,6 +601,8 @@ def tarif(m):
             a.append(kapak("*", m["kapak"]))
     elif tip == "raf_unitesi":
         a.append(raf("hepsi", m["raf"]))
+    elif tip == "ikram_tezgahi":
+        a += [USTLU, raf("hepsi", 1), kapak("*", m["kapak"], None if m["kapak"] > 1 else "SAG")]
     elif tip == "vitrin_dolabi":
         a += [yatay("hepsi", 1), goz("hepsi:alt", "y", 800), raf("hepsi:ust", m["raf"]),
               kapak("hepsi:alt", m["kapak"], None if m["kapak"] > 1 else "SAG")]
@@ -665,6 +709,15 @@ def plan_svg(girdi, moduller, buyuk=False, donatilar=()):
     for st in donatilar:
         for parca in SD.parcalar_plan(st):
             p.append(_parca_svg(parca, fs))
+    yapi = girdi.get("yapi") or {}
+    if yapi.get("truss"):
+        t = 150
+        p.append(f'<rect x="{t:g}" y="{t:g}" width="{W - 2 * t:g}" height="{D - 2 * t:g}" fill="none" stroke="#94a3b8" '
+                 f'stroke-width="{fs / 5:g}" stroke-dasharray="{fs / 1.5:g} {fs / 3:g}"><title>Truss tavan</title></rect>')
+    if yapi.get("banner"):
+        r = min(3000, min(W, D) * 0.6) / 2
+        p.append(f'<circle cx="{W / 2:g}" cy="{D / 2:g}" r="{r:g}" fill="none" stroke="#059669" stroke-width="{fs / 6:g}" '
+                 f'stroke-dasharray="{fs / 2:g} {fs / 4:g}"><title>Askılı banner (tavanda)</title></circle>')
     p.append(f'<text x="{W:g}" y="{D + pay * 0.65:g}" font-size="{fs * 0.75:g}" fill="#64748b" text-anchor="end">{W / 1000:g} × {D / 1000:g} m</text>' if "on" not in girdi["acik"] else
              f'<text x="{W:g}" y="{-pay * 0.35:g}" font-size="{fs * 0.75:g}" fill="#64748b" text-anchor="end">{W / 1000:g} × {D / 1000:g} m</text>')
     p.append("</svg>")
@@ -677,6 +730,8 @@ def ozet_metin(stand):
     satir = [f"FUAR STANDI #{stand['id']} — {alt['ad']}",
              f"Ölçü: {g['en'] / 1000:g} × {g['derinlik'] / 1000:g} m, duvar yüksekliği {g['yukseklik'] / 1000:g} m · "
              f"{stand_tipi(g['acik'])} · açık cepheler: {', '.join(CEPHE_AD[c] for c in g['acik'])}"]
+    if (g.get("yapi") or {}).get("logo"):
+        satir.append(f"Logo dosyası: /stand/logo/{g['yapi']['logo']}")
     for k in alt["ekstralar"]:
         satir.append(f"- {k['ad']}: {k['miktar']:g} {k['birim']}" + (f" ({k['detay']})" if k.get("detay") else ""))
     return "\n".join(satir)

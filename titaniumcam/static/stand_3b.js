@@ -98,6 +98,22 @@ window.Stand3B = (() => {
         silindir(g, 10, 10, 140, kapi / 2 - 70, 1050, d / 2 - t / 2 + 30, metal(), 10).rotation.z = Math.PI / 2;
         break;
       }
+      case 'cam_vitrin': {
+        const cam = mat('cam', () => new T.MeshPhysicalMaterial({color: 0xffffff, roughness: 0.05, transmission: 0.9, transparent: true,
+                                                              opacity: 0.28, metalness: 0, envMapIntensity: 1.2, depthWrite: false}));
+        const taban = Math.min(300, h * 0.25);
+        kutu(g, w, taban, d, 0, taban / 2, 0, parlak('#f8fafc'));                         // kaide
+        const govde = kutu(g, w - 10, h - taban - 40, d - 10, 0, taban + (h - taban - 40) / 2, 0, cam);
+        govde.castShadow = false;
+        kutu(g, w, 40, d, 0, h - 20, 0, parlak('#f8fafc'));                               // tepe (ışıklı)
+        kutu(g, w - 60, 6, d - 60, 0, h - 43, 0, mat('isik', () => new T.MeshStandardMaterial({color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 1})));
+        const raf = Math.max(1, Math.round((h - taban) / 450) - 1);
+        for (let i = 1; i <= raf; i++) kutu(g, w - 40, 8, d - 40, 0, taban + (h - taban - 40) * i / (raf + 1), 0, cam).castShadow = false;
+        for (let i = 0; i < raf + 1; i++)                                                 // sergilenen ürünler
+          for (const sx of [-0.25, 0.22]) kutu(g, w * 0.16, 120 + 40 * ((i + (sx > 0)) % 2), d * 0.3, sx * w, taban + 4 + (h - taban - 40) * i / (raf + 1) + 60, 0,
+                                               parlak(['#f59e0b', '#2563eb', '#e11d48', '#059669'][(i * 2 + (sx > 0)) % 4]));
+        break;
+      }
       case 'brosurluk': {
         kutu(g, w, h, 18, 0, h / 2, -d / 2 + 30, parlak('#e2e8f0'));
         kutu(g, w * 0.9, 20, d * 0.8, 0, 10, 0, siyahMetal());
@@ -172,6 +188,86 @@ window.Stand3B = (() => {
       don();
     }
 
+    // truss tavan + spotlar, askılı banner, logo (arka duvar, banko önü, banner)
+    _yapi(y, W, D, H, acik, moduller) {
+      const gm = this.grup, Y0 = 40;
+      if (y.truss) {
+        const t = 220, ust = Y0 + H + 300, ic = 150;
+        const al = metal();
+        const kiris = (w, d, x, z) => { const k = kutu(gm, w, t, d, x, ust, z, al); k.castShadow = false; };
+        kiris(W - 2 * ic, t, 0, -D / 2 + ic); kiris(W - 2 * ic, t, 0, D / 2 - ic);
+        kiris(t, D - 2 * ic, -W / 2 + ic, 0); kiris(t, D - 2 * ic, W / 2 - ic, 0);
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) kutu(gm, 160, ust - Y0, 160, sx * (W / 2 - ic), Y0 + (ust - Y0) / 2, sz * (D / 2 - ic), al).castShadow = false;
+        const spot = (x, z) => {                                         // spot gövdesi + aşağı ışık konisi
+          const g = new T.Group(); g.position.set(x, ust - t / 2 - 90, z);
+          silindir(g, 55, 70, 170, 0, 0, 0, siyahMetal(), 16).castShadow = false;
+          const koni = new T.Mesh(new T.ConeGeometry(650, ust - 300, 24, 1, true),
+                                  mat('koni', () => new T.MeshBasicMaterial({color: 0xfff3c4, transparent: true, opacity: 0.05, depthWrite: false, side: T.DoubleSide})));
+          koni.position.y = -(ust - 300) / 2 - 80; g.add(koni); gm.add(g);
+        };
+        const n = Math.max(2, Math.round((W - 2 * ic) / 1500));
+        for (let i = 0; i < n; i++) { const x = -W / 2 + ic + (W - 2 * ic) * (i + 0.5) / n; spot(x, -D / 2 + ic); spot(x, D / 2 - ic); }
+        const m = Math.max(1, Math.round((D - 2 * ic) / 1500) - 1);
+        for (let i = 0; i < m; i++) { const z = -D / 2 + ic + (D - 2 * ic) * (i + 1) / (m + 1); spot(-W / 2 + ic, z); spot(W / 2 - ic, z); }
+      }
+      const logoMat = () => mat('logo:' + y.logo, () => {
+        const m = new T.MeshStandardMaterial({color: 0xffffff, transparent: true, roughness: 0.6});
+        new T.TextureLoader().load(y.logo, tex => {
+          tex.encoding = T.sRGBEncoding; tex.anisotropy = 8; m.map = tex; m.needsUpdate = true;
+          (this._logoBekleyen || []).forEach(f => f(tex.image.width / tex.image.height)); this._logoBekleyen = [];
+          this._logoOran = tex.image.width / tex.image.height;
+        });
+        return m;
+      });
+      const logoPlani = (enMax, boyMax, x, yy, z, ry) => {                 // logo oranına göre boyutlanır
+        const p = new T.Mesh(new T.PlaneGeometry(1, 1), logoMat());
+        p.position.set(x, yy, z); p.rotation.y = ry; gm.add(p);
+        const ayarla = oran => { let w = enMax, h = w / oran; if (h > boyMax) { h = boyMax; w = h * oran; } p.scale.set(w, h, 1); };
+        if (this._logoOran && this._logoUrl === y.logo) ayarla(this._logoOran);
+        else { p.scale.set(0.001, 0.001, 1); (this._logoBekleyen = this._logoBekleyen || []).push(ayarla); }
+      };
+      if (y.logo && this._logoUrl !== y.logo) { this._logoOran = null; this._logoBekleyen = []; }
+      if (y.logo) {
+        this._logoUrl = y.logo;
+        const duvar = ['arka', 'sol', 'sag', 'on'].find(c => !acik.has(c));
+        if (duvar) {
+          const uz = duvar === 'arka' || duvar === 'on' ? W : D;
+          const bm = Math.max(350, Math.min(900, H - 150 - 2300)), cy = Y0 + H - 150 - bm / 2;   // boy dolapların (2,2 m) üstünde
+          const yer = {arka: [0, cy, -D / 2 + 3, 0], on: [0, cy, D / 2 - 3, Math.PI], sol: [-W / 2 + 3, cy, 0, Math.PI / 2], sag: [W / 2 - 3, cy, 0, -Math.PI / 2]}[duvar];
+          logoPlani(Math.min(2400, uz * 0.45), bm, ...yer);
+        }
+        moduller.filter(m => m.tip === 'banko').forEach(m => {                // bankonun koridora bakan sırtı
+          const yatay = m.yon === 'on' || m.yon === 'arka';
+          const w = yatay ? m.en : m.derinlik, h = yatay ? m.derinlik : m.en;
+          const cx = m.x + w / 2 - W / 2, cz = m.y + h / 2 - D / 2, a = DONUS[m.yon] + Math.PI;
+          const off = m.derinlik / 2 + 4;
+          logoPlani(m.en * 0.6, m.boy * 0.45, cx + Math.sin(a) * off, Y0 + m.boy * 0.55, cz + Math.cos(a) * off, a);
+        });
+      }
+      if (y.banner) {
+        const cap = Math.min(3000, Math.min(W, D) * 0.6), yy = Y0 + H + 1100;
+        const kumasM = mat('banner:' + (y.logo || ''), () => {
+          const m = new T.MeshStandardMaterial({color: 0xffffff, side: T.DoubleSide, roughness: 0.8});
+          if (y.logo) new T.ImageLoader().load(y.logo, img => {        // saydam logo beyaz zemine (banner kumaşı)
+            const c = document.createElement('canvas'), oran = img.width / img.height;
+            c.height = 512; c.width = Math.round(512 * Math.max(2.2, oran * 1.6));
+            const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+            const h = 512 * 0.62, w = Math.min(c.width * 0.9, h * oran);
+            x.drawImage(img, (c.width - w) / 2, (512 - w / oran) / 2, w, w / oran);
+            const tex = new T.CanvasTexture(c); tex.encoding = T.sRGBEncoding; tex.wrapS = T.RepeatWrapping; tex.repeat.set(3, 1);
+            m.map = tex; m.needsUpdate = true;
+          });
+          return m;
+        });
+        const b = new T.Mesh(new T.CylinderGeometry(cap / 2, cap / 2, 1000, 48, 1, true), kumasM);
+        b.position.set(0, yy, 0); gm.add(b);
+        for (const dy of [-500, 500]) {                                      // alt / üst çember (marka rengi)
+          const c = new T.Mesh(new T.TorusGeometry(cap / 2, 28, 8, 64), mat('serit', () => new T.MeshStandardMaterial({color: lin('#059669'), roughness: 0.6})));
+          c.rotation.x = Math.PI / 2; c.position.set(0, yy + dy, 0); gm.add(c);
+        }
+      }
+    }
+
     boyut() {
       const w = this.kap.clientWidth || 300, h = this.kap.clientHeight || 300;
       this.r.setSize(w, h, false); this.c.aspect = w / h; this.c.updateProjectionMatrix();
@@ -216,6 +312,7 @@ window.Stand3B = (() => {
         n.position.set(p.x - W / 2, 40, p.y - D / 2);
         this.grup.add(n);
       });
+      this._yapi(sahne.yapi || {}, W, D, H, acik, sahne.moduller || []);
       // ışık ve kamera: koridor tarafından (ön-sağ), yukarıdan
       const R = Math.max(W, D, H);
       this.gun.position.set(-0.6 * R, H * 2.4 + 2000, 0.9 * R);

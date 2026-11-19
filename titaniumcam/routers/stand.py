@@ -11,7 +11,7 @@ import os
 import re
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 import db
@@ -29,6 +29,40 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 log = logging.getLogger("stand")
 
 SAATLIK_SINIR = 8          # sahip başına saatte en çok üretim (yapay zekâ maliyeti)
+LOGO_DIZIN = os.path.join(BASE_DIR, "data", "stand_logo")
+LOGO_EN_COK = 3 * 1024 * 1024
+LOGO_AD = re.compile(r"^[0-9a-f]{32}\.(png|jpg)$")
+
+
+async def _logo_kaydet(f):
+    """Yüklenen logo (PNG / JPG, ≤ 3 MB) → rastgele adla kaydedilir. Döner: (ad, hata).
+    Tür dosya içeriğinden anlaşılır (uzantıya / tarayıcının dediğine güvenilmez); SVG kabul edilmez."""
+    import secrets
+    dosya = f.get("logo")
+    eski = str(f.get("logo_kod") or "")
+    if not getattr(dosya, "filename", ""):
+        return (eski if LOGO_AD.match(eski) and os.path.exists(os.path.join(LOGO_DIZIN, eski)) else ""), ""
+    veri = await dosya.read(LOGO_EN_COK + 1)
+    if len(veri) > LOGO_EN_COK:
+        return "", "Logo en çok 3 MB olabilir"
+    uz = "png" if veri.startswith(b"\x89PNG\r\n\x1a\n") else "jpg" if veri.startswith(b"\xff\xd8\xff") else ""
+    if not uz:
+        return "", "Logo PNG ya da JPG olmalı"
+    os.makedirs(LOGO_DIZIN, exist_ok=True)
+    ad = f"{secrets.token_hex(16)}.{uz}"
+    with open(os.path.join(LOGO_DIZIN, ad), "wb") as h:
+        h.write(veri)
+    return ad, ""
+
+
+@router.get("/stand/logo/{ad}")
+async def stand_logo(ad: str):
+    yol = os.path.join(LOGO_DIZIN, ad)
+    if not LOGO_AD.match(ad) or not os.path.exists(yol):
+        return Response(status_code=404)
+    return FileResponse(yol, media_type="image/png" if ad.endswith(".png") else "image/jpeg",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "public, max-age=86400",
+                                 "Content-Security-Policy": "default-src 'none'"})
 
 
 # ── Ayarlar ─────────────────────────────────────────────────────────────────
@@ -40,11 +74,16 @@ def stand_ayar():
 
 
 def katalog(hepsi=False):
-    """Donatı kataloğu (kod → kayıt). Boşsa varsayılanlarla doldurulur."""
-    if not db.one("SELECT 1 FROM stand_donati LIMIT 1"):
-        for i, d in enumerate(SD.varsayilan_katalog().values()):
+    """Donatı kataloğu (kod → kayıt). Yeni sürümlerde gelen varsayılan modeller bir kez eklenir
+    (yöneticinin sildiği varsayılan geri gelmez)."""
+    tohum = set(_ayar("stand_donati_tohum", []) or [])
+    yeni = [d for d in SD.varsayilan_katalog().values() if d["kod"] not in tohum]
+    if yeni:
+        sira = (db.one("SELECT COALESCE(MAX(sira),0) n FROM stand_donati") or {}).get("n", 0)
+        for i, d in enumerate(yeni, 1):
             db.execute("INSERT OR IGNORE INTO stand_donati (kod, ad, grup, model, en, derinlik, yukseklik, renk, fiyat, aktif, sira) "
-                       "VALUES (?,?,?,?,?,?,?,?,?,?,?)", tuple(d[k] for k in SD.ALANLAR) + (0, 1, i))
+                       "VALUES (?,?,?,?,?,?,?,?,?,?,?)", tuple(d[k] for k in SD.ALANLAR) + (0, 1, sira + i))
+        _ayar_yaz("stand_donati_tohum", sorted(tohum | {d["kod"] for d in yeni}))
     rows = db.query("SELECT * FROM stand_donati " + ("" if hepsi else "WHERE aktif=1 ") + "ORDER BY sira, kod")
     return {r["kod"]: r for r in rows}
 
@@ -131,6 +170,7 @@ def _form_sayfa(request, cust, hata="", girdi=None):
     g = girdi or {"en": 6000, "derinlik": 4000, "yukseklik": 3000, "acik": ["on"]}
     g.setdefault("donati", SD.donati_dogrula({"ekran": "tv_55", "toplanti": 4, "bar": 1, "oturma": "berjer",
                                                "depo": "1", "brosur": 1, "bitki": 2}, K))
+    g.setdefault("yapi", S.yapi_dogrula({"ikram": "1"}))
     gruplar = {grup: SD.grup_ogeleri(K, grup) for grup in SD.GRUPLAR}
     return templates.TemplateResponse(request, "stand_form.html", _ctx(
         request, cust, hata=hata, g=g, gecmis=gecmis, ayar=stand_ayar(), gruplar=gruplar,
@@ -143,7 +183,7 @@ async def stand_form(request: Request):
 
 
 DONATI_ALANLARI = ("ekran", "ekran_adet", "toplanti", "bar", "oturma", "depo", "brosur", "bitki", "sandalye", "tabure",
-                   "koltuk", "kanepe", "toplanti_masasi", "bar_masasi", "sehpa")
+                   "koltuk", "kanepe", "toplanti_masasi", "bar_masasi", "sehpa", "vitrin", "vitrin_model")
 
 
 @router.post("/stand/uret")
@@ -162,6 +202,10 @@ async def stand_uret(request: Request):
         return _form_sayfa(request, cust, hata=str(e))
     K = katalog()
     girdi["donati"] = SD.donati_dogrula({k: f.get(k) for k in DONATI_ALANLARI}, K)
+    logo, hata = await _logo_kaydet(f)
+    girdi["yapi"] = S.yapi_dogrula({**{k: f.get(k) for k in ("truss", "banner", "ikram")}, "logo": logo})
+    if hata:
+        return _form_sayfa(request, cust, hata=hata, girdi=girdi)
     ayar = stand_ayar()
     if not ayar["acik"]:
         return _form_sayfa(request, cust, hata="Stand tasarımı şu an kapalı")
@@ -192,9 +236,11 @@ async def stand_uret(request: Request):
     return resp
 
 
-def _sahne(alt):
+def _sahne(alt, girdi=None):
     """3B stand sahnesi için hafif veri: modül yerleşimi + her kabinin gerçekçi görseli."""
-    return {"moduller": [{k: m[k] for k in ("tip", "en", "boy", "derinlik", "x", "y", "yon")} for m in alt["moduller"]],
+    yapi = (girdi or {}).get("yapi") or {}
+    return {"yapi": {"truss": yapi.get("truss"), "banner": yapi.get("banner"),
+                     "logo": f"/stand/logo/{yapi['logo']}" if yapi.get("logo") else ""},"moduller": [{k: m[k] for k in ("tip", "en", "boy", "derinlik", "x", "y", "yon")} for m in alt["moduller"]],
             "donatilar": [p for st in alt.get("donatilar", []) for p in SD.parcalar_plan(st)],
             "kabinler": [{"gorsel": k["gorsel"], "moduller": k["moduller"]} for k in alt["kabinler"]]}
 
@@ -208,7 +254,7 @@ async def stand_goster(request: Request, sid: int):
     for a in p["alternatifler"]:
         a["svg"] = S.plan_svg(p["girdi"], a["moduller"], donatilar=a.get("donatilar", []))
         a["fiyat"] = fiyatlar(a)
-    sahneler = [_sahne(a) for a in p["alternatifler"]]
+    sahneler = [_sahne(a, p["girdi"]) for a in p["alternatifler"]]
     gorunum = {}
     try:
         from routers.kabin import gorunumler
@@ -262,7 +308,9 @@ def secili_stand(sid):
     alt = json.loads(r["alternatifler_json"])[r["secilen"]]
     g = json.loads(r["girdi_json"])
     f = fiyatlar(alt)
-    st = {"id": sid, "girdi": {k: g[k] for k in ("en", "derinlik", "yukseklik", "acik", "sektor")},
+    st = {"id": sid, "girdi": {**{k: g[k] for k in ("en", "derinlik", "yukseklik", "acik", "sektor")},
+                               "yapi": g.get("yapi") or {}},
+          "logo": f"/stand/logo/{g['yapi']['logo']}" if (g.get("yapi") or {}).get("logo") else "",
           "tip": S.stand_tipi(g["acik"]),
           "alternatif": {"ad": alt["ad"], "konsept": alt["konsept"], "ekstralar": f["ekstralar"],
                          "donatilar": alt.get("donatilar", []),

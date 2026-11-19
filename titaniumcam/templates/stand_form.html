@@ -23,7 +23,7 @@
     {% if hata %}<div class="bg-red-50 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm">{{ hata }}</div>{% endif %}
     {% if not ayar.acik %}<div class="bg-amber-50 text-amber-800 rounded-xl px-4 py-3 mb-4 text-sm">Stand tasarımı şu an kapalı.</div>{% endif %}
 
-    <form id="standForm" method="post" action="/stand/uret" class="bg-white rounded-2xl border p-5 sm:p-6 space-y-6">
+    <form id="standForm" method="post" action="/stand/uret" enctype="multipart/form-data" class="bg-white rounded-2xl border p-5 sm:p-6 space-y-6">
       <div>
         <div class="font-semibold mb-2">1 · Stand ölçüsü</div>
         <div class="grid grid-cols-3 gap-3 text-sm">
@@ -97,6 +97,24 @@
               {% for n in (0, 1, 2, 3) %}<label class="pill"><input type="radio" name="bar" value="{{ n }}" {% if dn.bar == n %}checked{% endif %}><span>{{ 'Yok' if not n else n }}</span></label>{% endfor %}
             </div>
           </div>
+          <div class="rounded-xl border p-3">
+            <div class="font-semibold mb-2">💎 Cam vitrin</div>
+            <div class="flex flex-wrap gap-1.5">
+              {% for n in (0, 1, 2, 3, 4) %}<label class="pill"><input type="radio" name="vitrin" value="{{ n }}" {% if dn.vitrin == n %}checked{% endif %}><span>{{ 'Yok' if not n else n }}</span></label>{% endfor %}
+            </div>
+          </div>
+          <div class="rounded-xl border p-3">
+            <div class="font-semibold mb-2">🍽️ İkram / mutfak köşesi</div>
+            <label class="flex items-center gap-2"><input type="checkbox" name="ikram" value="1" {% if g.yapi.ikram %}checked{% endif %} class="w-4 h-4">
+              Kapaklı ikram tezgâhı <span class="text-slate-400">(kahve makinesi, su ısıtıcı için)</span></label>
+          </div>
+          <div class="rounded-xl border p-3 sm:col-span-2">
+            <div class="font-semibold mb-2">💡 Tavan</div>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
+              <label class="flex items-center gap-2"><input type="checkbox" name="truss" value="1" {% if g.yapi.truss %}checked{% endif %} class="w-4 h-4"> Truss tavan + spot aydınlatma</label>
+              <label class="flex items-center gap-2"><input type="checkbox" name="banner" value="1" {% if g.yapi.banner %}checked{% endif %} class="w-4 h-4"> Askılı tavan banner'ı (logolu, uzaktan görünür)</label>
+            </div>
+          </div>
           <div class="rounded-xl border p-3 sm:col-span-2 flex flex-wrap items-center gap-x-6 gap-y-2">
             <label class="flex items-center gap-2"><input type="checkbox" name="depo" value="1" {% if dn.depo %}checked{% endif %} class="w-4 h-4"> 🚪 Depo odası (kapılı)</label>
             <label class="flex items-center gap-2">📰 Broşürlük <select name="brosur" class="border rounded-lg px-2 py-1 bg-white">{% for n in range(4) %}<option {% if dn.brosur == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
@@ -104,14 +122,14 @@
           </div>
         </div>
 
-        {% set secimler = [('sandalye', 'Sandalye modeli', 'toplanti'), ('tabure', 'Bar taburesi', 'bar'), ('koltuk', 'Berjer modeli', 'oturma=berjer'), ('kanepe', 'Kanepe modeli', 'oturma=kanepe')] %}
-        {% for grup, baslik, kosul in secimler %}{% if gruplar[grup] %}
+        {% set secimler = [('sandalye', 'Sandalye modeli', 'toplanti'), ('tabure', 'Bar taburesi', 'bar'), ('koltuk', 'Berjer modeli', 'oturma=berjer'), ('kanepe', 'Kanepe modeli', 'oturma=kanepe'), ('vitrin', 'Vitrin modeli', 'vitrin')] %}
+        {% for grup, baslik, kosul in secimler %}{% if gruplar[grup] %}{% set alan = 'vitrin_model' if grup == 'vitrin' else grup %}
         <div class="mt-4" data-goster="{{ kosul }}">
           <div class="font-semibold text-sm mb-2">{{ baslik }}</div>
           <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {% for m in gruplar[grup] %}
             <label class="model-kart">
-              <input type="radio" name="{{ grup }}" value="{{ m.kod }}" {% if dn[grup] == m.kod %}checked{% endif %}>
+              <input type="radio" name="{{ alan }}" value="{{ m.kod }}" {% if dn[alan] == m.kod %}checked{% endif %}>
               <span class="block rounded-xl border-2 border-transparent bg-slate-50 p-1.5 text-center">
                 <img data-model='{{ {"model": m.model, "en": m.en, "derinlik": m.derinlik, "yukseklik": m.yukseklik, "renk": m.renk, "kod": m.kod}|tojson }}' alt="" class="w-full aspect-square object-contain">
                 <span class="block text-xs font-medium leading-tight mt-1">{{ m.ad }}</span>
@@ -123,6 +141,17 @@
         </div>
         {% endif %}{% endfor %}
         <input type="hidden" name="bar_masasi" value="{{ dn.bar_masasi }}"><input type="hidden" name="sehpa" value="{{ dn.sehpa }}">
+      </div>
+
+      <div>
+        <div class="font-semibold mb-1">5 · Logonuz <span class="font-normal text-slate-400 text-sm">(isteğe bağlı)</span></div>
+        <p class="text-sm text-slate-500 mb-2">Logonuz 3B görünümde arka duvarda, bankonun önünde ve tavan banner'ında görünür. PNG ya da JPG, en çok 3 MB.</p>
+        <div class="flex items-center gap-4">
+          <label class="cursor-pointer border-2 border-dashed rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+            📁 Logo seç<input type="file" name="logo" accept="image/png,image/jpeg" class="hidden" id="logoDosya"></label>
+          <img id="logoOn" alt="" class="h-14 max-w-[180px] object-contain {{ '' if g.yapi.logo else 'hidden' }}" {% if g.yapi.logo %}src="/stand/logo/{{ g.yapi.logo }}"{% endif %}>
+          {% if g.yapi.logo %}<input type="hidden" name="logo_kod" value="{{ g.yapi.logo }}">{% endif %}
+        </div>
       </div>
 
       <button id="uretBtn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl px-8 py-4 text-lg disabled:opacity-60" {% if not ayar.acik %}disabled{% endif %}>
@@ -167,6 +196,12 @@
     el.classList.toggle('hidden', v ? d !== v : !d || d === '0');
   });
   document.getElementById('donatiAlan').addEventListener('change', donatiGuncelle);
+  document.getElementById('logoDosya').addEventListener('change', e => {
+    const d = e.target.files[0], on = document.getElementById('logoOn');
+    if (!d) return;
+    if (d.size > 3 * 1024 * 1024) { alert('Logo en çok 3 MB olabilir'); e.target.value = ''; return; }
+    on.src = URL.createObjectURL(d); on.classList.remove('hidden');
+  });
   donatiGuncelle();
   // model kartlarının küçük 3B resimleri
   const imgs = [...document.querySelectorAll('img[data-model]')];

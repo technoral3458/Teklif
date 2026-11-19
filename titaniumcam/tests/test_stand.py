@@ -403,3 +403,66 @@ def test_donatili_akis_ve_katalog(o):
     kal = {e["kod"]: e for e in st["alternatif"]["ekstralar"]}
     assert kal["don:sandalye_ahsap"]["miktar"] == 4 and kal["don:sandalye_ahsap"]["tutar"] == 5000
     assert st["alternatif"]["donatilar"] and "Ahşap sandalye (ceviz): 4 adet" in od["note"]
+
+
+# ── ikram köşesi, cam vitrin, truss / banner, logo ─────────────────────────
+PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+       b"\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7\x35\x81\x84\x00\x00\x00\x00IEND\xaeB`\x82")
+
+
+def test_ikram_vitrin_truss_banner():
+    g, K = _girdi_donatili(8000, 5000, ("on", "sol"), vitrin="2", vitrin_model="cam_vitrin")
+    g["yapi"] = S.yapi_dogrula({"truss": "1", "banner": "on", "ikram": "1"})
+    for a in asyncio.run(S.alternatifler_uret(g, None, K))[0]:
+        assert not a["notlar"], a["notlar"]
+        ik = [m for m in a["moduller"] if m["tip"] == "ikram_tezgahi"]
+        assert len(ik) == 1 and S._duvara_sirt({**ik[0], "tur": "depo"}, g)
+        assert sum(d["tur"] == "vitrin" for d in a["donatilar"]) == 2
+        k = {e["kod"]: e for e in a["ekstralar"]}
+        assert k["truss"]["miktar"] == 26 and k["banner"]["miktar"] == 1 and k["don:cam_vitrin"]["miktar"] == 2
+        svg = S.plan_svg(g, a["moduller"], donatilar=a["donatilar"])
+        assert "Truss tavan" in svg and "Askılı banner" in svg
+    t = S.tarif({"tip": "ikram_tezgahi", "ad": "İ", "en": 1200, "boy": 900, "derinlik": 600, "raf": 1, "kapak": 2})
+    assert t["sablon"] == "Alt Dolap" and any(x.get("tur") == "kapak" for x in t["adimlar"])
+    # yapay zekâ ikram tezgâhını koymadıysa eklenir
+    a = S.alternatif_duzelt({"ad": "A", "moduller": [{"tip": "banko", "en": 1600, "boy": 1050, "derinlik": 600, "raf": 1,
+                                                       "kapak": 0, "x": 3000, "y": 4000, "yon": "arka"}]}, g, [], K)
+    assert any(m["tip"] == "ikram_tezgahi" for m in a["moduller"])
+    assert "ikram_tezgahi" in S._kullanici_istemi(g)
+
+
+def test_logo_yukleme(o):
+    c = o["TC"](o["app"])
+    veri = {k: v for k, v in {**FORM, **DONATI, "truss": "1", "banner": "1", "ikram": "1"}.items()}
+    r = c.post("/stand/uret", data=veri, files={"logo": ("logo.svg", b"<svg onload=alert(1)>", "image/png")})
+    assert "PNG ya da JPG" in r.text
+    r = c.post("/stand/uret", data=veri, files={"logo": ("b.png", PNG + b"0" * (3 * 1024 * 1024), "image/png")})
+    assert "3 MB" in r.text
+    r = c.post("/stand/uret", data=veri, files={"logo": ("logo.png", PNG, "image/png")}, follow_redirects=False)
+    url = r.headers["location"]
+    sid = int(url.rsplit("/", 1)[1])
+    g = json.loads(o["db"].one("SELECT girdi_json FROM stand_proje WHERE id=?", (sid,))["girdi_json"])
+    ad = g["yapi"]["logo"]
+    assert re.fullmatch(r"[0-9a-f]{32}\.png", ad) and g["yapi"]["truss"] and g["yapi"]["ikram"]
+    l = c.get(f"/stand/logo/{ad}")
+    assert l.status_code == 200 and l.content == PNG and l.headers["x-content-type-options"] == "nosniff"
+    assert c.get("/stand/logo/..%2Fstand.db").status_code == 404 and c.get("/stand/logo/x.png").status_code == 404
+    s = c.get(url).text
+    assert f'name="logo_kod" value="{ad}"' in s and "/stand/logo/" + ad in s and "Truss tavan" in s
+    # başka alternatif üret: logo yeniden yüklenmeden korunur
+    r = c.post("/stand/uret", data={**veri, "logo_kod": ad}, follow_redirects=False)
+    sid2 = int(r.headers["location"].rsplit("/", 1)[1])
+    assert json.loads(o["db"].one("SELECT girdi_json FROM stand_proje WHERE id=?", (sid2,))["girdi_json"])["yapi"]["logo"] == ad
+    r = c.post("/stand/uret", data={**veri, "logo_kod": "../../etc/passwd"}, follow_redirects=False)
+    sid3 = int(r.headers["location"].rsplit("/", 1)[1])
+    assert json.loads(o["db"].one("SELECT girdi_json FROM stand_proje WHERE id=?", (sid3,))["girdi_json"])["yapi"]["logo"] == ""
+    # sipariş: logo ve stand yapısı
+    c.post(f"/stand/{sid}/sec/0")
+    c.post("/magaza/kayit", data={"full_name": "Logo", "username": "logo@x.com", "password": "1234"})
+    assert "Logoyu indir" in c.get("/magaza/sepet").text
+    r = c.post("/kabin/siparis", data={"proje": "L"}, follow_redirects=False)
+    od = o["db"].one("SELECT * FROM cabinet_orders WHERE id=?", (int(r.headers["location"].rsplit("/", 1)[1]),))
+    st = json.loads(od["stand_json"])[0]
+    assert st["logo"] == f"/stand/logo/{ad}" and st["girdi"]["yapi"]["banner"]
+    assert f"Logo dosyası: /stand/logo/{ad}" in od["note"] and "Truss tavan" in od["note"]
+    assert "Logoyu indir" in o["admin"].get(f"/titaniumcam/kabin/siparis/{od['id']}").text

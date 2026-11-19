@@ -64,6 +64,9 @@ Onaylı ve alınmamış siparişler, eskiden yeniye. `unclaimed=0&station=CNC-1`
   Plan koordinatı mm: `x` soldan, `y` arka kenardan öne; `yon` modülün yüzünün baktığı taraf (`on` = koridor).
   Donatılar (TV, masa, sandalye, berjer, depo odası…) `ekstralar` içinde `kod: "don:<katalog kodu>"`, `birim: "adet"`
   satırlarıdır; yerleşimleri `alternatif.donatilar` (set → parçalar) içindedir. Bunlar da üretilmez, bilgi / fiyat kalemidir.
+  Stand yapısı `girdi.yapi`: `truss` / `banner` (ekstralarda `truss` m, `banner` adet), `ikram` (ikram tezgâhı normal
+  kabin satırıdır), `logo`. `logo` doluysa müşterinin yüklediği dosya `logo` alanındaki yoldan (site adresine göre, ör.
+  `https://SITE/stand/logo/<ad>.png`) indirilir; baskı / grafik için kullanılır.
 
 `GET /cabinet-orders/{id}` tek siparişi aynı biçimde döner.
 

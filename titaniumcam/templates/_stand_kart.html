@@ -12,6 +12,8 @@
     <div class="md:col-span-2 bg-slate-50 rounded-xl p-2">{{ st.svg|safe }}</div>
     <div class="md:col-span-3 text-sm">
       {% if st.alternatif.konsept %}<p class="text-slate-600 mb-3">{{ st.alternatif.konsept }}</p>{% endif %}
+      {% if st.logo %}<div class="flex items-center gap-3 mb-3"><img src="{{ st.logo }}" alt="Logo" class="h-12 max-w-[160px] object-contain border rounded-lg p-1 bg-white">
+        <a href="{{ st.logo }}" download class="text-xs text-emerald-700">Logoyu indir (baskı için)</a></div>{% endif %}
       <div class="font-semibold mb-1">Donatılar ve stand yapısı</div>
       <table class="w-full">
         {% for e in st.alternatif.ekstralar %}
