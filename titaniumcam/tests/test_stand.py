@@ -5,6 +5,7 @@ taklit edilir (işlemleri kaydeder, ölçüyü uygular); yapay zekâ çağrısı
 """
 import asyncio
 import json
+import math
 import os
 import re
 import sys
@@ -16,6 +17,7 @@ APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, APP)
 
 import stand as S  # noqa: E402
+import stand_donati as SD  # noqa: E402
 
 
 # ── sahte motor ─────────────────────────────────────────────────────────────
@@ -65,6 +67,8 @@ def o():
 
 
 FORM = {"en": "6", "derinlik": "4", "yukseklik": "3", "acik": ["on", "sol"], "sektor": "Kozmetik"}
+DONATI = {"ekran": "tv_55", "ekran_adet": "1", "toplanti": "4", "bar": "1", "oturma": "berjer", "depo": "1",
+          "brosur": "1", "bitki": "2", "sandalye": "sandalye_ahsap", "tabure": "tabure_beyaz", "koltuk": "berjer_deri"}
 
 
 # ── birim: yerleşim ─────────────────────────────────────────────────────────
@@ -120,7 +124,7 @@ def test_ekstralar_ve_tarif():
 
 # ── yapay zekâ ──────────────────────────────────────────────────────────────
 def test_ai_cevabi_dogrulanir(monkeypatch):
-    async def ai(girdi, anahtar):
+    async def ai(girdi, anahtar, setler=()):
         assert anahtar == "sk-ant-test"
         return [{"ad": "Ürün odaklı", "konsept": "x", "spot": 6, "grafik_m2": 4, "moduller": [
                     {"tip": "raf_unitesi", "ad": "Raf", "en": 1000, "boy": 2200, "derinlik": 400, "raf": 4, "kapak": 0,
@@ -136,7 +140,7 @@ def test_ai_cevabi_dogrulanir(monkeypatch):
     assert len(alt[0]["moduller"]) == 1 and alt[0]["notlar"]
     assert {k["kod"]: k["miktar"] for k in alt[0]["ekstralar"]}["spot"] == 6
 
-    async def bozuk(girdi, anahtar):
+    async def bozuk(girdi, anahtar, setler=()):
         raise RuntimeError("ağ yok")
     monkeypatch.setattr(S, "ai_alternatifler", bozuk)
     alt, kaynak, neden = asyncio.run(S.alternatifler_uret(g, "sk-ant-test"))
@@ -242,7 +246,7 @@ def test_yonetici_ayar_ve_ai(o, monkeypatch):
     assert stand_ayar()["birim"]["duvar"] == 450 and stand_ayar()["gunluk"] == 50 and ai_anahtari() == "sk-ant-gizli-1234"
 
     # müşteri üretimi yapay zekâ ile
-    async def ai(girdi, anahtar):
+    async def ai(girdi, anahtar, setler=()):
         return [{"ad": "Yapay", "konsept": "k", "spot": 4, "grafik_m2": 2, "moduller": [
             {"tip": "banko", "ad": "Banko", "en": 1600, "boy": 1050, "derinlik": 600, "raf": 1, "kapak": 0,
              "x": 2000, "y": 3000, "yon": "arka"}]}]
@@ -273,3 +277,129 @@ def test_plan_svg():
     svg = S.plan_svg(g, alt["moduller"])
     assert svg.startswith("<svg") and svg.count("<rect") >= len(alt["moduller"]) + 3 and "koridor" in svg
     assert re.search(r'<title>[^<]*Karşılama bankosu', svg)
+
+
+# ── donatılar ───────────────────────────────────────────────────────────────
+def _girdi_donatili(W=6000, D=4000, acik=("on",), **ek):
+    K = SD.varsayilan_katalog()
+    g = S.girdi_dogrula(W, D, 3000, list(acik))
+    g["donati"] = SD.donati_dogrula({**DONATI, **ek}, K)
+    return g, K
+
+
+def test_donati_secimi_ve_setler():
+    K = SD.varsayilan_katalog()
+    s = SD.donati_dogrula({"ekran": "yok_boyle", "toplanti": "5", "sandalye": "uydurma", "bar": "9", "depo": "on"}, K)
+    assert s["ekran"] == "tv_43" and s["toplanti"] in (4, 6) and s["sandalye"] == "sandalye_ofis"
+    assert s["bar"] == 4 and s["depo"] is True
+    g, K = _girdi_donatili()
+    st = {x["id"]: x for x in SD.setler(g["donati"], K, g)}
+    assert set(st) == {"depo", "ekran_1", "toplanti", "oturma", "bar_1", "brosur_1", "bitki_1", "bitki_2"}
+    masa, *sandalyeler = st["toplanti"]["parcalar"]
+    assert len(sandalyeler) == 4 and all(p["kod"] == "sandalye_ahsap" for p in sandalyeler)
+    for p in sandalyeler:                 # her sandalye masanın merkezine bakar
+        a = math.radians(p["aci"])
+        bak = (-math.sin(a), math.cos(a))
+        hedef = (masa["u"] - p["u"], masa["v"] - p["v"])
+        n = math.hypot(*hedef)
+        assert bak[0] * hedef[0] / n + bak[1] * hedef[1] / n > 0.99
+    # dikdörtgen masa 6 kişi: 2 uç + 2×2 uzun kenar
+    s6 = SD.donati_dogrula({"toplanti": 6, "toplanti_masasi": "toplanti_dikdortgen"}, K)
+    t6 = next(x for x in SD.setler(s6, K, g) if x["id"] == "toplanti")
+    assert len(t6["parcalar"]) == 7 and t6["en"] > 1600
+
+
+def test_donatili_kurali_yerlesim():
+    for acik in (("on",), ("on", "sol"), ("on", "sol", "sag")):
+        g, K = _girdi_donatili(8000, 5000, acik)
+        alt, kaynak, _ = asyncio.run(S.alternatifler_uret(g, None, K))
+        for a in alt:
+            assert not a["notlar"], (acik, a["ad"], a["notlar"])
+            assert len(a["donatilar"]) == 8 and any(m["tip"] == "banko" for m in a["moduller"])
+            izler = [S.ayak_izi(x) for x in a["moduller"] + a["donatilar"]]
+            for i, x in enumerate(izler):
+                assert 0 <= x[0] and x[0] + x[2] <= 8000 and 0 <= x[1] and x[1] + x[3] <= 5000
+                assert not any(S._cakisir(x, y) for y in izler[i + 1:])
+            ekran = next(d for d in a["donatilar"] if d["tur"] == "ekran")
+            assert ekran["montaj"] == "duvar" and S._duvara_sirt(ekran, g)
+            depo = next(d for d in a["donatilar"] if d["tur"] == "depo")
+            assert S._duvara_sirt(depo, g)
+            say = {e["kod"]: e["miktar"] for e in a["ekstralar"]}
+            assert say["don:sandalye_ahsap"] == 4 and say["don:tabure_beyaz"] == 2 and say["don:berjer_deri"] == 2
+            assert say["don:tv_55"] == 1 and say["don:depo_odasi"] == 1 and say["don:bitki"] == 2
+            svg = S.plan_svg(g, a["moduller"], donatilar=a["donatilar"])
+            assert "DEPO" in svg and svg.count("<title>Ahşap sandalye") == 4
+    # ada standı: duvar yok → ekran ayaklı standla
+    g, K = _girdi_donatili(8000, 6000, S.CEPHELER)
+    a = asyncio.run(S.alternatifler_uret(g, None, K))[0][0]
+    ekran = next(d for d in a["donatilar"] if d["tur"] == "ekran")
+    assert ekran["montaj"] == "ayakli" and any(p["kod"] == "tv_standi" for p in ekran["parcalar"])
+    # küçük standa sığmayan set müşteriye yazılır
+    g, K = _girdi_donatili(3000, 3000)
+    assert any("sığmadı" in n for n in asyncio.run(S.alternatifler_uret(g, None, K))[0][0]["notlar"])
+
+
+def test_ai_donati_yerlesimi(monkeypatch):
+    g, K = _girdi_donatili(8000, 5000, ("on",))
+    gelen = {}
+
+    async def ai(girdi, anahtar, setler=()):
+        gelen["setler"] = [x["id"] for x in setler]
+        return [{"ad": "A", "konsept": "", "spot": 6, "grafik_m2": 3,
+                 "moduller": [{"tip": "raf_unitesi", "ad": "Raf", "en": 1000, "boy": 2200, "derinlik": 400, "raf": 4,
+                               "kapak": 0, "x": 3000, "y": 0, "yon": "on"}],
+                 "donatilar": [{"set": "ekran_1", "x": 3500, "y": 2500, "yon": "on", "montaj": "duvar"},   # duvarda değil
+                               {"set": "toplanti", "x": 2900, "y": 0, "yon": "on", "montaj": ""},          # rafa biner
+                               {"set": "depo", "x": 0, "y": 0, "yon": "on", "montaj": ""},
+                               {"set": "uydurma", "x": 0, "y": 0, "yon": "on", "montaj": ""}]}]
+    monkeypatch.setattr(S, "ai_alternatifler", ai)
+    alt, kaynak, _ = asyncio.run(S.alternatifler_uret(g, "sk-ant-x", K))
+    a = alt[0]
+    assert kaynak == "ai" and "toplanti" in gelen["setler"]
+    d = {x["id"]: x for x in a["donatilar"]}
+    assert d["ekran_1"]["montaj"] == "ayakli" and (d["ekran_1"]["x"], d["ekran_1"]["y"]) == (3500, 2500)
+    assert (d["depo"]["x"], d["depo"]["y"]) == (0, 0)
+    assert not S._cakisir(S.ayak_izi(d["toplanti"]), S.ayak_izi(a["moduller"][0]))     # kurallarla başka yere
+    assert len(a["donatilar"]) == 8
+    assert "toplanti: Toplantı alanı (4 kişi)" in S._kullanici_istemi(g, SD.setler(g["donati"], K, g))
+
+
+def test_donatili_akis_ve_katalog(o):
+    db = o["db"]
+    a = o["admin"]
+    s = a.get("/titaniumcam/stand").text
+    assert "Donatı kataloğu" in s and "Ofis sandalyesi" in s
+    a.post("/titaniumcam/stand/donati", data={"sandalye_ahsap:ad": "Ahşap sandalye (ceviz)", "sandalye_ahsap:en": "450",
+                                              "sandalye_ahsap:derinlik": "500", "sandalye_ahsap:yukseklik": "820",
+                                              "sandalye_ahsap:renk": "#8b5e3c", "sandalye_ahsap:fiyat": "1250",
+                                              "sandalye_ahsap:aktif": "1",
+                                              "sandalye_tasarim:ad": "Tasarım sandalye (beyaz)", "sandalye_tasarim:en": "450",
+                                              "sandalye_tasarim:derinlik": "500", "sandalye_tasarim:yukseklik": "820",
+                                              "sandalye_tasarim:renk": "#f1f5f9", "sandalye_tasarim:fiyat": "0"})
+    r = db.one("SELECT * FROM stand_donati WHERE kod='sandalye_ahsap'")
+    assert r["fiyat"] == 1250 and r["aktif"] == 1
+    assert db.one("SELECT aktif FROM stand_donati WHERE kod='sandalye_tasarim'")["aktif"] == 0
+    a.post("/titaniumcam/stand/donati/yeni", data={"ad": "Yeşil berjer", "grup": "koltuk"})
+    assert db.one("SELECT grup, model FROM stand_donati WHERE kod='yesil_berjer'")["model"] == "berjer"
+    a.post("/titaniumcam/stand/donati/depo_odasi/sil")
+    assert db.one("SELECT 1 FROM stand_donati WHERE kod='depo_odasi'")
+
+    c = o["TC"](o["app"])
+    f = c.get("/stand").text
+    assert "Standda neler olsun" in f and "Yeşil berjer" in f and "Tasarım sandalye" not in f   # pasif görünmez
+    r = c.post("/stand/uret", data={**FORM, "en": "8", "derinlik": "5", **DONATI, "koltuk": "yesil_berjer"},
+               follow_redirects=False)
+    url = r.headers["location"]
+    sid = int(url.rsplit("/", 1)[1])
+    s = c.get(url).text
+    assert "Donatılar" in s and "Yeşil berjer" in s and "Ahşap sandalye" in s
+    assert 'name="koltuk" value="yesil_berjer"' in s                          # başka alternatif üret: seçim korunur
+    c.post(f"/stand/{sid}/sec/0")
+    c.post("/magaza/kayit", data={"full_name": "Donatı", "username": "donati@x.com", "password": "1234"})
+    assert "Ahşap sandalye" in c.get("/magaza/sepet").text
+    r = c.post("/kabin/siparis", data={"proje": "D"}, follow_redirects=False)
+    od = db.one("SELECT * FROM cabinet_orders WHERE id=?", (int(r.headers["location"].rsplit("/", 1)[1]),))
+    st = json.loads(od["stand_json"])[0]
+    kal = {e["kod"]: e for e in st["alternatif"]["ekstralar"]}
+    assert kal["don:sandalye_ahsap"]["miktar"] == 4 and kal["don:sandalye_ahsap"]["tutar"] == 5000
+    assert st["alternatif"]["donatilar"] and "Ahşap sandalye (ceviz): 4 adet" in od["note"]

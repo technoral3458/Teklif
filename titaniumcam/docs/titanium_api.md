@@ -62,6 +62,8 @@ Onaylı ve alınmamış siparişler, eskiden yeniye. `unclaimed=0&station=CNC-1`
 ```
 
   Plan koordinatı mm: `x` soldan, `y` arka kenardan öne; `yon` modülün yüzünün baktığı taraf (`on` = koridor).
+  Donatılar (TV, masa, sandalye, berjer, depo odası…) `ekstralar` içinde `kod: "don:<katalog kodu>"`, `birim: "adet"`
+  satırlarıdır; yerleşimleri `alternatif.donatilar` (set → parçalar) içindedir. Bunlar da üretilmez, bilgi / fiyat kalemidir.
 
 `GET /cabinet-orders/{id}` tek siparişi aynı biçimde döner.
 

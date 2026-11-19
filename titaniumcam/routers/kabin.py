@@ -798,7 +798,7 @@ def _siparis_standlari(o):
     import stand as S
     out = json.loads(o.get("stand_json") or "[]")
     for st in out:
-        st["svg"] = S.plan_svg(st["girdi"], st["alternatif"]["moduller"])
+        st["svg"] = S.plan_svg(st["girdi"], st["alternatif"]["moduller"], donatilar=st["alternatif"].get("donatilar", []))
     return out
 
 

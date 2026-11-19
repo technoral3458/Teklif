@@ -12,8 +12,10 @@ dışına taşan modül içeri alınır, çakışan modül çıkarılır.
 import itertools
 import json
 import logging
+import math
 import os
 
+import stand_donati as SD
 from hazir_katalog import USTLU, dikey, goz, kapak, olcu, raf, yatay
 
 log = logging.getLogger("stand")
@@ -147,8 +149,8 @@ def yerlesim_duzelt(moduller, girdi):
     return kabul, notlar
 
 
-def ekstralar(girdi, alt):
-    """Kabinden olmayan kalemlerin miktarları (duvar, zemin, spot, grafik)."""
+def ekstralar(girdi, alt, donatilar=(), katalog=None):
+    """Kabinden olmayan kalemlerin miktarları (duvar, zemin, spot, grafik + donatılar)."""
     W, D, H = girdi["en"] / 1000, girdi["derinlik"] / 1000, girdi["yukseklik"] / 1000
     kapali = [c for c in CEPHELER if c not in girdi["acik"]]
     duvar = sum((W if c in ("on", "arka") else D) * H for c in kapali)
@@ -164,16 +166,137 @@ def ekstralar(girdi, alt):
     k.append({"kod": "grafik", "miktar": round(grafik, 2), "detay": "Logo / marka yüzeyi"})
     for kk in k:
         kk.update(EKSTRA_KALEMLER[kk["kod"]])
-    return k
+    return SD.kalemler(donatilar, katalog or {}) + k
 
 
-def alternatif_duzelt(ham, girdi):
+def alternatif_duzelt(ham, girdi, setler=(), katalog=None):
     moduller, notlar = yerlesim_duzelt(ham.get("moduller"), girdi)
     if not moduller:
         return None
+    yer = {d.get("set"): d for d in (ham.get("donatilar") or []) if isinstance(d, dict)}
+    donatilar, n2 = setleri_yerlestir(girdi, setler, moduller, yer, katalog or {})
     return {"ad": (str(ham.get("ad") or "Alternatif").strip() or "Alternatif")[:60],
             "konsept": str(ham.get("konsept") or "").strip()[:400],
-            "moduller": moduller, "notlar": notlar, "ekstralar": ekstralar(girdi, ham)}
+            "moduller": moduller, "donatilar": donatilar, "notlar": notlar + n2,
+            "ekstralar": ekstralar(girdi, ham, donatilar, katalog)}
+
+
+# ── Donatı setlerinin yerleşimi ─────────────────────────────────────────────
+TERS = {"on": "arka", "arka": "on", "sag": "sol", "sol": "sag"}
+SET_SIRA = ("depo", "ekran", "toplanti", "oturma", "bar", "brosur", "bitki")
+
+
+def _kenara_degiyor(iz, cephe, W, D):
+    x, y, w, h = iz
+    return {"arka": y <= 1, "on": y + h >= D - 1, "sol": x <= 1, "sag": x + w >= W - 1}[cephe]
+
+
+def _acik_uzaklik(iz, girdi):
+    x, y, w, h = iz
+    W, D = girdi["en"], girdi["derinlik"]
+    u = {"arka": y, "on": D - y - h, "sol": x, "sag": W - x - w}
+    return min(u[c] for c in girdi["acik"])
+
+
+def _duvara_sirt(st, girdi):
+    t = TERS[st["yon"]]
+    return t not in girdi["acik"] and _kenara_degiyor(ayak_izi(st), t, girdi["en"], girdi["derinlik"])
+
+
+def _puan(st, girdi):
+    """Kurallı yerleşim puanı (küçük iyi). None: bu yer olmaz."""
+    W, D = girdi["en"], girdi["derinlik"]
+    iz = ayak_izi(st)
+    x, y, w, h = iz
+    kapali = [c for c in CEPHELER if c not in girdi["acik"]]
+    acik_u = _acik_uzaklik(iz, girdi)
+    tur = st["tur"]
+    if tur == "depo" and not kapali:        # ada stand: ortada, koridordan uzak
+        return -acik_u
+    if tur in ("depo",) or (tur == "ekran" and st.get("montaj") == "duvar"):
+        if not _duvara_sirt(st, girdi):
+            return None
+        if tur == "depo":
+            return -2000 * sum(_kenara_degiyor(iz, c, W, D) for c in kapali) - acik_u
+        t = TERS[st["yon"]]
+        orta = (x + w / 2 - W / 2) if t in ("arka", "on") else (y + h / 2 - D / 2)
+        return abs(orta)
+    if tur == "toplanti":
+        return -acik_u
+    if tur == "oturma":
+        return abs(acik_u - 500) - (400 if st["yon"] in girdi["acik"] else 0)
+    if tur == "bar":
+        return abs(acik_u - 300)
+    if tur == "brosur":                     # ana koridorda, ortaya (bankonun yanına) yakın
+        ana = next(c for c in ("on", "sol", "sag", "arka") if c in girdi["acik"])
+        u = {"arka": y, "on": D - y - h, "sol": x, "sag": W - x - w}[ana]
+        orta = abs(x + w / 2 - W / 2) if ana in ("on", "arka") else abs(y + h / 2 - D / 2)
+        return u + 0.3 * orta
+    if tur == "bitki":
+        return min(math.hypot(cx - (x + w / 2), cy - (y + h / 2)) for cx in (0, W) for cy in (0, D))
+    if tur == "ekran":                      # ayaklı: ortada, koridora bakar
+        return math.hypot(x + w / 2 - W / 2, y + h / 2 - D / 2) - (500 if st["yon"] in girdi["acik"] else 0)
+    return 0
+
+
+def _yer_bul(girdi, st, dolu):
+    W, D = girdi["en"], girdi["derinlik"]
+    adim = max(100, math.ceil(max(W, D) / 60 / 100) * 100)
+    pay = 100 if st["tur"] in ("bitki", "brosur") else 0 if st["tur"] in ("depo", "ekran") else 300
+    yonler = ("on",) if st["tur"] in ("toplanti", "bitki", "brosur") else ("on", "sag") if st["tur"] == "bar" else YONLER
+    en_iyi = None
+    for yon in yonler:
+        w, h = (st["en"], st["derinlik"]) if yon in ("on", "arka") else (st["derinlik"], st["en"])
+        if w > W or h > D:
+            continue
+        xs = sorted(set(list(range(0, int(W - w) + 1, adim)) + [W - w]))
+        ys = sorted(set(list(range(0, int(D - h) + 1, adim)) + [D - h]))
+        for x in xs:
+            for y in ys:
+                aday = {**st, "x": x, "y": y, "yon": yon}
+                if any(_cakisir((x - pay, y - pay, w + 2 * pay, h + 2 * pay), k) for k in dolu):
+                    continue
+                p = _puan(aday, girdi)
+                if p is not None and (en_iyi is None or p < en_iyi[0]):
+                    en_iyi = (p, aday)
+    return en_iyi[1] if en_iyi else None
+
+
+def setleri_yerlestir(girdi, setler, moduller, yer=None, katalog=None):
+    """Setleri yerleştirir: önce verilen (yapay zekâ) yer, olmazsa kurallı arama. Döner: (yerleşik setler, notlar)."""
+    W, D = girdi["en"], girdi["derinlik"]
+    yer = yer or {}
+    dolu = [ayak_izi(m) for m in moduller]
+    out, notlar = [], []
+    for st in sorted(setler, key=lambda s: SET_SIRA.index(s["tur"])):
+        st = dict(st)
+        if st["tur"] == "ekran" and not any(c not in girdi["acik"] for c in CEPHELER):
+            st = SD.tv_standli(st, katalog or {})
+        aday = None
+        y0 = yer.get(st["id"])
+        if y0 and y0.get("yon") in YONLER:
+            if st["tur"] == "ekran" and y0.get("montaj") == "ayakli":
+                st = SD.tv_standli(st, katalog or {})
+            a = {**st, "x": _sayi(y0.get("x"), 0), "y": _sayi(y0.get("y"), 0), "yon": y0["yon"]}
+            x, y, w, h = ayak_izi(a)
+            if w <= W and h <= D:
+                a["x"], a["y"] = round(_kis(x, (0, W - w))), round(_kis(y, (0, D - h)))
+                if a["tur"] == "ekran" and a.get("montaj") == "duvar" and not _duvara_sirt(a, girdi):
+                    a = {**SD.tv_standli(a, katalog or {}), "x": a["x"], "y": a["y"], "yon": a["yon"]}
+                    x, y, w, h = ayak_izi(a)
+                    a["x"], a["y"] = round(_kis(x, (0, W - w))), round(_kis(y, (0, D - h)))
+                if not any(_cakisir(ayak_izi(a), k) for k in dolu):
+                    aday = a
+        if not aday:
+            aday = _yer_bul(girdi, st, dolu)
+        if not aday and st["tur"] == "ekran" and st.get("montaj") == "duvar":
+            aday = _yer_bul(girdi, SD.tv_standli(st, katalog or {}), dolu)
+        if not aday:
+            notlar.append(f"{st['ad']} standa sığmadı")
+            continue
+        out.append(aday)
+        dolu.append(ayak_izi(aday))
+    return out, notlar
 
 
 # ── Kurallı üretici (yapay zekâ yokken ya da yanıt kullanılamadığında) ───────
@@ -223,7 +346,7 @@ def _banko_yerlestir(girdi, mevcut):
     return None
 
 
-def kurali_alternatifler(girdi):
+def kurali_alternatifler(girdi, setler=(), katalog=None):
     W, D = girdi["en"], girdi["derinlik"]
     acik = set(girdi["acik"])
     kapali = [c for c in ("arka", "sol", "sag", "on") if c not in acik]
@@ -273,11 +396,27 @@ def kurali_alternatifler(girdi):
     alt.append({"ad": "Sade", "konsept": "Az modülle hesaplı stand: karşılama bankosu, teşhir rafları ve bir "
                 "depo dolabı. Ziyaretçi alanı geniş.", "moduller": m})
 
+    # Sıra: koridorda banko → duvara yaslanan setler (depo odası, ekran) → duvar modülleri → serbest setler
+    duvar_set = [st for st in setler if st["tur"] in ("depo", "ekran")]
+    serbest_set = [st for st in setler if st["tur"] not in ("depo", "ekran")]
     for a in alt:                         # kurallı yerleşimde sığmayan modül sessizce düşer
-        a["moduller"], _ = yerlesim_duzelt(a["moduller"], girdi)
-        b = _banko_yerlestir(girdi, a["moduller"])
-        if b:
-            a["moduller"].append(b)
+        banko = _banko_yerlestir(girdi, [])
+        once = [modul_duzelt(banko, girdi)] if banko else []
+        y1, _ = setleri_yerlestir(girdi, duvar_set, once, {}, katalog)
+        izler = [ayak_izi(k) for k in once + y1]
+        mod, _ = yerlesim_duzelt(a["moduller"], girdi)
+        a["moduller"] = [m for m in mod if not any(_cakisir(ayak_izi(m), k) for k in izler)] + once
+        y2, eksik = setleri_yerlestir(girdi, serbest_set, a["moduller"] + y1, {}, katalog)
+        # müşterinin istediği set sığmadıysa ortaya en yakın modülden başlayarak yer aç (banko kalır)
+        while eksik and any(m["tip"] != "banko" for m in a["moduller"]):
+            sil = min((m for m in a["moduller"] if m["tip"] != "banko"),
+                      key=lambda m: math.hypot(m["x"] + ayak_izi(m)[2] / 2 - W / 2, m["y"] + ayak_izi(m)[3] / 2 - D / 2))
+            a["moduller"].remove(sil)
+            y2b, eksik_b = setleri_yerlestir(girdi, serbest_set, a["moduller"] + y1, {}, katalog)
+            if len(eksik_b) < len(eksik):
+                y2, eksik = y2b, eksik_b
+        a["donatilar"] = [{"set": k["id"], "x": k["x"], "y": k["y"], "yon": k["yon"],
+                           "montaj": k.get("montaj", "")} for k in y1 + y2]
     return alt
 
 
@@ -290,7 +429,7 @@ _SEMA = {
     "required": ["alternatifler"],
     "properties": {"alternatifler": {"type": "array", "items": {
         "type": "object", "additionalProperties": False,
-        "required": ["ad", "konsept", "spot", "grafik_m2", "moduller"],
+        "required": ["ad", "konsept", "spot", "grafik_m2", "moduller", "donatilar"],
         "properties": {
             "ad": {"type": "string"}, "konsept": {"type": "string"},
             "spot": {"type": "integer"}, "grafik_m2": {"type": "number"},
@@ -302,7 +441,14 @@ _SEMA = {
                     "en": {"type": "number"}, "boy": {"type": "number"}, "derinlik": {"type": "number"},
                     "raf": {"type": "integer"}, "kapak": {"type": "integer"},
                     "x": {"type": "number"}, "y": {"type": "number"},
-                    "yon": {"type": "string", "enum": list(YONLER)}}}}}}}},
+                    "yon": {"type": "string", "enum": list(YONLER)}}}},
+            "donatilar": {"type": "array", "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["set", "x", "y", "yon", "montaj"],
+                "properties": {
+                    "set": {"type": "string"}, "x": {"type": "number"}, "y": {"type": "number"},
+                    "yon": {"type": "string", "enum": list(YONLER)},
+                    "montaj": {"type": "string", "enum": ["duvar", "ayakli", ""]}}}}}}}},
 }
 
 
@@ -327,11 +473,16 @@ Kurallar:
 - Karşılama bankosu koridora yakın durur; bankonun raflı yüzü (yon) standın içine, personel tarafına bakar.
 - Ziyaretçinin dolaşması için modüller arasında en az 900 mm geçiş bırak. Standın yarısından fazlasını doldurma.
 - Her alternatif belirgin biçimde farklı bir fikir olsun (ör. ürün teşhiri ağırlıklı, toplantı / karşılama ağırlıklı, sade ve ekonomik).
+- Donatı setleri (masa, sandalye, koltuk, ekran, depo odası…) kullanıcı mesajında id ve plan ölçüsüyle verilir; her setin
+  yerini donatilar listesinde ver (set = id). Set ölçüsü değişmez; modüller gibi x, y, yon kuralıyla yerleşir ve hiçbir şeye binmez.
+  Ekran duvara asılacaksa (montaj duvar) sırtı duvarlı kenara değmeli ve önünde ziyaretçinin bakacağı boşluk olmalı;
+  duvar yoksa montaj ayakli (ayaklı stand, plan derinliği 600 mm olur). Depo odası duvarlı bir köşeye, kapısı (yon) standın içine.
+  Toplantı alanı koridordan uzak, sakin tarafta; bekleme koltukları ve bar masaları koridora yakın, davetkâr.
 - ad kısa (2–3 kelime), konsept 1–2 cümle, Türkçe. spot: önerilen spot aydınlatma sayısı. grafik_m2: logo / grafik baskı alanı.
 Tam olarak 3 alternatif üret."""
 
 
-def _kullanici_istemi(girdi):
+def _kullanici_istemi(girdi, setler=()):
     acik = ", ".join(CEPHE_AD[c] for c in girdi["acik"])
     kapali = ", ".join(CEPHE_AD[c] for c in CEPHELER if c not in girdi["acik"]) or "yok"
     s = (f"Stand: genişlik {girdi['en']:g} mm, derinlik {girdi['derinlik']:g} mm, duvar yüksekliği {girdi['yukseklik']:g} mm.\n"
@@ -340,10 +491,16 @@ def _kullanici_istemi(girdi):
         s += f"\nFirmanın sektörü / ürünleri: {girdi['sektor']}"
     if girdi.get("istek"):
         s += f"\nMüşterinin isteği: {girdi['istek']}"
+    if setler:
+        s += "\nYerleştirilecek donatı setleri (plan ölçüsü yon on iken en × derinlik):"
+        for st in setler:
+            s += f"\n- {st['id']}: {st['ad']}, {st['en']:g} × {st['derinlik']:g} mm"
+    else:
+        s += "\nDonatı seti istenmedi (donatilar boş liste)."
     return s
 
 
-async def ai_alternatifler(girdi, anahtar):
+async def ai_alternatifler(girdi, anahtar, setler=()):
     """Claude'dan 3 alternatif ister. Döner: ham alternatif listesi. Hata: istisna (çağıran kurallıya düşer)."""
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=anahtar, timeout=120.0, max_retries=1)
@@ -352,7 +509,7 @@ async def ai_alternatifler(girdi, anahtar):
         betas=["server-side-fallback-2026-07-01"], fallbacks="default",
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": _SEMA}},
         system=_sistem_istemi(),
-        messages=[{"role": "user", "content": _kullanici_istemi(girdi)}],
+        messages=[{"role": "user", "content": _kullanici_istemi(girdi, setler)}],
     )
     if r.stop_reason == "refusal":
         raise RuntimeError("Yapay zekâ isteği geri çevirdi")
@@ -362,21 +519,24 @@ async def ai_alternatifler(girdi, anahtar):
     return json.loads(metin)["alternatifler"]
 
 
-async def alternatifler_uret(girdi, anahtar=None):
+async def alternatifler_uret(girdi, anahtar=None, katalog=None):
     """Döner: (alternatifler, kaynak 'ai' | 'kural', not). Yapay zekâ başarısızsa kurallı üretilir."""
+    katalog = katalog if katalog is not None else SD.varsayilan_katalog()
+    setler = SD.setler(girdi.get("donati") or {}, katalog, girdi)
+    duzelt = lambda h: alternatif_duzelt(h, girdi, setler, katalog)   # noqa: E731
+    neden = ""
     if anahtar:
         try:
-            ham = await ai_alternatifler(girdi, anahtar)
-            alt = [a for a in (alternatif_duzelt(h, girdi) for h in ham[:4]) if a]
+            ham = await ai_alternatifler(girdi, anahtar, setler)
+            alt = [a for a in (duzelt(h) for h in ham[:4]) if a]
             if alt:
                 return alt, "ai", ""
             neden = "yapay zekâ kullanılabilir yerleşim vermedi"
         except Exception as e:          # ağ, anahtar, kota, biçim: müşteri yine de tasarım görür
             log.warning("stand yapay zekâ hatası: %s", type(e).__name__)
             neden = "yapay zekâ şu an kullanılamadı"
-        alt = [a for a in (alternatif_duzelt(h, girdi) for h in kurali_alternatifler(girdi)) if a]
-        return alt, "kural", neden
-    return [a for a in (alternatif_duzelt(h, girdi) for h in kurali_alternatifler(girdi)) if a], "kural", ""
+    alt = [a for a in (duzelt(h) for h in kurali_alternatifler(girdi, setler, katalog)) if a]
+    return alt, "kural", neden
 
 
 # ── Motor tarifleri ─────────────────────────────────────────────────────────
@@ -423,7 +583,7 @@ def ekstra_fiyatla(kalemler, birim):
     """Birim fiyatlar (yönetici) ile tutar. Fiyatı girilmeyen kalem 'eksik' sayılır."""
     out, eksik = [], False
     for k in kalemler:
-        bf = _sayi((birim or {}).get(k["kod"]), 0)
+        bf = _sayi(k["fiyat"], 0) if "fiyat" in k else _sayi((birim or {}).get(k["kod"]), 0)
         eksik |= bf <= 0
         out.append({**k, "birim_fiyat": bf, "tutar": round(k["miktar"] * bf, 2)})
     return out, eksik
@@ -434,8 +594,49 @@ def _e(s):
     return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def plan_svg(girdi, moduller, buyuk=False):
-    """Üstten plan: duvarlar (koyu), koridorlar, modüller ve ön yüz çizgisi."""
+def _parca_svg(p, fs):
+    """Donatı parçası (merkezde, öne +y bakar) — üstten görünüş."""
+    w, h, renk, m = p["en"], p["derinlik"], p["renk"], p["model"]
+    koyu = renk.lower() in ("#0b0f14", "#111827", "#1f2937")
+    cizgi = "#334155"
+    sw = fs / 12
+    if m in ("masa_yuvarlak",):
+        sekil = f'<circle r="{w / 2:g}" fill="#ffffff" stroke="{cizgi}" stroke-width="{sw:g}"/>'
+    elif m == "masa_kare":
+        sekil = f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{w:g}" height="{h:g}" rx="{fs / 8:g}" fill="#ffffff" stroke="{cizgi}" stroke-width="{sw:g}"/>'
+    elif m in ("sandalye", "tabure", "berjer", "kanepe"):
+        r = min(w, h) / (2 if m == "tabure" else 5)
+        sekil = (f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{w:g}" height="{h:g}" rx="{r:g}" fill="{renk}" '
+                 f'fill-opacity="{0.9 if koyu else 0.75}" stroke="{cizgi}" stroke-width="{sw:g}"/>')
+        if m != "tabure":                 # arkalık (arka kenar)
+            sekil += f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{w:g}" height="{h * 0.22:g}" rx="{r:g}" fill="{cizgi}" fill-opacity=".55"/>'
+        if m in ("berjer", "kanepe"):     # kolçaklar
+            k = w * (0.14 if m == "berjer" else 0.08)
+            sekil += (f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{k:g}" height="{h:g}" rx="{r:g}" fill="{cizgi}" fill-opacity=".35"/>'
+                      f'<rect x="{w / 2 - k:g}" y="{-h / 2:g}" width="{k:g}" height="{h:g}" rx="{r:g}" fill="{cizgi}" fill-opacity=".35"/>')
+    elif m in ("tv", "led"):
+        kal = max(h, fs / 2.2)
+        sekil = f'<rect x="{-w / 2:g}" y="{-kal / 2:g}" width="{w:g}" height="{kal:g}" rx="{fs / 12:g}" fill="#0b0f14"/>'
+        if p.get("montaj") != "ayakli":
+            sekil = f'<g transform="translate(0 {-(150 - kal) / 2:g})">{sekil}</g>'
+    elif m == "tv_standi":
+        sekil = (f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{w:g}" height="{h:g}" rx="{fs / 8:g}" fill="#94a3b8" fill-opacity=".35" stroke="{cizgi}" stroke-width="{sw:g}"/>')
+    elif m == "depo":
+        kapi = min(800, w - 100)
+        sekil = (f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{w:g}" height="{h:g}" fill="#e2e8f0" stroke="{cizgi}" stroke-width="{fs / 5:g}"/>'
+                 f'<line x1="{-kapi / 2:g}" y1="{h / 2:g}" x2="{kapi / 2:g}" y2="{h / 2:g}" stroke="#e2e8f0" stroke-width="{fs / 4:g}"/>'
+                 f'<path d="M {-kapi / 2:g} {h / 2:g} L {-kapi / 2:g} {h / 2 - kapi:g} A {kapi:g} {kapi:g} 0 0 1 {kapi / 2:g} {h / 2:g}" fill="none" stroke="{cizgi}" stroke-width="{sw:g}" stroke-dasharray="{fs / 4:g} {fs / 6:g}"/>'
+                 f'<text y="{fs * 0.1:g}" font-size="{fs * 0.55:g}" fill="#475569" text-anchor="middle">DEPO</text>')
+    elif m == "bitki":
+        sekil = (f'<circle r="{w / 2:g}" fill="#16a34a" fill-opacity=".75"/>'
+                 f'<circle r="{w / 4:g}" fill="#15803d"/>')
+    else:                                 # broşürlük
+        sekil = f'<rect x="{-w / 2:g}" y="{-h / 2:g}" width="{w:g}" height="{h:g}" fill="#cbd5e1" stroke="{cizgi}" stroke-width="{sw:g}"/>'
+    return (f'<g transform="translate({p["x"]:g} {p["y"]:g}) rotate({p["aci"]:g})"><title>{_e(p["ad"])}</title>{sekil}</g>')
+
+
+def plan_svg(girdi, moduller, buyuk=False, donatilar=()):
+    """Üstten plan: duvarlar (koyu), koridorlar, modüller (ön yüz çizgisiyle) ve donatılar."""
     W, D = girdi["en"], girdi["derinlik"]
     pay = max(W, D) * 0.09
     fs = max(W, D) / (38 if buyuk else 30)
@@ -461,6 +662,9 @@ def plan_svg(girdi, moduller, buyuk=False):
         # ön yüz çizgisi
         c = {"on": (x, y + h, x + w, y + h), "arka": (x, y, x + w, y), "sol": (x, y, x, y + h), "sag": (x + w, y, x + w, y + h)}[m["yon"]]
         p.append(f'<line x1="{c[0]:g}" y1="{c[1]:g}" x2="{c[2]:g}" y2="{c[3]:g}" stroke="{renk}" stroke-width="{fs / 2.5:g}" stroke-linecap="round"/></g>')
+    for st in donatilar:
+        for parca in SD.parcalar_plan(st):
+            p.append(_parca_svg(parca, fs))
     p.append(f'<text x="{W:g}" y="{D + pay * 0.65:g}" font-size="{fs * 0.75:g}" fill="#64748b" text-anchor="end">{W / 1000:g} × {D / 1000:g} m</text>' if "on" not in girdi["acik"] else
              f'<text x="{W:g}" y="{-pay * 0.35:g}" font-size="{fs * 0.75:g}" fill="#64748b" text-anchor="end">{W / 1000:g} × {D / 1000:g} m</text>')
     p.append("</svg>")

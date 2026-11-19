@@ -45,6 +45,39 @@
   <button class="border rounded-lg px-5 py-2 text-sm bg-white" {% if not anahtar_var %}disabled{% endif %}>🧪 Yapay zekâyı dene</button>
 </form>
 
+<h2 id="donatilar" class="font-semibold text-lg mb-1">Donatı kataloğu</h2>
+<p class="text-sm text-slate-500 mb-3">Müşterinin standa ekleyebildiği ekran, masa, sandalye, koltuk… Ölçüler plana ve 3B görünüme yansır;
+  fiyat siparişte adetle çarpılır. Pasif model müşteriye gösterilmez. Aynı gruba yeni model (ör. başka renk sandalye) ekleyebilirsiniz.</p>
+<form method="post" action="/titaniumcam/stand/donati" class="bg-white rounded-xl shadow overflow-x-auto mb-3">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500"><tr>
+      <th class="text-left p-2">Grup</th><th class="text-left p-2">Ad</th><th class="p-2">Gen. mm</th><th class="p-2">Der. mm</th>
+      <th class="p-2">Yük. mm</th><th class="p-2">Renk</th><th class="p-2">Fiyat ₺</th><th class="p-2">Aktif</th><th></th></tr></thead>
+    <tbody>
+    {% for d in donatilar|sort(attribute='grup') %}
+      <tr class="border-t {% if not d.aktif %}opacity-50{% endif %}">
+        <td class="p-2 whitespace-nowrap text-slate-500">{{ GRUPLAR[d.grup][0] if d.grup in GRUPLAR else d.grup }}<div class="text-[11px] text-slate-400">{{ MODEL_AD.get(d.model, d.model) }}</div></td>
+        <td class="p-2"><input name="{{ d.kod }}:ad" value="{{ d.ad }}" class="border rounded px-2 py-1 w-56"></td>
+        {% for alan in ('en', 'derinlik', 'yukseklik') %}<td class="p-2"><input name="{{ d.kod }}:{{ alan }}" value="{{ '%g'|format(d[alan]) }}" inputmode="numeric" class="border rounded px-2 py-1 w-20 text-right"></td>{% endfor %}
+        <td class="p-2"><input type="color" name="{{ d.kod }}:renk" value="{{ d.renk }}" class="w-10 h-8 border rounded"></td>
+        <td class="p-2"><input name="{{ d.kod }}:fiyat" value="{{ '%g'|format(d.fiyat) }}" inputmode="decimal" class="border rounded px-2 py-1 w-24 text-right"></td>
+        <td class="p-2 text-center"><input type="checkbox" name="{{ d.kod }}:aktif" value="1" {% if d.aktif %}checked{% endif %} class="w-4 h-4"></td>
+        <td class="p-2">{% if d.kod not in ('tv_standi', 'depo_odasi') %}<button formaction="/titaniumcam/stand/donati/{{ d.kod }}/sil" formnovalidate class="text-red-500 text-xs" data-soru="{{ d.ad }} silinsin mi?" onclick="return confirm(this.dataset.soru)">Sil</button>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="p-3 border-t"><button class="bg-blue-600 text-white rounded-lg px-5 py-2 font-semibold">Kataloğu kaydet</button></div>
+</form>
+<form method="post" action="/titaniumcam/stand/donati/yeni" class="bg-white rounded-xl shadow p-4 mb-8 flex flex-wrap items-end gap-3 text-sm">
+  <label>Yeni model adı<input name="ad" required placeholder="ör. Kırmızı berjer" class="mt-1 border rounded-lg px-3 py-2 block w-56"></label>
+  <label>Grup<select name="grup" class="mt-1 border rounded-lg px-3 py-2 block bg-white">
+    {% for k, (ad, modeller) in GRUPLAR.items() if k not in ('tv_standi', 'depo_odasi') %}<option value="{{ k }}">{{ ad }}</option>{% endfor %}</select></label>
+  <label>Şekil<select name="model" class="mt-1 border rounded-lg px-3 py-2 block bg-white">
+    <option value="">Grubun şekli</option>{% for k, ad in MODEL_AD.items() if k in ('masa_yuvarlak', 'masa_kare', 'tv', 'led') %}<option value="{{ k }}">{{ ad }}</option>{% endfor %}</select></label>
+  <button class="border rounded-lg px-4 py-2 bg-white font-semibold">+ Ekle</button>
+</form>
+
 <h2 class="font-semibold text-lg mb-2">Müşteri stand tasarımları</h2>
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">

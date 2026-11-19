@@ -129,6 +129,20 @@ CREATE TABLE IF NOT EXISTS stand_proje (
     secilen INTEGER DEFAULT -1,
     created_at TEXT DEFAULT (datetime('now'))
 );
+-- Fuar standı donatı kataloğu (TV, masa, sandalye, koltuk…): kabin değil, siparişe kalem olarak yazılır
+CREATE TABLE IF NOT EXISTS stand_donati (
+    kod TEXT PRIMARY KEY,
+    ad TEXT NOT NULL,
+    grup TEXT NOT NULL,
+    model TEXT NOT NULL,
+    en REAL DEFAULT 500,
+    derinlik REAL DEFAULT 500,
+    yukseklik REAL DEFAULT 800,
+    renk TEXT DEFAULT '#64748b',
+    fiyat REAL DEFAULT 0,
+    aktif INTEGER DEFAULT 1,
+    sira INTEGER DEFAULT 0
+);
 -- Kapak siparişinin karşılığı
 CREATE TABLE IF NOT EXISTS cabinet_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

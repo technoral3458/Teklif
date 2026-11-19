@@ -2,6 +2,12 @@
 {% block title %}Stand tasarla — {{ firma().ad }}{% endblock %}
 {% block content %}
 <style>
+  .pill input, .model-kart input { position: absolute; opacity: 0; pointer-events: none; }
+  .pill span { display: inline-block; padding: 6px 12px; border-radius: 999px; background: #f1f5f9; cursor: pointer; font-weight: 600; color: #475569; }
+  .pill input:checked + span { background: #0f172a; color: #fff; }
+  .pill input:focus-visible + span, .model-kart input:focus-visible + span { box-shadow: 0 0 0 3px #a7f3d0; }
+  .model-kart { position: relative; cursor: pointer; }
+  .model-kart input:checked + span { border-color: #10b981; background: #ecfdf5; }
   .cephe { position: absolute; display: grid; place-items: center; font-size: 12px; font-weight: 600; border-radius: 10px;
            cursor: pointer; user-select: none; transition: background .15s, color .15s; }
   .cephe input { position: absolute; opacity: 0; pointer-events: none; }
@@ -57,6 +63,68 @@
         <textarea name="istek" maxlength="600" rows="2" placeholder="İstekleriniz — ör. çok ürün sergilemek istiyoruz, küçük bir toplantı alanı olsun" class="mt-2 border rounded-xl px-3 py-2.5 w-full text-sm">{{ g.istek or '' }}</textarea>
       </div>
 
+      {% set dn = g.donati %}
+      <div id="donatiAlan">
+        <div class="font-semibold mb-1">4 · Standda neler olsun?</div>
+        <p class="text-sm text-slate-500 mb-3">Ekran, masa, oturma alanı… Seçtiklerinizi yapay zekâ kabinlerle birlikte standa yerleştirir.</p>
+        <div class="grid sm:grid-cols-2 gap-3 text-sm">
+          <div class="rounded-xl border p-3">
+            <div class="font-semibold mb-2">📺 Ekran / TV</div>
+            <div class="flex flex-wrap gap-1.5" data-pill="ekran">
+              <label class="pill"><input type="radio" name="ekran" value="" {% if not dn.ekran %}checked{% endif %}><span>Yok</span></label>
+              {% for e in gruplar.ekran %}<label class="pill"><input type="radio" name="ekran" value="{{ e.kod }}" {% if dn.ekran == e.kod %}checked{% endif %}><span>{{ e.ad }}</span></label>{% endfor %}
+            </div>
+            <label class="flex items-center gap-2 mt-2 text-slate-600" data-goster="ekran">Adet
+              <select name="ekran_adet" class="border rounded-lg px-2 py-1 bg-white">{% for n in (1, 2, 3) %}<option {% if dn.ekran_adet == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+          </div>
+          <div class="rounded-xl border p-3">
+            <div class="font-semibold mb-2">🤝 Toplantı alanı</div>
+            <div class="flex flex-wrap gap-1.5">
+              {% for n in (0, 2, 4, 6, 8) %}<label class="pill"><input type="radio" name="toplanti" value="{{ n }}" {% if dn.toplanti == n %}checked{% endif %}><span>{{ 'Yok' if not n else n ~ ' kişi' }}</span></label>{% endfor %}
+            </div>
+            <label class="block mt-2 text-slate-600" data-goster="toplanti">Masa
+              <select name="toplanti_masasi" class="mt-1 border rounded-lg px-2 py-1 bg-white w-full">{% for m in gruplar.toplanti_masasi %}<option value="{{ m.kod }}" {% if dn.toplanti_masasi == m.kod %}selected{% endif %}>{{ m.ad }}</option>{% endfor %}</select></label>
+          </div>
+          <div class="rounded-xl border p-3">
+            <div class="font-semibold mb-2">🛋️ Bekleme / oturma alanı</div>
+            <div class="flex flex-wrap gap-1.5">
+              {% for v, ad in (('', 'Yok'), ('berjer', '2 berjer + sehpa'), ('kanepe', 'Kanepe + sehpa')) %}<label class="pill"><input type="radio" name="oturma" value="{{ v }}" {% if dn.oturma == v %}checked{% endif %}><span>{{ ad }}</span></label>{% endfor %}
+            </div>
+          </div>
+          <div class="rounded-xl border p-3">
+            <div class="font-semibold mb-2">🍸 Bar masası <span class="font-normal text-slate-400">(2 tabureli)</span></div>
+            <div class="flex flex-wrap gap-1.5">
+              {% for n in (0, 1, 2, 3) %}<label class="pill"><input type="radio" name="bar" value="{{ n }}" {% if dn.bar == n %}checked{% endif %}><span>{{ 'Yok' if not n else n }}</span></label>{% endfor %}
+            </div>
+          </div>
+          <div class="rounded-xl border p-3 sm:col-span-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <label class="flex items-center gap-2"><input type="checkbox" name="depo" value="1" {% if dn.depo %}checked{% endif %} class="w-4 h-4"> 🚪 Depo odası (kapılı)</label>
+            <label class="flex items-center gap-2">📰 Broşürlük <select name="brosur" class="border rounded-lg px-2 py-1 bg-white">{% for n in range(4) %}<option {% if dn.brosur == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+            <label class="flex items-center gap-2">🪴 Bitki <select name="bitki" class="border rounded-lg px-2 py-1 bg-white">{% for n in range(7) %}<option {% if dn.bitki == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+          </div>
+        </div>
+
+        {% set secimler = [('sandalye', 'Sandalye modeli', 'toplanti'), ('tabure', 'Bar taburesi', 'bar'), ('koltuk', 'Berjer modeli', 'oturma=berjer'), ('kanepe', 'Kanepe modeli', 'oturma=kanepe')] %}
+        {% for grup, baslik, kosul in secimler %}{% if gruplar[grup] %}
+        <div class="mt-4" data-goster="{{ kosul }}">
+          <div class="font-semibold text-sm mb-2">{{ baslik }}</div>
+          <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {% for m in gruplar[grup] %}
+            <label class="model-kart">
+              <input type="radio" name="{{ grup }}" value="{{ m.kod }}" {% if dn[grup] == m.kod %}checked{% endif %}>
+              <span class="block rounded-xl border-2 border-transparent bg-slate-50 p-1.5 text-center">
+                <img data-model='{{ {"model": m.model, "en": m.en, "derinlik": m.derinlik, "yukseklik": m.yukseklik, "renk": m.renk, "kod": m.kod}|tojson }}' alt="" class="w-full aspect-square object-contain">
+                <span class="block text-xs font-medium leading-tight mt-1">{{ m.ad }}</span>
+                {% if fiyat_goster and m.fiyat > 0 %}<span class="block text-[11px] text-emerald-700">{{ "{:,.0f}".format(m.fiyat).replace(',','.') }} ₺</span>{% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}{% endfor %}
+        <input type="hidden" name="bar_masasi" value="{{ dn.bar_masasi }}"><input type="hidden" name="sehpa" value="{{ dn.sehpa }}">
+      </div>
+
       <button id="uretBtn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl px-8 py-4 text-lg disabled:opacity-60" {% if not ayar.acik %}disabled{% endif %}>
         ✨ Alternatif tasarımlar üret</button>
       <p id="bekle" class="hidden text-sm text-slate-500">Tasarımlar hazırlanıyor ve her modül üretim programında kuruluyor… Bu 20–60 saniye sürebilir.</p>
@@ -86,7 +154,27 @@
     {% endif %}
   </aside>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="/static/stand_3b.js"></script>
 <script>
+(() => {
+  // donatı bölümleri: seçime göre göster / gizle
+  const deger = ad => (document.querySelector(`[name="${ad}"]:checked`) || {}).value || '';
+  const donatiGuncelle = () => document.querySelectorAll('[data-goster]').forEach(el => {
+    const [ad, v] = el.dataset.goster.split('=');
+    const d = deger(ad);
+    el.classList.toggle('hidden', v ? d !== v : !d || d === '0');
+  });
+  document.getElementById('donatiAlan').addEventListener('change', donatiGuncelle);
+  donatiGuncelle();
+  // model kartlarının küçük 3B resimleri
+  const imgs = [...document.querySelectorAll('img[data-model]')];
+  const ciz = () => { const img = imgs.shift(); if (!img) return;
+    try { const u = window.Stand3B && Stand3B.resim(JSON.parse(img.dataset.model)); if (u) img.src = u; } catch (e) { console.warn(e); }
+    (window.requestIdleCallback || (f => setTimeout(f, 16)))(ciz); };
+  ciz();
+})();
 (() => {
   const TIP = {1: ['Sıra stand', 'Tek cephe koridora açık; üç kenar duvar. Duvarlar raf ve teşhir için kullanılır.'],
                2: ['Köşe stand', 'İki cephe açık; köşeden iki koridora görünür.'],

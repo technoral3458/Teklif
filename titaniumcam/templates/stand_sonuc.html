@@ -41,8 +41,15 @@
               {% if a.fiyat.kabin_goster %}<div class="text-xs text-slate-500">{{ "{:,.0f}".format(k.fiyat * k.adet).replace(',','.') }} ₺</div>{% endif %}</div>
           </div>
           {% endfor %}
-          <div class="font-semibold mt-3 mb-1">Kabin dışı</div>
-          {% for e in a.fiyat.ekstralar %}
+          {% set don = a.fiyat.donatilar %}
+          {% if don %}
+          <div class="font-semibold mt-3 mb-1">Donatılar</div>
+          {% for e in don %}
+          <div class="flex justify-between gap-2 py-1 border-t text-slate-600"><span>{{ e.ad }}</span><span class="whitespace-nowrap">{{ '%g'|format(e.miktar) }} {{ e.birim }}</span></div>
+          {% endfor %}
+          {% endif %}
+          <div class="font-semibold mt-3 mb-1">Stand yapısı</div>
+          {% for e in a.fiyat.ekstralar if not e.kod.startswith('don:') %}
           <div class="flex justify-between gap-2 py-1 border-t text-slate-600"><span>{{ e.ad }}</span><span class="whitespace-nowrap">{{ '%g'|format(e.miktar) }} {{ e.birim }}</span></div>
           {% endfor %}
           {% if a.notlar %}<ul class="mt-2 text-xs text-amber-700 list-disc list-inside">{% for n in a.notlar %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
@@ -73,6 +80,7 @@
   <input type="hidden" name="yukseklik" value="{{ g.yukseklik / 1000 }}">
   {% for c in g.acik %}<input type="hidden" name="acik" value="{{ c }}">{% endfor %}
   <input type="hidden" name="sektor" value="{{ g.sektor }}"><input type="hidden" name="istek" value="{{ g.istek }}">
+  {% for k, v in (g.donati or {}).items() %}{% if v not in (False, None, '') %}<input type="hidden" name="{{ k }}" value="{{ 1 if v is sameas true else v }}">{% endif %}{% endfor %}
   <button class="border rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-white" onclick="this.textContent='⏳ Yeni alternatifler hazırlanıyor…'">↻ Başka alternatifler üret</button>
 </form>
 
